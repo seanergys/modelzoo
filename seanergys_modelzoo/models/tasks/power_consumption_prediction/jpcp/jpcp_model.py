@@ -1,8 +1,12 @@
 from datetime import datetime
+import os
+from pathlib import Path
 import time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
 from pydantic import Field, model_validator
+import joblib
 from enum import Enum
 import numpy as np
 import pandas as pd
@@ -38,6 +42,7 @@ class JPCP(SeanergysSklearnModel):
         predictions = model.predict(test_loader)
         model.save("models/jpcp.joblib")
     """    
+    label_encoder: Optional[LabelEncoder] = Field(default = None, description = "The LabelEncoder instance to encode the input labels.")
     
     @model_validator(mode="before")
     @classmethod
@@ -105,5 +110,61 @@ class JPCP(SeanergysSklearnModel):
             )
         data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
         model_pm100.train(train_data_loader=data_loader_pm100)
+    
+    def save(
+        self,
+        path: Union[str, Path] = "./saved_model",
+        compress: int = 3,
+        **kwargs
+    ) -> bool:
+        """
+        Persist the estimator, label_encoder, metadata, and supplementary info to disk.
+
+        Args:
+            path:     Destination path for the joblib model file.
+            compress: joblib compression level (0–9).
+
+        Returns:
+            True on success, False on failure.
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Save the label encoder
+            joblib.dump(self.label_encoder, f"{os.path.join(str(path), 'label_encoder.joblib')}", compress = compress)
+            self.logger.info(f"Label Encoder saved to {path}")
+            super().save(path=path, compress=compress)
+        
+        except Exception as e:
+            self.logger.error(f"Error saving model: {e}")
+            return False
+
+    @classmethod
+    def load(
+        cls,
+        path: Union[str, Path] = "./saved_model",
+        **kwargs
+    ) -> "JPCP":
+        """
+        Restore a JPCP model from disk.
+
+        Args:
+            path: Path to the joblib model file produced by save().
+
+        Returns:
+            A fully restored JPCP instance.
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Model file not found: {path}")
+
+        try:
+            obj = super().load(path=path, **kwargs)
+            obj.label_encoder = joblib.load(f"{os.path.join(str(path), 'label_encoder.joblib')}")
+            return obj
+
+        except Exception as e:
+            raise RuntimeError(f"Error loading model: {e}") from e
 
     

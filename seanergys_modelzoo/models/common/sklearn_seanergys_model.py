@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional, Union, List, Callable, Iterable
 from pathlib import Path
 import time
@@ -241,7 +242,7 @@ class SeanergysSklearnModel(SeanergysModel):
 
         try:
             # 1. Persist the fitted estimator
-            joblib.dump(self.estimator, path, compress=compress)
+            joblib.dump(self.estimator, f"{os.path.join(str(path), self.model_name, '.joblib')}", compress=compress)
             self.logger.info(f"Estimator saved to {path}")
 
             # 2. Persist metadata (base-class helper)
@@ -313,7 +314,7 @@ class SeanergysSklearnModel(SeanergysModel):
             )
 
             # 5. Replace the unfitted estimator with the persisted one
-            instance.estimator = joblib.load(path)
+            instance.estimator = joblib.load(f"{os.path.join(str(path), cls.model_name, '.joblib')}")
             instance.is_trained = True
 
             # 6. Restore metadata
