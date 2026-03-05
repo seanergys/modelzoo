@@ -148,3 +148,23 @@ test:validate-datasets:
         - "ci/**"
     - when: always
   allow_failure: true
+
+test:integration:
+  stage: test
+  image: python:3.11-slim
+  cache:
+    - <<: *pip_cache
+      policy: pull-push
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet pytest pydantic pandas pyarrow torch scikit-learn joblib
+    - python scripts/create_sample_data.py
+  script:
+    - pytest tests/integration/ -v
+  rules:
+    - changes:
+        - "seanergys_modelzoo/models/**"
+        - "seanergys_modelzoo/datasets/**"
+        - "tests/integration/**"
+        - "scripts/**"
+  allow_failure: false

@@ -235,9 +235,13 @@ class SeanergysModel(BaseModel, ABC):
         """
         path = Path(path)
         metadata_path = path.parent / f"{path.stem}_metadata.json"
-        
+        to_dump = (
+            self.metadata.model_dump(mode="json")
+            if hasattr(self.metadata, "model_dump")
+            else self.metadata
+        )
         with open(metadata_path, 'w') as f:
-            json.dump(self.metadata, f, indent=2)
+            json.dump(to_dump, f, indent=2)
         
         self.logger.info(f"Metadata saved to {metadata_path}")
         

@@ -1,35 +1,45 @@
 # Test Fixtures
 
-## Future: Real Dataset Sources
+## Sample Data (for local and CI tests)
 
-When you add real dataset sources (Zenodo, local files, etc.):
+Small parquet files for dataset load tests. Created by `make sample-data` from Zenodo.
 
-1. **Add small sample files** (optional):
-   ```
-   tests/fixtures/sample_data/
-   ├── sample_fdata.parquet   # Small subset for CI
-   └── sample_pm100.parquet
-   ```
+### Create sample data
 
-2. **Add max_samples to dataset classes**:
-   ```python
-   # In FDataDataset, PM100Dataset, etc.
-   max_samples: Optional[int] = None  # Limit rows for CI/tests
-   ```
+```bash
+# From project root
+make sample-data
 
-3. **Enable commented fixtures in conftest.py**:
-   - `synthetic_batch`
-   - `synthetic_dataloader`
-   - `sample_data_dir`
+# Limit rows (default: 100)
+SAMPLE_MAX_ROWS=50 make sample-data
 
-4. **Enable commented tests in**:
-   - `tests/smoke/test_datasets_smoke.py` (dataset instantiation)
-   - `tests/smoke/test_models_smoke.py` (model instantiation, train 1 step)
+# Create only one dataset
+make sample-data ARGS='--fdata-only'
+make sample-data ARGS='--pm100-only'
+```
 
-5. **Set CI_MAX_SAMPLES** in `.gitlab-ci.yml` if needed:
-   ```yaml
-   variables:
-     CI_MAX_SAMPLES: "50"
-   ```
+### Output
 
-See `docs/TESTING_AND_CI_PLAN.md` Phase 2–3 for full roadmap.
+```
+tests/fixtures/sample_data/
+├── sample_fdata.parquet   # F-DATA subset (~100 rows)
+└── sample_pm100.parquet  # PM100 subset (~100 rows)
+```
+
+### Usage in tests
+
+- `tests/smoke/test_datasets_load.py` uses these fixtures when present.
+- If fixtures are missing, local-fixture tests are skipped; Zenodo tests may run (unless `CI_SKIP_ZENODO=1`).
+- CI: run `make sample-data` in a before_script or cache the fixtures.
+
+### Manual script
+
+```bash
+python scripts/create_sample_data.py
+python scripts/create_sample_data.py --max-rows 50 --fdata-only
+```
+
+## See also
+
+- `docs/TESTING_AND_CI_PLAN.md` — full test strategy
+- `Makefile` — `make help` for all targets

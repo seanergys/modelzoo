@@ -12,29 +12,46 @@
 | **ci/** | Merged tooling: validate_yaml, validate_models, validate_datasets, utils |
 | **Unit tests** | `tests/unit/test_utils.py` (4 tests for discovery helpers) |
 | **Smoke tests** | `tests/smoke/` — model & dataset discovery, logger, ci.utils |
-| **Pytest** | `conftest.py`, `requirements-test.txt`, fixtures README |
+| **Dataset load tests** | `tests/smoke/test_datasets_load.py` — load from Zenodo or local fixtures (Option 2) |
+| **Sample data** | `scripts/create_sample_data.py` — download small subsets from Zenodo to `tests/fixtures/sample_data/` |
+| **Makefile** | `make sample-data`, `make test`, `make test-unit`, `make test-smoke`, `make test-datasets`, `make lint` |
+| **Pytest** | `conftest.py`, `sample_data_dir` fixture, `pytest.ini` (zenodo mark), `requirements-test.txt` |
+| **Fixtures** | `tests/fixtures/sample_data/` — sample_fdata.parquet, sample_pm100.parquet (via `make sample-data`) |
 | **Bug fix** | `seanergys_dataloader.py` — added `from __future__ import annotations` |
 | **Docs** | `docs/CI.md`, `tests/fixtures/README.md` |
 
+### Quick reference (Makefile)
+
+| Command | Purpose |
+|---------|---------|
+| `make sample-data` | Create small datasets from Zenodo → `tests/fixtures/sample_data/` |
+| `make test` | Unit + smoke (excludes Zenodo) |
+| `make test-datasets` | Dataset load tests |
+| `make test-smoke` | Smoke only (excludes Zenodo) |
+| `CI_SKIP_ZENODO=1 make test-datasets` | Skip Zenodo, use local fixtures only |
+| `SAMPLE_MAX_ROWS=50 make sample-data` | Limit rows per fixture |
+
 ### 📋 Next Steps (in order)
 
-1. **When you add real dataset sources**:
-   - Add `max_samples` to dataset classes (FData, PM100, etc.)
-   - Uncomment fixtures in `tests/conftest.py` (synthetic_batch, synthetic_dataloader)
-   - Enable commented tests in `tests/smoke/test_datasets_smoke.py` and `test_models_smoke.py`
-   - See `tests/fixtures/README.md`
+1. **Wire sample-data into CI** (optional):
+   - Add `make sample-data` to a CI job before dataset tests, or
+   - Commit/cache `tests/fixtures/sample_data/*.parquet` for fast CI without Zenodo.
+   - Use `CI_SKIP_ZENODO=1` to skip Zenodo smoke tests in CI.
 
-2. **Phase 3: Integration tests** (after datasets support subset):
+2. **Phase 3: Integration tests**:
    - Create `tests/integration/test_model_train.py`
    - Create `tests/integration/test_model_save_load.py`
    - Add `test:integration` job to CI
+   - Use `make sample-data` fixtures or `CI_MAX_SAMPLES`
 
 3. **Phase 4: DevOps hardening**:
    - Add `pyproject.toml` (ruff/black config)
    - Add mypy, pip-audit
    - Update checklist in Section 8
 
-4. **Future: ML pipeline** — E2E tests, model registry (Phase 5)
+4. **Optional: max_samples** — Add `max_samples` to dataset classes for programmatic subsetting (we use fixture files for now).
+
+5. **Future: ML pipeline** — E2E tests, model registry (Phase 5)
 
 ---
 
@@ -127,7 +144,7 @@ Pytest complements the CI validation scripts (`ci/validate_models.py`, etc.): sc
 | S1 | **Model discovery** | All SeanergysModel subclasses found | None |
 | S2 | **Model instantiation** | Each model instantiates with minimal config | No real data |
 | S3 | **Dataset discovery** | All SeanergysDataset subclasses found | None |
-| S4 | **Dataset instantiation** | Each dataset instantiates (subset if needed) | `max_samples=10` |
+| S4 | **Dataset load** | FData/PM100 load from Zenodo or local fixtures | `tests/smoke/test_datasets_load.py` |
 | S5 | **Model–dataset compatibility** | Model.supported_datasets includes dataset | None |
 
 ### 2.4 Integration Tests (subset data — MR or scheduled)
@@ -158,11 +175,11 @@ All ML tests use **subset of dataset**:
 
 | Mechanism | Implementation |
 |-----------|----------------|
+| **Fixture files** ✓ | `tests/fixtures/sample_data/` via `make sample-data` (from Zenodo) |
 | **max_samples** | Add `max_samples: Optional[int]` to dataset init; limit `__len__` |
 | **limit in filters** | Use filters to restrict rows (e.g. date range, first N) |
-| **Fixture files** | `tests/fixtures/sample_*.parquet` (small, committed or cached) |
 | **Synthetic** | `torch.randn(n, d)` or `pd.DataFrame` for unit/smoke |
-| **Env var** | `CI_MAX_SAMPLES=50` for CI overrides |
+| **Env var** | `SAMPLE_MAX_ROWS` / `CI_MAX_SAMPLES` for sample-data script |
 
 **Per-model flexibility:** Each model has different I/O. Use:
 - Discovery + interface contract (train/predict/save/load)
@@ -252,6 +269,9 @@ seanergys_modelzoo/
 ├── logger/
 └── ...
 
+scripts/
+├── create_sample_data.py   # Fetches small subsets from Zenodo → tests/fixtures/sample_data/
+
 tests/
 ├── unit/
 │   ├── test_utils.py
@@ -260,7 +280,8 @@ tests/
 │   └── test_dataset_contract.py
 ├── smoke/
 │   ├── test_models_smoke.py
-│   └── test_datasets_smoke.py
+│   ├── test_datasets_smoke.py
+│   └── test_datasets_load.py   # Load FData/PM100 from Zenodo or local fixtures
 ├── integration/
 │   ├── test_model_train.py
 │   ├── test_model_save_load.py
@@ -284,13 +305,15 @@ ci/
 └── seanergys_model_evaluator.py
 
 requirements-test.txt   # pytest, pydantic (for unit/smoke)
+pytest.ini              # zenodo mark for network-dependent tests
+Makefile                # sample-data, test, test-datasets, lint
 ```
 
 ---
 
 ## 7. Implementation Roadmap
 
-### Phase 1: Foundation (Week 1) ✓
+### Phase 1: Foundation  ✓
 
 | Task | Description | Status |
 |------|-------------|--------|
@@ -301,28 +324,29 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 | 1.5 | Create `tests/unit/test_utils.py` | ✓ |
 | 1.6 | Update CI: add `test:unit` job | ✓ |
 
-### Phase 2: Smoke + Dataset Subset (Week 2) — In Progress
+### Phase 2: Smoke + Dataset Subset  ✓
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 2.1 | Add `max_samples` to dataset classes (or wrapper) | TODO: when you add real data |
+| 2.1 | Add `max_samples` to dataset classes (or wrapper) | Optional (using fixture files instead) |
 | 2.2 | Create `tests/smoke/test_models_smoke.py` | ✓ (discovery done; instantiation TODO) |
-| 2.3 | Create `tests/smoke/test_datasets_smoke.py` | ✓ (discovery done; instantiation TODO) |
+| 2.3 | Create `tests/smoke/test_datasets_smoke.py` | ✓ (discovery done) |
 | 2.4 | Add `test:smoke` to CI | ✓ |
 | 2.5 | Run discovery smoke in validate-models/validate-datasets jobs | ✓ |
+| 2.6 | **Dataset load tests** (`test_datasets_load.py`) | ✓ Load from Zenodo or local fixtures |
+| 2.7 | **Sample data** (`scripts/create_sample_data.py`, `make sample-data`) | ✓ Small parquet from Zenodo |
+| 2.8 | **Makefile** (sample-data, test, test-datasets, lint) | ✓ |
+| 2.9 | **`sample_data_dir` fixture** in conftest.py | ✓ |
 
-**Future:** Enable instantiation tests when you add real dataset sources. See `tests/fixtures/README.md`.
+### Phase 3: Integration ✓
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.1 | Create `tests/fixtures/sample_data/` with small samples | ✓ (via `make sample-data`) |
+| 3.2 | Create `tests/integration/test_model_train.py` | ✓ |
+| 3.3 | Create `tests/integration/test_model_save_load.py` | ✓ |
+| 3.4 | Add `test:integration` to CI (MR or changes) | ✓ |
 
-### Phase 3: Integration (Week 3)
-
-| Task | Description |
-|------|-------------|
-| 3.1 | Create `tests/fixtures/` with small samples or synthetic |
-| 3.2 | Create `tests/integration/test_model_train.py` |
-| 3.3 | Create `tests/integration/test_model_save_load.py` |
-| 3.4 | Add `test:integration` to CI (MR or changes) |
-
-### Phase 4: DevOps Hardening (Week 4)
+### Phase 4: DevOps Hardening 
 
 | Task | Description |
 |------|-------------|
@@ -364,15 +388,16 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 - [x] S1 Model discovery (test_models_smoke)
 - [x] S2 Smoke (logger, ci.utils imports)
 - [x] S3 Dataset discovery (test_datasets_smoke)
-- [ ] S4–S5 Smoke (dataset/model instantiation — TODO when real data)
-- [ ] I1–I5 Integration (subset)
+- [x] S4 Dataset load (test_datasets_load.py — Zenodo + local fixtures)
+- [ ] S5 Smoke (model instantiation — TODO)
+- [x] I1–I3 Integration (train, predict, save/load on subset)
 - [ ] E1–E5 E2E (when ML pipeline exists)
 
 ### Data
 
-- [ ] max_samples / subset support in datasets
-- [ ] tests/fixtures/ with small samples
-- [ ] CI_MAX_SAMPLES env for CI
+- [ ] max_samples / subset support in datasets (optional; using fixture files)
+- [x] tests/fixtures/sample_data/ with small samples (via `make sample-data`)
+- [x] SAMPLE_MAX_ROWS / CI_MAX_SAMPLES env for sample-data script
 
 ### CI
 
@@ -380,7 +405,7 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 - [x] unit, smoke stages (pytest)
 - [x] Rules: changes, MR
 - [x] Caching (pip)
-- [ ] integration stage
+- [x] integration stage
 
 ### Future (ML pipeline)
 

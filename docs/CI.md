@@ -45,9 +45,15 @@ Pip packages are cached per branch (`$CI_COMMIT_REF_SLUG`).
 ```bash
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 
-# Pytest (unit + smoke)
+# Install and run tests (via Makefile)
+make install
+make sample-data          # Create small datasets for tests (from Zenodo)
+make test                 # Unit + smoke tests
+make test-datasets        # Dataset load tests (use sample-data first)
+
+# Or manually:
 pip install -r requirements-test.txt
-pytest tests/unit/ tests/smoke/ -v
+pytest tests/unit/ tests/smoke/ -v -m "not zenodo"
 
 # Validate YAML/JSON
 pip install pyyaml && python ci/validate_yaml.py
@@ -60,3 +66,7 @@ python ci/validate_models.py --model-folder seanergys_modelzoo/models
 pip install pydantic torch pyarrow
 python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
 ```
+
+### Sample data for tests
+
+Run `make sample-data` to create small parquet files in `tests/fixtures/sample_data/` from Zenodo. This enables dataset load tests without network during test runs. See `tests/fixtures/README.md` and `make help`.

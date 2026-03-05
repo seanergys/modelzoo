@@ -32,7 +32,15 @@ def ci_max_samples() -> int:
     return int(os.environ.get("CI_MAX_SAMPLES", "50"))
 
 
-# TODO: Add when you have real dataset sources or synthetic data:
+@pytest.fixture
+def sample_data_dir(project_root) -> Path:
+    """Path to tests/fixtures/sample_data/. Create with `make sample-data`."""
+    d = project_root / "tests" / "fixtures" / "sample_data"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+# TODO: Add when you add model train smoke tests:
 #
 # @pytest.fixture
 # def synthetic_batch():
@@ -47,8 +55,3 @@ def ci_max_samples() -> int:
 #     X, y = synthetic_batch
 #     ds = TensorDataset(X, y)
 #     return DataLoader(ds, batch_size=4)
-#
-# @pytest.fixture
-# def sample_data_dir(project_root):
-#     """Path to tests/fixtures/sample_data/. Add small parquet/csv here."""
-#     return project_root / "tests" / "fixtures" / "sample_data"

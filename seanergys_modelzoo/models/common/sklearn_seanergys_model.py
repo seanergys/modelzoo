@@ -128,10 +128,17 @@ class SeanergysSklearnModel(SeanergysModel):
             # Update state
             self.is_trained = True
             training_time = time.time() - start_time
+<<<<<<< HEAD
             self.metadata.set_field("last_trained", datetime.now().isoformat())
             self.metadata.set_field("training_time", training_time)
             if train_loss_value is not None:
                 self.metadata.set_field("training_loss", train_loss_value)
+=======
+            self._set_metadata("last_trained", datetime.now().isoformat())
+            self._set_metadata("training_time", training_time)
+            if train_loss_value is not None:
+                self._set_metadata("training_loss", train_loss_value)
+>>>>>>> 99ac65d (Implement integration testing framework and sample data generation)
 
             self.logger.info(f"Training completed in {training_time:.2f}s")
 
@@ -151,8 +158,13 @@ class SeanergysSklearnModel(SeanergysModel):
                         for metric in validation_metrics
                     }
                     val_time = time.time() - t0_val
+<<<<<<< HEAD
                     self.metadata.set_field("validation_metrics", val_metrics_values)
                     self.metadata.set_field("validation_time", val_time)
+=======
+                    self._set_metadata("validation_metrics", val_metrics_values)
+                    self._set_metadata("validation_time", val_time)
+>>>>>>> 99ac65d (Implement integration testing framework and sample data generation)
                     self.logger.info(f"Validation metrics: {val_metrics_values}")
 
             # Persist in training_history
@@ -263,11 +275,13 @@ class SeanergysSklearnModel(SeanergysModel):
             True on success, False on failure.
         """
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True)
+        estimator_path = path / self.model_name / ".joblib"
+        estimator_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             # 1. Persist the fitted estimator
-            joblib.dump(self.estimator, f"{os.path.join(str(path), self.model_name, '.joblib')}", compress=compress)
+            joblib.dump(self.estimator, str(estimator_path), compress=compress)
             self.logger.info(f"Estimator saved to {path}")
 
             # 2. Persist metadata (base-class helper)
@@ -331,15 +345,19 @@ class SeanergysSklearnModel(SeanergysModel):
             task_type = SeanergysModelTask[info["task_type"]]
 
             # 4. Build a fresh (unfitted) instance via Pydantic
+            from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
             instance = cls(
                 model_class=model_class,
                 task_type=task_type,
                 model_hyperparameters=info.get("model_hyperparameters", {}),
+                metadata=SeanergysModelMetadata(name=cls.__name__),
                 **kwargs,
             )
 
             # 5. Replace the unfitted estimator with the persisted one
-            instance.estimator = joblib.load(f"{os.path.join(str(path), cls.model_name, '.joblib')}")
+            model_name = getattr(cls, "model_name", cls.__name__)
+            estimator_path = path / model_name / ".joblib"
+            instance.estimator = joblib.load(str(estimator_path))
             instance.is_trained = True
 
             # 6. Restore metadata
@@ -353,6 +371,18 @@ class SeanergysSklearnModel(SeanergysModel):
 
         except Exception as e:
             raise RuntimeError(f"Error loading model: {e}") from e
+
+    def _set_metadata(self, key: str, value: Any) -> None:
+        """Update metadata (supports dict or SeanergysModelMetadata)."""
+        if isinstance(self.metadata, dict):
+            self.metadata[key] = value
+        elif hasattr(self.metadata, "hyperparameters"):
+            # SeanergysModelMetadata: store training info in hyperparameters dict
+            self.metadata.hyperparameters[key] = value
+            if hasattr(self.metadata, "_touch"):
+                self.metadata._touch()
+        else:
+            setattr(self.metadata, key, value)
 
     @staticmethod
     def _to_numpy(tensor: Any) -> np.ndarray:
