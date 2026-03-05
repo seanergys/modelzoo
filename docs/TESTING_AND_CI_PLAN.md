@@ -1,5 +1,43 @@
 # Complete Testing & CI/CD/MLOps Plan
 
+---
+
+## Summary: What's Done & What to Do Next
+
+### ✅ Completed
+
+| Area | What was done |
+|------|----------------|
+| **CI/CD** | `.gitlab-ci.yml` with stages: sanity → validate → lint → test |
+| **ci/** | Merged tooling: validate_yaml, validate_models, validate_datasets, utils |
+| **Unit tests** | `tests/unit/test_utils.py` (4 tests for discovery helpers) |
+| **Smoke tests** | `tests/smoke/` — model & dataset discovery, logger, ci.utils |
+| **Pytest** | `conftest.py`, `requirements-test.txt`, fixtures README |
+| **Bug fix** | `seanergys_dataloader.py` — added `from __future__ import annotations` |
+| **Docs** | `docs/CI.md`, `tests/fixtures/README.md` |
+
+### 📋 Next Steps (in order)
+
+1. **When you add real dataset sources**:
+   - Add `max_samples` to dataset classes (FData, PM100, etc.)
+   - Uncomment fixtures in `tests/conftest.py` (synthetic_batch, synthetic_dataloader)
+   - Enable commented tests in `tests/smoke/test_datasets_smoke.py` and `test_models_smoke.py`
+   - See `tests/fixtures/README.md`
+
+2. **Phase 3: Integration tests** (after datasets support subset):
+   - Create `tests/integration/test_model_train.py`
+   - Create `tests/integration/test_model_save_load.py`
+   - Add `test:integration` job to CI
+
+3. **Phase 4: DevOps hardening**:
+   - Add `pyproject.toml` (ruff/black config)
+   - Add mypy, pip-audit
+   - Update checklist in Section 8
+
+4. **Future: ML pipeline** — E2E tests, model registry (Phase 5)
+
+---
+
 ## Overview
 
 This document defines the full testing strategy for seanergys-modelzoo across:
@@ -263,14 +301,17 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 | 1.5 | Create `tests/unit/test_utils.py` | ✓ |
 | 1.6 | Update CI: add `test:unit` job | ✓ |
 
-### Phase 2: Smoke + Dataset Subset (Week 2)
+### Phase 2: Smoke + Dataset Subset (Week 2) — In Progress
 
-| Task | Description |
-|------|-------------|
-| 2.1 | Add `max_samples` to dataset classes (or wrapper) |
-| 2.2 | Create `tests/smoke/test_models_smoke.py` |
-| 2.3 | Create `tests/smoke/test_datasets_smoke.py` |
-| 2.4 | Add `test:smoke` to CI |
+| Task | Description | Status |
+|------|-------------|--------|
+| 2.1 | Add `max_samples` to dataset classes (or wrapper) | TODO: when you add real data |
+| 2.2 | Create `tests/smoke/test_models_smoke.py` | ✓ (discovery done; instantiation TODO) |
+| 2.3 | Create `tests/smoke/test_datasets_smoke.py` | ✓ (discovery done; instantiation TODO) |
+| 2.4 | Add `test:smoke` to CI | ✓ |
+| 2.5 | Run discovery smoke in validate-models/validate-datasets jobs | ✓ |
+
+**Future:** Enable instantiation tests when you add real dataset sources. See `tests/fixtures/README.md`.
 
 ### Phase 3: Integration (Week 3)
 
@@ -305,14 +346,14 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 
 ### DevOps
 
-- [ ] D1 Syntax
-- [ ] D2 Structure
-- [ ] D3 Lint (ruff)
+- [x] D1 Syntax
+- [x] D2 Structure
+- [x] D3 Lint (ruff)
 - [ ] D4 Format (black/ruff)
 - [ ] D5 Type check (mypy)
-- [ ] D6 Config validation
+- [x] D6 Config validation
 - [ ] D7 Dependencies audit
-- [ ] D8 Import sanity
+- [x] D8 Import sanity
 - [ ] D9 Secret scan
 - [ ] D10 Documentation (optional)
 
@@ -320,8 +361,10 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 
 - [x] U1 Discovery utils (test_utils.py)
 - [ ] U2–U6 Unit (logger, configurator, etc.)
-- [x] S1–S2 Smoke (logger, ci.utils imports)
-- [ ] S3–S5 Smoke (dataset discovery, model instantiation)
+- [x] S1 Model discovery (test_models_smoke)
+- [x] S2 Smoke (logger, ci.utils imports)
+- [x] S3 Dataset discovery (test_datasets_smoke)
+- [ ] S4–S5 Smoke (dataset/model instantiation — TODO when real data)
 - [ ] I1–I5 Integration (subset)
 - [ ] E1–E5 E2E (when ML pipeline exists)
 
@@ -335,9 +378,9 @@ requirements-test.txt   # pytest, pydantic (for unit/smoke)
 
 - [x] sanity, validate, lint stages
 - [x] unit, smoke stages (pytest)
+- [x] Rules: changes, MR
+- [x] Caching (pip)
 - [ ] integration stage
-- [ ] Rules: changes, MR
-- [ ] Caching (pip)
 
 ### Future (ML pipeline)
 

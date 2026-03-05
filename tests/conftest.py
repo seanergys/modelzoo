@@ -1,5 +1,11 @@
 """
 Pytest configuration and shared fixtures.
+
+TODO: When you add real dataset sources:
+  - Add synthetic_dataloader fixture (torch DataLoader with fake data)
+  - Add synthetic_dataset_fixture for Dataset __len__/__getitem__ tests
+  - Add model_class_fixture parametrized over discovered models
+  - See docs/TESTING_AND_CI_PLAN.md Phase 2-3
 """
 import os
 from pathlib import Path
@@ -24,3 +30,25 @@ def project_root() -> Path:
 def ci_max_samples() -> int:
     """Max samples for CI/subsets. Override via env CI_MAX_SAMPLES."""
     return int(os.environ.get("CI_MAX_SAMPLES", "50"))
+
+
+# TODO: Add when you have real dataset sources or synthetic data:
+#
+# @pytest.fixture
+# def synthetic_batch():
+#     """Fake (X, y) batch for quick train/predict smoke. No real data file."""
+#     import torch
+#     return torch.randn(10, 5), torch.randn(10)
+#
+# @pytest.fixture
+# def synthetic_dataloader(synthetic_batch):
+#     """DataLoader wrapping synthetic data. For model.train(1 step) smoke."""
+#     from torch.utils.data import TensorDataset, DataLoader
+#     X, y = synthetic_batch
+#     ds = TensorDataset(X, y)
+#     return DataLoader(ds, batch_size=4)
+#
+# @pytest.fixture
+# def sample_data_dir(project_root):
+#     """Path to tests/fixtures/sample_data/. Add small parquet/csv here."""
+#     return project_root / "tests" / "fixtures" / "sample_data"

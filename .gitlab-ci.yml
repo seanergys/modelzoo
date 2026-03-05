@@ -121,8 +121,10 @@ test:validate-models:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
+    - pip install --quiet pytest
     - pip install --quiet -r ci/requirements-ci.txt
   script:
+    - pytest tests/smoke/test_models_smoke.py -v
     - python ci/validate_models.py --model-folder seanergys_modelzoo/models
   rules:
     - changes:
@@ -136,8 +138,9 @@ test:validate-datasets:
   image: python:3.11-slim
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pydantic torch pyarrow
+    - pip install --quiet pytest pydantic torch pyarrow
   script:
+    - pytest tests/smoke/test_datasets_smoke.py -v
     - python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
   rules:
     - changes:

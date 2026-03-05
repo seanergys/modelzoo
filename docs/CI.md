@@ -20,8 +20,8 @@ The pipeline runs automatically on every push and merge request using GitLab sha
 - **validate:yaml-json** — Uses `ci/validate_yaml.py` to validate config files.
 - **lint:python** — Runs ruff when `.py` files change.
 - **test:import-check** — Verifies core package imports work.
-- **test:validate-models** — Runs `ci/validate_models.py`; automatic on model/ci changes. Requires `ci/requirements-ci.txt`, Zenodo for full validation.
-- **test:validate-datasets** — Runs `ci/validate_datasets.py`; automatic on dataset/ci changes.
+- **test:validate-models** — Runs `pytest tests/smoke/test_models_smoke.py` + `ci/validate_models.py`; automatic. Requires `ci/requirements-ci.txt`, Zenodo for full validation.
+- **test:validate-datasets** — Runs `pytest tests/smoke/test_datasets_smoke.py` + `ci/validate_datasets.py`; automatic.
 
 ## Directory Layout
 
