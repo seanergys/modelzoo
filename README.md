@@ -32,7 +32,7 @@ The main classes of the Model Zoo are related to datasets and models, and their 
 * datasets and models are discoverable, use uniform APIs and can be tested automatically in the CI pipeline - train and test configurations are available in models for each dataset 
 * classes are easily validated - we employ Pydantic for validation. This means that object initialisation is not done in the __init__ method, but in validate_model inherited from pydantic.BaseModel
 
-<<<<<<< HEAD
+
 ![](https://gitlab.jsc.fz-juelich.de/hedgedoc/uploads/91120393-aa67-4787-8410-b1e0776af410.png)
 
 

@@ -16,7 +16,7 @@ except ImportError:
     yaml = None  # type: ignore
 
 
-EXCLUDE_DIRS = {".git", "__pycache__", ".cache", "node_modules", ".vscode"}
+EXCLUDE_DIRS = {".git", "__pycache__", ".cache", "node_modules", ".vscode", ".venv", "venv"}
 
 
 def find_config_files(root: Path) -> list[Path]:

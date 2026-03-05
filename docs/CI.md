@@ -1,42 +1,62 @@
 # GitLab CI/CD Pipeline
 
-The pipeline runs on every push and merge request using GitLab shared runners.
+The pipeline runs automatically on every push and merge request using GitLab shared runners.
 
 ## Stages
 
-| Stage    | Jobs              | Description                                      |
-|----------|-------------------|--------------------------------------------------|
+| Stage    | Jobs                | Description                                       |
+|----------|---------------------|---------------------------------------------------|
 | **sanity**   | python-syntax, check-structure | Python syntax check and repo structure validation |
-| **validate** | yaml-json         | Validates all `.yml`, `.yaml`, `.json` files     |
-| **lint**     | python            | Linting (ruff/pyflakes if available, optional)  |
-| **test**     | import-check, validate-models | Import verification and model validation   |
+| **validate** | yaml-json           | Validates all `.yml`, `.yaml`, `.json` files       |
+| **lint**     | python              | Ruff linting on Python files                      |
+| **test**     | unit, smoke, import-check, validate-models, validate-datasets | Pytest unit/smoke + import + model/dataset validation |
 
 ## Job Details
 
-- **sanity:python-syntax** — Compiles Python files to verify syntax.
-- **sanity:check-structure** — Ensures `setup.py`, `seanergys_modelzoo/`, `scripts/` exist.
+- **sanity:python-syntax** — Compiles Python files in `seanergys_modelzoo/`, `ci/`, `tests/`.
+- **sanity:check-structure** — Ensures `setup.py`, `seanergys_modelzoo/`, `ci/`, `tests/` exist.
+- **test:unit** — Runs `pytest tests/unit/` (unit tests).
+- **test:smoke** — Runs `pytest tests/smoke/` (smoke tests).
 - **validate:yaml-json** — Uses `ci/validate_yaml.py` to validate config files.
-- **lint:python** — Runs only when `.py` files change; fails gracefully if no linter is installed.
-- **test:import-check** — Verifies core package imports work (lightweight).
-- **test:validate-models** — Runs `scripts/validate_models.py`; requires `ci/requirements-ci.txt` and network (Zenodo) for full model validation. Triggers on model/script changes or can be run manually.
+- **lint:python** — Runs ruff when `.py` files change.
+- **test:import-check** — Verifies core package imports work.
+- **test:validate-models** — Runs `ci/validate_models.py`; automatic on model/ci changes. Requires `ci/requirements-ci.txt`, Zenodo for full validation.
+- **test:validate-datasets** — Runs `ci/validate_datasets.py`; automatic on dataset/ci changes.
+
+## Directory Layout
+
+All CI and validation tooling lives in `ci/`:
+
+```
+ci/
+├── validate_yaml.py      # YAML/JSON validation
+├── validate_models.py    # Model discovery & validation
+├── validate_datasets.py  # Dataset discovery & validation
+├── utils.py              # Shared discovery helpers
+└── requirements-ci.txt   # Dependencies for model validation
+```
 
 ## Caching
 
-Pip packages are cached per branch (`$CI_COMMIT_REF_SLUG`) to speed up test jobs.
-
-## Helper Scripts
-
-- `ci/validate_yaml.py` — Validates YAML and JSON files.
-- `ci/requirements-ci.txt` — Dependencies for the `test:validate-models` job.
+Pip packages are cached per branch (`$CI_COMMIT_REF_SLUG`).
 
 ## Running Locally
 
 ```bash
+export PYTHONPATH="${PWD}:${PYTHONPATH}"
+
+# Pytest (unit + smoke)
+pip install -r requirements-test.txt
+pytest tests/unit/ tests/smoke/ -v
+
 # Validate YAML/JSON
 pip install pyyaml && python ci/validate_yaml.py
 
-# Run model validation (requires deps and Zenodo access)
+# Model validation (requires deps and Zenodo access)
 pip install -r ci/requirements-ci.txt
-export PYTHONPATH="${PWD}:${PYTHONPATH}"
-python scripts/validate_models.py --model-folder seanergys_modelzoo/models
+python ci/validate_models.py --model-folder seanergys_modelzoo/models
+
+# Dataset validation (discovery only)
+pip install pydantic torch pyarrow
+python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
 ```
