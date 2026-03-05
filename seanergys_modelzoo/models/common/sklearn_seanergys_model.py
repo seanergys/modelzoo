@@ -1,17 +1,18 @@
-import os
-from typing import Any, Dict, Optional, Union, List, Callable, Iterable
-from pathlib import Path
-import time
 import json
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+
 import joblib
 import numpy as np
-from datetime import datetime
-from sklearn.base import BaseEstimator
 from pydantic import Field
 
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
-from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+from seanergys_modelzoo.models.common.seanergys_model import (
+    SeanergysModel,
+    SeanergysModelTask,
+)
 
 
 class SeanergysSklearnModel(SeanergysModel):
@@ -25,16 +26,16 @@ class SeanergysSklearnModel(SeanergysModel):
     metric computation based on task type.
     """
 
-    model_class: type = Field(..., description="The scikit-learn estimator class to instantiate")
+    model_class: type = Field(
+        ..., description="The scikit-learn estimator class to instantiate"
+    )
     model_hyperparameters: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Hyperparameters forwarded to the estimator constructor"
+        description="Hyperparameters forwarded to the estimator constructor",
     )
     training_history: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Training and validation metrics history"
+        default_factory=dict, description="Training and validation metrics history"
     )
-    
 
     def model_post_init(self, __context: Any) -> None:
         """
@@ -43,7 +44,6 @@ class SeanergysSklearnModel(SeanergysModel):
         """
         super().model_post_init(__context)
         self.build_model()
-
 
     def build_model(self) -> None:
         """
@@ -66,7 +66,7 @@ class SeanergysSklearnModel(SeanergysModel):
         val_data_loader: Optional[SeanergysDataloader] = None,
         training_loss: Optional[Callable] = None,
         validation_metrics: Optional[List[Callable]] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Train the scikit-learn estimator.
@@ -92,9 +92,8 @@ class SeanergysSklearnModel(SeanergysModel):
             val_metrics_values = None
             val_time = None
 
-            supports_partial_fit = (
-                hasattr(self.estimator, "partial_fit")
-                and callable(self.estimator.partial_fit)
+            supports_partial_fit = hasattr(self.estimator, "partial_fit") and callable(
+                self.estimator.partial_fit
             )
 
             if supports_partial_fit:
@@ -189,7 +188,7 @@ class SeanergysSklearnModel(SeanergysModel):
         self,
         data_loader: Union[SeanergysDataloader, Iterable],
         return_proba: bool = False,
-        **kwargs
+        **kwargs,
     ) -> np.ndarray:
         """
         Make predictions on input data.
@@ -259,10 +258,7 @@ class SeanergysSklearnModel(SeanergysModel):
         return metrics_results
 
     def save(
-        self,
-        path: Union[str, Path] = "./saved_model",
-        compress: int = 3,
-        **kwargs
+        self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
         """
         Persist the estimator, metadata, and supplementary info to disk.
@@ -291,7 +287,7 @@ class SeanergysSklearnModel(SeanergysModel):
             info = {
                 "model_class_module": self.model_class.__module__,
                 "model_class_name": self.model_class.__name__,
-                "task_type": self.task_type.name,          # store enum name
+                "task_type": self.task_type.name,  # store enum name
                 "model_hyperparameters": self.model_hyperparameters,
                 "sklearn_params": self.estimator.get_params(),
             }
@@ -308,9 +304,7 @@ class SeanergysSklearnModel(SeanergysModel):
 
     @classmethod
     def load(
-        cls,
-        path: Union[str, Path] = "./saved_model",
-        **kwargs
+        cls, path: Union[str, Path] = "./saved_model", **kwargs
     ) -> "SeanergysSklearnModel":
         """
         Restore a SeanergysSklearnModel from disk.
@@ -338,6 +332,7 @@ class SeanergysSklearnModel(SeanergysModel):
 
             # 2. Re-import the estimator class dynamically
             import importlib
+
             module = importlib.import_module(info["model_class_module"])
             model_class = getattr(module, info["model_class_name"])
 
@@ -345,7 +340,10 @@ class SeanergysSklearnModel(SeanergysModel):
             task_type = SeanergysModelTask[info["task_type"]]
 
             # 4. Build a fresh (unfitted) instance via Pydantic
-            from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
+            from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+                SeanergysModelMetadata,
+            )
+
             instance = cls(
                 model_class=model_class,
                 task_type=task_type,
@@ -406,7 +404,7 @@ class SeanergysSklearnModel(SeanergysModel):
         Returns:
             Tuple of (features, targets) numpy arrays.
         """
-        features_list = [] 
+        features_list = []
         targets_list = []
         for X_batch, y_batch in dataloader:
             features_list.append(self._to_numpy(X_batch))

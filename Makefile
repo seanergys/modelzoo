@@ -1,7 +1,7 @@
 # seanergys-modelzoo Makefile
 # Run `make help` for usage
 
-.PHONY: help install sample-data test test-unit test-smoke test-datasets lint clean
+.PHONY: help install sample-data test test-unit test-smoke test-dataset test-datasets test-integration lint format typecheck audit check-secrets clean
 
 # Use venv Python (create with: python -m venv .venv)
 VENV ?= .venv
@@ -23,6 +23,10 @@ help:
 	@echo "  make test-datasets      Run dataset load tests (needs sample-data or network)"
 	@echo "  make test-integration   Run integration tests (requires sample-data)"
 	@echo "  make lint           Run ruff lint"
+	@echo "  make format         Run ruff format"
+	@echo "  make typecheck      Run mypy (optional)"
+	@echo "  make audit          Run pip-audit for dependency vulnerabilities"
+	@echo "  make check-secrets  Scan for accidental secrets in code"
 	@echo "  make install        Install package in editable mode"
 	@echo "  make clean          Remove caches and generated files"
 	@echo ""
@@ -64,6 +68,7 @@ test-unit:
 test-smoke:
 	$(PYTEST) tests/smoke/ -v -m "not zenodo"
 
+test-dataset: test-datasets
 test-datasets:
 	@echo "Running dataset load tests..."
 	@echo "  (Use 'make sample-data' first for local fixtures, or tests will use Zenodo)"
@@ -82,11 +87,27 @@ test-smoke-zenodo:
 	$(PYTEST) tests/smoke/ -v
 
 # -----------------------------------------------------------------------------
-# Lint
+# Lint & Format
 # -----------------------------------------------------------------------------
 lint:
 	$(PYTHON) -m pip install -q ruff 2>/dev/null || true
-	ruff check seanergys_modelzoo ci tests --ignore E501
+	$(PYTHON) -m ruff check seanergys_modelzoo ci tests
+
+format:
+	$(PYTHON) -m pip install -q ruff 2>/dev/null || true
+	$(PYTHON) -m ruff format seanergys_modelzoo ci tests
+
+typecheck:
+	$(PYTHON) -m pip install -q mypy types-PyYAML 2>/dev/null || true
+	-$(PYTHON) -m mypy seanergys_modelzoo ci tests
+
+audit:
+	$(PYTHON) -m pip install -q pip-audit 2>/dev/null || true
+	$(PYTHON) -m pip_audit -r requirements-test.txt -r ci/requirements-ci.txt
+
+check-secrets:
+	@chmod +x ci/check_secrets.sh 2>/dev/null || true
+	@./ci/check_secrets.sh .
 
 # -----------------------------------------------------------------------------
 # Clean

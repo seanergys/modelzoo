@@ -15,7 +15,7 @@
 | **Dataset load tests** | `tests/smoke/test_datasets_load.py` — load from Zenodo or local fixtures (Option 2) |
 | **Sample data** | `scripts/create_sample_data.py` — download small subsets from Zenodo to `tests/fixtures/sample_data/` |
 | **Makefile** | `make sample-data`, `make test`, `make test-unit`, `make test-smoke`, `make test-datasets`, `make lint` |
-| **Pytest** | `conftest.py`, `sample_data_dir` fixture, `pytest.ini` (zenodo mark), `requirements-test.txt` |
+| **Pytest** | `conftest.py`, `sample_data_dir` fixture, `pyproject.toml` (pytest/ruff config), `requirements-test.txt` |
 | **Fixtures** | `tests/fixtures/sample_data/` — sample_fdata.parquet, sample_pm100.parquet (via `make sample-data`) |
 | **Bug fix** | `seanergys_dataloader.py` — added `from __future__ import annotations` |
 | **Docs** | `docs/CI.md`, `tests/fixtures/README.md` |
@@ -44,9 +44,9 @@
    - Add `test:integration` job to CI
    - Use `make sample-data` fixtures or `CI_MAX_SAMPLES`
 
-3. **Phase 4: DevOps hardening**:
-   - Add `pyproject.toml` (ruff/black config)
-   - Add mypy, pip-audit
+3. **Phase 4: DevOps hardening** (4.1 ✓):
+   - Add mypy (optional, allow_failure)
+   - Add pip-audit or safety
    - Update checklist in Section 8
 
 4. **Optional: max_samples** — Add `max_samples` to dataset classes for programmatic subsetting (we use fixture files for now).
@@ -305,8 +305,8 @@ ci/
 └── seanergys_model_evaluator.py
 
 requirements-test.txt   # pytest, pydantic (for unit/smoke)
-pytest.ini              # zenodo mark for network-dependent tests
-Makefile                # sample-data, test, test-datasets, lint
+pyproject.toml          # ruff config, pytest markers, project metadata
+Makefile                # sample-data, test, lint, format
 ```
 
 ---
@@ -346,14 +346,14 @@ Makefile                # sample-data, test, test-datasets, lint
 | 3.3 | Create `tests/integration/test_model_save_load.py` | ✓ |
 | 3.4 | Add `test:integration` to CI (MR or changes) | ✓ |
 
-### Phase 4: DevOps Hardening 
+### Phase 4: DevOps Hardening ✓
 
-| Task | Description |
-|------|-------------|
-| 4.1 | Add ruff/black config (`pyproject.toml`) |
-| 4.2 | Add mypy (optional, allow_failure) |
-| 4.3 | Add pip-audit or safety |
-| 4.4 | Document all jobs in `docs/CI.md` |
+| Task | Description | Status |
+|------|-------------|--------|
+| 4.1 | Add ruff/black config (`pyproject.toml`) | ✓ |
+| 4.2 | Add mypy (optional, allow_failure) | ✓ |
+| 4.3 | Add pip-audit or safety | ✓ |
+| 4.4 | Document all jobs in `docs/CI.md` | ✓ |
 
 ### Phase 5: ML Pipeline (Future)
 
@@ -373,23 +373,23 @@ Makefile                # sample-data, test, test-datasets, lint
 - [x] D1 Syntax
 - [x] D2 Structure
 - [x] D3 Lint (ruff)
-- [ ] D4 Format (black/ruff)
-- [ ] D5 Type check (mypy)
+- [x] D4 Format (ruff format)
+- [x] D5 Type check (mypy)
 - [x] D6 Config validation
-- [ ] D7 Dependencies audit
+- [x] D7 Dependencies audit (pip-audit)
 - [x] D8 Import sanity
-- [ ] D9 Secret scan
+- [x] D9 Secret scan
 - [ ] D10 Documentation (optional)
 
 ### ML Tests
 
 - [x] U1 Discovery utils (test_utils.py)
-- [ ] U2–U6 Unit (logger, configurator, etc.)
+- [x] U2–U6 Unit (logger, configurator, dataset contract, metadata, dataloader params)
 - [x] S1 Model discovery (test_models_smoke)
 - [x] S2 Smoke (logger, ci.utils imports)
 - [x] S3 Dataset discovery (test_datasets_smoke)
 - [x] S4 Dataset load (test_datasets_load.py — Zenodo + local fixtures)
-- [ ] S5 Smoke (model instantiation — TODO)
+- [x] S5 Smoke (model instantiation)
 - [x] I1–I3 Integration (train, predict, save/load on subset)
 - [ ] E1–E5 E2E (when ML pipeline exists)
 

@@ -3,6 +3,7 @@ Integration tests: model training on subset data.
 
 Uses FDataDataset from tests/fixtures/sample_data/ (run `make sample-data`).
 """
+
 import pytest
 
 
@@ -14,11 +15,16 @@ def test_model_train_on_fixture_data(fdata_dataset):
     pytest.importorskip("sklearn")
     pytest.importorskip("torch")
 
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
     from sklearn.ensemble import RandomForestRegressor
+
+    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
+    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+        SeanergysModelMetadata,
+    )
+    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
+        SeanergysSklearnModel,
+    )
 
     model = SeanergysSklearnModel(
         model_class=RandomForestRegressor,
@@ -43,11 +49,16 @@ def test_model_predict_after_train(fdata_dataset):
     pytest.importorskip("sklearn")
     pytest.importorskip("torch")
 
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
     from sklearn.ensemble import RandomForestRegressor
+
+    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
+    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+        SeanergysModelMetadata,
+    )
+    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
+        SeanergysSklearnModel,
+    )
 
     model = SeanergysSklearnModel(
         model_class=RandomForestRegressor,

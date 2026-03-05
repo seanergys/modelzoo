@@ -2,10 +2,11 @@
 Shared utilities for CI validation scripts.
 Discovery of model and dataset classes from Python files.
 """
+
 import importlib.util
 import inspect
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Dict, Type
 
 

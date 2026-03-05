@@ -2,18 +2,20 @@
 Discover and validate SeanergysDataset classes in a folder.
 Used by GitLab CI test stage.
 """
+
 import argparse
 import sys
 from pathlib import Path
 from typing import Dict, Type
 
-from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
-from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
-
 from ci.utils import retrieve_instances_from_file
+from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 
 
-def fetch_dataset_classes(data_folder: Path, logger: SeanergysLogger) -> Dict[str, Type[SeanergysDataset]]:
+def fetch_dataset_classes(
+    data_folder: Path, logger: SeanergysLogger
+) -> Dict[str, Type[SeanergysDataset]]:
     """
     Discover all SeanergysDataset classes in the dataset folder.
     Uses rglob to support both flat and nested layouts.
@@ -58,7 +60,11 @@ def main(data_folder: str | Path) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Validate all SeanergysDataset classes")
-    parser.add_argument("--data-folder", "-d", type=str, required=True, help="Path to dataset folder")
+    parser = argparse.ArgumentParser(
+        description="Validate all SeanergysDataset classes"
+    )
+    parser.add_argument(
+        "--data-folder", "-d", type=str, required=True, help="Path to dataset folder"
+    )
     args = parser.parse_args()
     main(data_folder=args.data_folder)

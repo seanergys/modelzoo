@@ -40,6 +40,16 @@ sanity:check-structure:
     - test -d tests
     - echo "Repository structure OK"
 
+sanity:check-secrets:
+  stage: sanity
+  image: python:3.11-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+  script:
+    - chmod +x ci/check_secrets.sh
+    - ./ci/check_secrets.sh .
+  allow_failure: true
+
 # -----------------------------------------------------------------------------
 # STAGE 2: VALIDATE (YAML/JSON)
 # -----------------------------------------------------------------------------
@@ -64,7 +74,27 @@ lint:python:
     - changes: ["**/*.py"]
   script:
     - pip install --quiet ruff
-    - ruff check seanergys_modelzoo ci tests --ignore E501
+    - ruff check seanergys_modelzoo ci tests
+  allow_failure: true
+
+lint:format:
+  stage: lint
+  image: python:3.11-slim
+  rules:
+    - changes: ["**/*.py"]
+  script:
+    - pip install --quiet ruff
+    - ruff format --check seanergys_modelzoo ci tests
+  allow_failure: true
+
+lint:mypy:
+  stage: lint
+  image: python:3.11-slim
+  rules:
+    - changes: ["**/*.py"]
+  script:
+    - pip install --quiet mypy types-PyYAML
+    - mypy seanergys_modelzoo ci tests
   allow_failure: true
 
 # -----------------------------------------------------------------------------
@@ -168,3 +198,19 @@ test:integration:
         - "tests/integration/**"
         - "scripts/**"
   allow_failure: false
+
+# Dependency vulnerability scan
+test:audit:
+  stage: test
+  image: python:3.11-slim
+  cache:
+    - <<: *pip_cache
+      policy: pull-push
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet pip-audit
+  script:
+    - pip-audit -r requirements-test.txt -r ci/requirements-ci.txt
+  rules:
+    - changes: ["**/requirements*.txt", "**/pyproject.toml", "**/setup.py", "ci/requirements-ci.txt"]
+  allow_failure: true

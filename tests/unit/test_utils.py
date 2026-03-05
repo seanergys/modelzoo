@@ -1,6 +1,7 @@
 """
 Unit tests for ci.utils (discovery helpers).
 """
+
 from pathlib import Path
 
 import pytest

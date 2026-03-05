@@ -4,6 +4,7 @@ Smoke tests: load datasets via Python API (Option 2).
 - test_load_*_from_local_fixtures: use pre-created sample files (run `make sample-data` first).
 - test_load_*_from_zenodo: fetch from Zenodo (requires network; skipped if CI_SKIP_ZENODO=1).
 """
+
 import os
 from pathlib import Path
 
@@ -16,9 +17,9 @@ def _fixtures_dir(project_root: Path) -> Path:
 
 def _has_fixtures(project_root: Path) -> bool:
     d = _fixtures_dir(project_root)
-    return (d / "sample_fdata.parquet").exists() or (d / "sample_pm100.parquet").exists()
-
-
+    return (d / "sample_fdata.parquet").exists() or (
+        d / "sample_pm100.parquet"
+    ).exists()
 
 
 # -----------------------------------------------------------------------------
@@ -33,7 +34,9 @@ def test_load_fdata_from_local_fixtures(project_root, sample_data_dir):
     """
     fixture = sample_data_dir / "sample_fdata.parquet"
     if not fixture.exists():
-        pytest.skip("No sample_fdata.parquet. Run `make sample-data` to create fixtures.")
+        pytest.skip(
+            "No sample_fdata.parquet. Run `make sample-data` to create fixtures."
+        )
 
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
@@ -59,15 +62,18 @@ def test_load_pm100_from_local_fixtures(project_root, sample_data_dir):
     """
     fixture = sample_data_dir / "sample_pm100.parquet"
     if not fixture.exists():
-        pytest.skip("No sample_pm100.parquet. Run `make sample-data` to create fixtures.")
+        pytest.skip(
+            "No sample_pm100.parquet. Run `make sample-data` to create fixtures."
+        )
 
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
 
-    from seanergys_modelzoo.datasets.pm100 import PM100Dataset
-
     # PM100 schema varies; use columns from create_sample_data output
     import pandas as pd
+
+    from seanergys_modelzoo.datasets.pm100 import PM100Dataset
+
     cols = pd.read_parquet(fixture).columns.tolist()
     if len(cols) < 2:
         pytest.skip(f"Sample has <2 columns: {cols}")

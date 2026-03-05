@@ -1,12 +1,10 @@
 """
-Smoke tests: imports, discovery, (future) model instantiation.
+Smoke tests: imports, discovery, model instantiation.
 
 TODO: When you add real dataset sources / max_samples support:
-  - Add model instantiation tests with minimal config
   - Add train(1 step) smoke with synthetic data
   - See docs/TESTING_AND_CI_PLAN.md Phase 2
 """
-from pathlib import Path
 
 import pytest
 
@@ -50,11 +48,36 @@ def test_model_discovery(project_root):
     assert len(model_classes) >= 1, "Should find at least one SeanergysModel subclass"
 
 
-# TODO: Add when you have synthetic data or max_samples on datasets:
-# def test_model_instantiation(model_class_fixture):
-#     """Each model instantiates with minimal config. No training."""
-#     pass
-#
-# def test_model_train_one_step(model_instance, synthetic_dataloader):
-#     """model.train() runs 1 step. Requires data (synthetic or subset)."""
-#     pass
+def test_model_instantiation(project_root):
+    """
+    Each SeanergysModel subclass instantiates with minimal config. No training.
+    Validates model discovery and basic construction.
+    """
+    pytest.importorskip("torch", reason="Model instantiation requires torch")
+    pytest.importorskip("sklearn", reason="Model instantiation requires sklearn")
+    from ci.utils import retrieve_instances_from_file
+    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel
+
+    model_folder = project_root / "seanergys_modelzoo" / "models"
+    model_classes = {}
+
+    for py_file in model_folder.rglob("*.py"):
+        try:
+            objs = retrieve_instances_from_file(py_file, SeanergysModel)
+            model_classes.update(objs)
+        except Exception:
+            continue
+
+    # Minimal hyperparams that work for RF, XGBoost, etc.
+    minimal_hp = {"n_estimators": 2, "n_jobs": 1}
+
+    for name, model_cls in model_classes.items():
+        # Skip base/abstract classes
+        if model_cls.__name__ in ("SeanergysModel", "SeanergysSklearnModel"):
+            continue
+        try:
+            model = model_cls(model_hyperparameters=minimal_hp)
+            assert model is not None
+            assert hasattr(model, "model_name")
+        except Exception as e:
+            pytest.fail(f"{name} failed to instantiate: {e}")

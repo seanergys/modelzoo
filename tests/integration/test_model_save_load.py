@@ -3,6 +3,7 @@ Integration tests: model save and load round-trip.
 
 Uses FDataDataset from tests/fixtures/sample_data/ (run `make sample-data`).
 """
+
 import pytest
 
 
@@ -14,11 +15,16 @@ def test_model_save_load_roundtrip(fdata_dataset, temp_model_dir):
     pytest.importorskip("torch")
     pytest.importorskip("joblib")
 
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
     from sklearn.ensemble import RandomForestRegressor
+
+    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
+    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+        SeanergysModelMetadata,
+    )
+    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
+        SeanergysSklearnModel,
+    )
 
     model = SeanergysSklearnModel(
         model_class=RandomForestRegressor,
@@ -41,5 +47,5 @@ def test_model_save_load_roundtrip(fdata_dataset, temp_model_dir):
 
     assert len(pred_before) == len(pred_after)
     # Predictions should match for the same model
-    for a, b in zip(pred_before, pred_after):
+    for a, b in zip(pred_before, pred_after, strict=True):
         assert a == b

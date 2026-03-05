@@ -3,6 +3,7 @@ Fixtures for integration tests.
 
 Uses sample_data from tests/fixtures/sample_data/ (create with `make sample-data`).
 """
+
 from pathlib import Path
 
 import pytest

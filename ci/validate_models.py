@@ -2,18 +2,20 @@
 Discover and validate SeanergysModel classes in a folder.
 Used by GitLab CI test stage.
 """
+
 import argparse
 import sys
 from pathlib import Path
 from typing import Dict, Type
 
+from ci.utils import retrieve_instances_from_file
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel
 
-from ci.utils import retrieve_instances_from_file
 
-
-def fetch_model_classes(model_folder: Path, logger: SeanergysLogger) -> Dict[str, Type[SeanergysModel]]:
+def fetch_model_classes(
+    model_folder: Path, logger: SeanergysLogger
+) -> Dict[str, Type[SeanergysModel]]:
     """
     Discover all SeanergysModel classes in the model folder.
 
@@ -60,7 +62,9 @@ def main(model_folder: str | Path, run_dummy: bool = True) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validate all SeanergysModel classes")
-    parser.add_argument("--model-folder", "-m", type=str, required=True, help="Path to model folder")
+    parser.add_argument(
+        "--model-folder", "-m", type=str, required=True, help="Path to model folder"
+    )
     parser.add_argument(
         "--no-dummy",
         action="store_true",

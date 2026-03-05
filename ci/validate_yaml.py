@@ -4,6 +4,7 @@ Validate YAML and JSON files in the repository.
 Used by GitLab CI validate stage.
 Exits 0 if all valid, 1 if any file is invalid.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,10 +14,18 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    yaml = None  # type: ignore
+    yaml = None
 
 
-EXCLUDE_DIRS = {".git", "__pycache__", ".cache", "node_modules", ".vscode", ".venv", "venv"}
+EXCLUDE_DIRS = {
+    ".git",
+    "__pycache__",
+    ".cache",
+    "node_modules",
+    ".vscode",
+    ".venv",
+    "venv",
+}
 
 
 def find_config_files(root: Path) -> list[Path]:
