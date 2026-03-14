@@ -72,8 +72,5 @@ I used this as a reference: [text](https://docs.python-guide.org/writing/structu
 export PYTHONPATH="${PYTHONPATH}:path_to_model_zoo_dir"
 python3 scripts/validate_models.py
 
-TODO: change the testing script to make it recursive on the folders
-
-Nel validator runni il dummy 
-model_path/scripts/*
-check che ci siano i files training.py, testing.py predict.py 
+togli gli scripts 
+provide the get_dummy config, get_train, get_test

@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, U
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from pydantic import Field, model_validator
+from sentence_transformers import SentenceTransformer
 import joblib
 from enum import Enum
 import numpy as np
@@ -16,10 +17,9 @@ from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDatase
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset
 from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
+from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
-from seanergys_modelzoo.models.tasks.power_consumption_prediction.jpcp.functions import fit_categorical, fit_transform_categorical, transform_categorical, transform_embeddings, embedding_parsing
 
 class Embedding(Enum):
     INT = 0 # Input features are mapped to categorical 
@@ -42,7 +42,9 @@ class JPCP(SeanergysSklearnModel):
         predictions = model.predict(test_loader)
         model.save("models/jpcp.joblib")
     """    
-    label_encoder: Optional[LabelEncoder] = Field(default = None, description = "The LabelEncoder instance to encode the input labels.")
+    embedder: Optional[List] = Field(default = None, description = "The list containing the embedder instances to encode the input labels.")
+    embedding_type: Optional[Embedding] = Field(default = Embedding.NONE, description = "The embedding strategy to use on the data.")
+    embedding_weights: Optional[str] = Field(default ="all-MiniLM-L6-v2", description = "The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB") 
     
     @model_validator(mode="before")
     @classmethod
@@ -68,20 +70,55 @@ class JPCP(SeanergysSklearnModel):
         Implement to validate the model
         """
         return self
+    
+    def transform_embeddings(self, features: np.ndarray, fit:bool = False) -> np.ndarray:
+        """
+        Concatenate feature values into strings and encode with SentenceTransformer.
+
+        Args:
+            features: 2D array of shape (n_samples, n_features)
+            encoder_weights: str containing the name of the encoder's weights, defaults to all-MiniLM-L6-v2
+
+        Returns:
+            Embedding array of shape (n_samples, embedding_dim)
+        """
+        if self.embedding_type == Embedding.NONE:
+            return features
+        elif self.embedding_type == Embedding.SB:
+            self.embedder = SentenceTransformer(self.embedding_weights)
+            sentences = [" ".join(str(val) for val in row) for row in features]
+            return self.embedder.encode(sentences)
+        else: 
+            self.embedder = [LabelEncoder() for _ in range(features.shape[1])]
+            return np.column_stack([
+                le.fit_transform(features[:, i]) if bool else le.transform(features[:, i])
+                for i, le in enumerate(self.embedder)
+            ])         
+
+    def embedding_parsing(self, embedding:np.ndarray) -> np.ndarray:
+        """
+        Parses the precomputed embedding vector to a suitable format for the model
+        """
+        
+        arr = np.zeros((384,))
+        arr[:] = np.array(embedding[0])
+        return arr
                             
     @classmethod
-    def run_dummy_validation(cls):
+    def get_dummy_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
         """
-        Run dummy validation for JPCP.
+        Get dummy configuration for JPCP.
 
-        """                
+        """     
+        # Dictionary containing the configurations
+        config_dict = {}           
         
-        model_fdata = cls(model_hyperparameters={"n_jobs": -1})
+        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
         
         model_fdata.logger.info(f"Validation on FData")
         fdata = FDataDataset(use_zenodo_url=True,
                     files = "21_04",
-                    transform=embedding_parsing,
+                    transform=model_fdata.embedding_parsing,
                     target_transform=lambda output_features: (
                         output_features[0] / output_features[1]
                     ),
@@ -89,9 +126,11 @@ class JPCP(SeanergysSklearnModel):
                     input_features=["embedding"],
                     output_features=["avgpcon", "nnuma"])
         data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        model_fdata.train(train_data_loader=data_loader_fdata)
         
-        model_pm100 = cls(model_hyperparameters={"n_jobs": -1})
+        # Load the fdata config
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        
+        model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
         model_pm100.logger.info(f"Validation on PM100")
         pm100 = PM100Dataset(
             use_zenodo_url=True,
@@ -100,7 +139,7 @@ class JPCP(SeanergysSklearnModel):
                 np.mean(output_features[0]) / output_features[1]
             ),
             preprocessing_functions=[
-                fit_transform_categorical
+                lambda features: model_pm100.transform_embeddings(features=features, fit=True)
                 
             ],
             filters=[[("submit_time", "<=", pd.Timestamp("2020-07-01", tz = "UTC"))]],
@@ -109,7 +148,117 @@ class JPCP(SeanergysSklearnModel):
             output_features=["node_power_consumption", "num_nodes_alloc"],
             )
         data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
-        model_pm100.train(train_data_loader=data_loader_pm100)
+        # Load the pm100 config
+        config_dict["pm100"] = (model_pm100, data_loader_pm100)
+        return config_dict
+    
+    @classmethod
+    def get_train_config(cls):
+        """
+        Get training configuration for JPCP.
+
+        """     
+        # Dictionary containing the configurations
+        config_dict = {}           
+        
+        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+        
+        model_fdata.logger.info(f"Training on FData")
+        fdata = FDataDataset(
+            use_zenodo_url=True,
+            files="all",
+            transform=model_fdata.embedding_parsing,
+            target_transform=lambda output_features: (
+                output_features[0] / output_features[1]
+            ),
+            filters=[[
+                ("adt", ">=", "2023-12-01"),
+                ("adt", "<=", "2024-02-01"),
+            ]],
+            input_features=["embedding"],
+            output_features=["avgpcon", "nnuma"],
+        )
+        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        
+        # Load the fdata config
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        
+        model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
+        model_pm100.logger.info(f"Training on PM100")
+        pm100 = PM100Dataset(
+            use_zenodo_url=True,
+            transform=None,
+            target_transform=lambda output_features: (
+                np.mean(output_features[0]) / output_features[1]
+            ),
+            preprocessing_functions=[ model_pm100.transform_embeddings],
+            filters=[[
+                ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
+                ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
+            ]],
+            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+            input_features=["num_nodes_req_cat", "user_id_cat"],
+            output_features=["node_power_consumption", "num_nodes_alloc"],
+        )
+        data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
+        # Load the pm100 config
+        config_dict["pm100"] = (model_pm100, data_loader_pm100)
+        return config_dict
+    
+    @classmethod
+    def get_test_config(cls, saved_model_path: dict):
+        """
+        Get testing configuration for JPCP. It requires the saved model path as a dict mapping dataset -> path
+
+        """     
+        # Dictionary containing the configurations
+        config_dict = {}           
+        
+        model_fdata = cls.load(saved_model_path["fdata"])
+        
+        model_fdata.logger.info(f"Testing on FData")
+        fdata = FDataDataset(
+            use_zenodo_url=True,
+            files="all",
+            transform=model_fdata.embedding_parsing,
+            target_transform=lambda output_features: (
+                output_features[0] / output_features[1]
+            ),
+            filters=[[
+                ("adt", ">=", "2024-02-01"),
+                ("adt", "<=", "2024-02-28"),
+            ]],
+            input_features=["embedding"],
+            output_features=["avgpcon", "nnuma"],
+        )
+        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        
+        # Load the fdata config
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        
+        model_pm100 = cls.load(saved_model_path["pm100"])
+        model_pm100.logger.info(f"Testing on PM100")
+        pm100 = PM100Dataset(
+            use_zenodo_url=True,
+            transform=None,
+            target_transform=lambda output_features: (
+                np.mean(output_features[0]) / output_features[1]
+            ),
+            preprocessing_functions=[ model_pm100.transform_embeddings],
+            filters=[[
+                ("submit_time", ">=", pd.Timestamp("2020-09-01", tz="UTC")),
+                ("submit_time", "<=", pd.Timestamp("2020-10-01", tz="UTC")),
+            ]],
+            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+            input_features=["num_nodes_req_cat", "user_id_cat"],
+            output_features=["node_power_consumption", "num_nodes_alloc"],
+        )
+        data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
+        # Load the pm100 config
+        config_dict["pm100"] = (model_pm100, data_loader_pm100)
+        return config_dict
+        
+        
     
     def save(
         self,
@@ -118,7 +267,7 @@ class JPCP(SeanergysSklearnModel):
         **kwargs
     ) -> bool:
         """
-        Persist the estimator, label_encoder, metadata, and supplementary info to disk.
+        Persist the estimator, embedder, metadata, and supplementary info to disk.
 
         Args:
             path:     Destination path for the joblib model file.
@@ -132,8 +281,8 @@ class JPCP(SeanergysSklearnModel):
         
         try:
             # Save the label encoder
-            joblib.dump(self.label_encoder, f"{os.path.join(str(path), 'label_encoder.joblib')}", compress = compress)
-            self.logger.info(f"Label Encoder saved to {path}")
+            joblib.dump(self.embedder, f"{os.path.join(str(path), 'embedder.joblib')}", compress = compress)
+            self.logger.info(f"Embedder saved to {path}")
             super().save(path=path, compress=compress)
         
         except Exception as e:
@@ -161,7 +310,7 @@ class JPCP(SeanergysSklearnModel):
 
         try:
             obj = super().load(path=path, **kwargs)
-            obj.label_encoder = joblib.load(f"{os.path.join(str(path), 'label_encoder.joblib')}")
+            obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
             return obj
 
         except Exception as e:

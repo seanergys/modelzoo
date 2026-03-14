@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysModelConfiguration, SeanergysModelParams
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelConfiguration, SeanergysModelParams
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 
 
@@ -179,7 +179,11 @@ class SeanergysModel(BaseModel, ABC):
         pass
     
     @classmethod
-    def run_dummy_validation(cls):
+    def get_train_config(cls) -> Dict[str,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]:
+        pass
+    
+    @classmethod
+    def get_test_config(cls) -> Dict[str,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]:
         pass
     
     @classmethod

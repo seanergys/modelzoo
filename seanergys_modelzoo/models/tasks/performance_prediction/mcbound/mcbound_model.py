@@ -1,15 +1,27 @@
 from datetime import datetime
-from typing import Any, Dict
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 from sklearn.ensemble import RandomForestClassifier
-from pydantic import model_validator
+from pydantic import model_validator, Field
+from enum import Enum
+from sklearn.preprocessing import LabelEncoder
+from sentence_transformers import SentenceTransformer
+import joblib
+from enum import Enum
+import numpy as np
 
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
+from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
-from seanergys_modelzoo.models.tasks.performance_prediction.mcbound.functions import fit_categorical, fit_transform_categorical, transform_categorical, transform_embeddings, embedding_parsing
 
+class Embedding(Enum):
+    INT = 0 # Input features are mapped to categorical 
+    SB = 1 # Input features are encoded with sentence_transformers
+    NONE = 2 # Input features are used as is
 
 class MCBound(SeanergysSklearnModel):
     """
@@ -27,6 +39,9 @@ class MCBound(SeanergysSklearnModel):
         probabilities = model.predict(test_loader, return_proba=True)
         model.save("models/mcbound.joblib")
     """
+    embedder: Optional[List] = Field(default = None, description = "The list containing the embedder instances to encode the input labels.")
+    embedding_type: Optional[Embedding] = Field(default = Embedding.NONE, description = "The embedding strategy to use on the data.")
+    embedding_weights: Optional[str] = Field(default ="all-MiniLM-L6-v2", description = "The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB") 
 
     @model_validator(mode="before")
     @classmethod
@@ -51,20 +66,169 @@ class MCBound(SeanergysSklearnModel):
         """
         return self
     
-    @classmethod
-    def run_dummy_validation(cls):
+    def transform_embeddings(self, features: np.ndarray, fit:bool = False) -> np.ndarray:
         """
-        Run dummy validation for MCBound on FData
-        """                
+        Concatenate feature values into strings and encode with SentenceTransformer.
+
+        Args:
+            features: 2D array of shape (n_samples, n_features)
+            encoder_weights: str containing the name of the encoder's weights, defaults to all-MiniLM-L6-v2
+
+        Returns:
+            Embedding array of shape (n_samples, embedding_dim)
+        """
+        if self.embedding_type == Embedding.NONE:
+            return features
+        elif self.embedding_type == Embedding.SB:
+            self.embedder = SentenceTransformer(self.embedding_weights)
+            sentences = [" ".join(str(val) for val in row) for row in features]
+            return self.embedder.encode(sentences)
+        else: 
+            self.embedder = [LabelEncoder() for _ in range(features.shape[1])]
+            return np.column_stack([
+                le.fit_transform(features[:, i]) if bool else le.transform(features[:, i])
+                for i, le in enumerate(self.embedder)
+            ])            
+
+    def embedding_parsing(self, embedding:np.ndarray) -> np.ndarray:
+        """
+        Parses the precomputed embedding vector to a suitable format for the model
+        """
         
-        model_fdata = cls(model_hyperparameters={"n_jobs": -1})
+        arr = np.zeros((384,))
+        arr[:] = np.array(embedding[0])
+        return arr
+    
+    
+    @classmethod
+    def get_dummy_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+        """
+        Get dummy configuration for MCBound on FDATA.
+
+        """     
+        # Create config dict
+        config_dict = {}
+        
+        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
         
         model_fdata.logger.info(f"Validation on FData")
         fdata = FDataDataset(use_zenodo_url=True,
                     files = "21_04",
-                    transform=embedding_parsing,
+                    transform=model_fdata.embedding_parsing,
                     filters=[[("adt", "<=", "2021-04-02")]],
                     input_features=["embedding"],
                     output_features=["mem_compute_bound"])
         data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        model_fdata.train(train_data_loader=data_loader_fdata)
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        return config_dict
+    
+    @classmethod
+    def get_train_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+        """
+        Get training configuration for MCBound on FDATA.
+
+        """     
+        # Create config dict
+        config_dict = {}
+        
+        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+        
+        model_fdata.logger.info(f"Training on FData")
+        fdata = FDataDataset(
+            use_zenodo_url=True,
+            files = "all",
+            transform=model_fdata.embedding_parsing,
+            filters=[[
+                ("adt", ">=", "2023-12-01"),
+                ("adt", "<=", "2024-02-01"),
+            ]],
+            input_features=["embedding"],
+            output_features=["mem_compute_bound"]
+            )
+        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        return config_dict
+    
+    @classmethod
+    def get_test_config(cls, saved_model_path:dict ) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+        """
+        Get testing configuration for MCBound on FDATA. It requires the saved model path as a dict mapping dataset -> path
+
+        """     
+        # Create config dict
+        config_dict = {}
+        
+        model_fdata = cls.load(saved_model_path["fdata"])
+        
+        model_fdata.logger.info(f"Testing on FData")
+        fdata = FDataDataset(
+            use_zenodo_url=True,
+            files = "all",
+            transform=model_fdata.embedding_parsing,
+            filters=[[
+                ("adt", ">=", "2023-02-01"),
+                ("adt", "<=", "2024-02-28"),
+            ]],
+            input_features=["embedding"],
+            output_features=["mem_compute_bound"]
+            )
+        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        return config_dict
+        
+    
+    def save(
+        self,
+        path: Union[str, Path] = "./saved_model",
+        compress: int = 3,
+        **kwargs
+    ) -> bool:
+        """
+        Persist the estimator, embedder, metadata, and supplementary info to disk.
+
+        Args:
+            path:     Destination path for the joblib model file.
+            compress: joblib compression level (0–9).
+
+        Returns:
+            True on success, False on failure.
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Save the label encoder
+            joblib.dump(self.embedder, f"{os.path.join(str(path), 'embedder.joblib')}", compress = compress)
+            self.logger.info(f"Embedder saved to {path}")
+            super().save(path=path, compress=compress)
+        
+        except Exception as e:
+            self.logger.error(f"Error saving model: {e}")
+            return False
+
+    @classmethod
+    def load(
+        cls,
+        path: Union[str, Path] = "./saved_model",
+        **kwargs
+    ) -> "MCBound":
+        """
+        Restore a MCBound model from disk.
+
+        Args:
+            path: Path to the joblib model file produced by save().
+
+        Returns:
+            A fully restored MCBound instance.
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Model file not found: {path}")
+
+        try:
+            obj = super().load(path=path, **kwargs)
+            obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
+            return obj
+
+        except Exception as e:
+            raise RuntimeError(f"Error loading model: {e}") from e

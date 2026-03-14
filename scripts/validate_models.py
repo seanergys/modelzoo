@@ -51,7 +51,11 @@ def main(model_folder:str | Path, run_dummy:bool = False):
             
     # Run dummy evaluation
     for _, model_class in model_classes.items():
-        model_class.run_dummy_validation()
+        train_configs = model_class.get_dummy_config()
+        for dataset, configs in train_configs:
+            logger.info(f"Validating {model_class.model_name} on {dataset}")
+            model_instance, dataloader_instance = configs
+            model_instance.train(dataloader_instance)
           
     
     # Exit with appropriate code
@@ -71,19 +75,9 @@ if __name__ == "__main__":
         required=True,
         help='Path to folder containing model classes'
     )
-    
-    parser.add_argument(
-        '--dummy-evaluation',
-        '--d',
-        type=bool,
-        required=False,
-        default=False,
-        help='Whether to run the dummy training evaluation of the models or not'
-    )
-    
+        
     args = parser.parse_args()
     
     model_folder = args.model_folder
-    run_dummy = args.dummy_evaluation
     
-    main(model_folder=model_folder, run_dummy=run_dummy)
+    main(model_folder=model_folder)

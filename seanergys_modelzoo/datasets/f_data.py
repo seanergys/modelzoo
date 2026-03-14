@@ -335,3 +335,7 @@ class FDataDataset(SeanergysParquetDataset):
             Tuple of (start_date, end_date) in YY_MM format.
         """
         return (cls.AVAILABLE_FILES[0], cls.AVAILABLE_FILES[-1])
+    
+    @classmethod
+    def get_dummy_data(cls) -> 'FDataDataset':
+        pass 

@@ -99,14 +99,21 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
         pass
     
     @classmethod
-    def from_config(cls, dataset_config: SeanergysDatasetParams) -> "SeanergysDataset":
+    def from_config(cls, dataset_config: SeanergysDatasetParams, dummy:bool = False) -> "SeanergysDataset":
         """
         Instantiate the model class from the SeanergysDatasetConfiguration
         
         Args:
             dataset_config: SeanergysDatasetConfiguration to use
         """
-        return cls(**dataset_config.model_dump())
+        config = dataset_config.model_dump()
+        if dummy:
+            config.update(cls.get_dummy_params())
+        return cls(**config)
+    
+    @classmethod
+    def get_dummy_params(cls) -> dict:
+        pass
             
     def get_stats(self) -> Dict[str, Any]:
         """Return dataset statistics."""
