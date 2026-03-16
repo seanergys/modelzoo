@@ -108,6 +108,13 @@ class FDataDataset(SeanergysParquetDataset):
             'files_loaded': self._file_list if self._file_list else 'local'
         })
 
+        # If dummy swap parameters
+        if self.is_dummy:
+            self.files = "21-04"
+            if not(self.filters):
+                self.filters = []
+            self.filters += [("adt", "<=", "2021-04-02")]
+
         self.load_data()
         return self
 
@@ -162,7 +169,7 @@ class FDataDataset(SeanergysParquetDataset):
                 f"files must be str, list, or None, got {type(files)}"
             )
 
-    def _load_data_impl(self) -> None:
+    def _load_data_impl(self, use_dummy:bool = False) -> None:
         """
         Load data from Parquet file(s) (local or remote) and merge them.
         """
@@ -336,6 +343,3 @@ class FDataDataset(SeanergysParquetDataset):
         """
         return (cls.AVAILABLE_FILES[0], cls.AVAILABLE_FILES[-1])
     
-    @classmethod
-    def get_dummy_data(cls) -> 'FDataDataset':
-        pass 

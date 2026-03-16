@@ -60,12 +60,8 @@ I used this as a reference: [text](https://docs.python-guide.org/writing/structu
 
 ## TODO 
 
-- Define guidelines to write dataset classes and model classes (e.g. no "_" as first character). Write configuration file inside the model folder
-- Create a test for each of the tasks of the models, instead of a general one for all of them.  
-- Inside the model folder we should store the scripts to generate the pre-trained models and the weights (if available).
-- Add huggingface model support
-- Use pydantic to create the objects 
-- Check if pydantic works seamlessly and it's easy to use for the developer
+- Add dummy constructor in the dataset -> define the override paramters logic in the Data class (e.g. files and adt/edt are overridden).
+- get_train only in model and return the config only instead of the object itself
 
 ## HOW TO RUN VALIDATION 
 

@@ -6,6 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from pydantic import model_validator, Field
 from enum import Enum
 from sklearn.preprocessing import LabelEncoder
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
 from sentence_transformers import SentenceTransformer
 import joblib
 from enum import Enum
@@ -99,31 +100,9 @@ class MCBound(SeanergysSklearnModel):
         arr[:] = np.array(embedding[0])
         return arr
     
-    
-    @classmethod
-    def get_dummy_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
-        """
-        Get dummy configuration for MCBound on FDATA.
-
-        """     
-        # Create config dict
-        config_dict = {}
         
-        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
-        
-        model_fdata.logger.info(f"Validation on FData")
-        fdata = FDataDataset(use_zenodo_url=True,
-                    files = "21_04",
-                    transform=model_fdata.embedding_parsing,
-                    filters=[[("adt", "<=", "2021-04-02")]],
-                    input_features=["embedding"],
-                    output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
-        return config_dict
-    
     @classmethod
-    def get_train_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+    def get_train_config(cls) -> Dict[Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MCBound on FDATA.
 
@@ -133,8 +112,7 @@ class MCBound(SeanergysSklearnModel):
         
         model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
         
-        model_fdata.logger.info(f"Training on FData")
-        fdata = FDataDataset(
+        fdata_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             files = "all",
             transform=model_fdata.embedding_parsing,
@@ -145,23 +123,23 @@ class MCBound(SeanergysSklearnModel):
             input_features=["embedding"],
             output_features=["mem_compute_bound"]
             )
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         return config_dict
     
     @classmethod
-    def get_test_config(cls, saved_model_path:dict ) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+    def get_test_config(cls, saved_model_path:dict) ->Dict[Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
-        Get testing configuration for MCBound on FDATA. It requires the saved model path as a dict mapping dataset -> path
+        Get testing configuration for MCBound on FDATA. 
 
         """     
         # Create config dict
         config_dict = {}
-        
+                
         model_fdata = cls.load(saved_model_path["fdata"])
         
         model_fdata.logger.info(f"Testing on FData")
-        fdata = FDataDataset(
+        fdata_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             files = "all",
             transform=model_fdata.embedding_parsing,
@@ -172,8 +150,8 @@ class MCBound(SeanergysSklearnModel):
             input_features=["embedding"],
             output_features=["mem_compute_bound"]
             )
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         return config_dict
         
     

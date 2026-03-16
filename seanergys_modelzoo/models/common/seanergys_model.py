@@ -179,11 +179,11 @@ class SeanergysModel(BaseModel, ABC):
         pass
     
     @classmethod
-    def get_train_config(cls) -> Dict[str,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]:
+    def get_train_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         pass
     
     @classmethod
-    def get_test_config(cls) -> Dict[str,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]:
+    def get_test_config(cls) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         pass
     
     @classmethod

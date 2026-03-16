@@ -79,6 +79,12 @@ class PM100Dataset(SeanergysParquetDataset):
             'paper_doi': '10.1145/3624062.3624263'
         })
 
+        # If dummy swap parameters
+        if self.is_dummy:
+            if not(self.filters):
+                self.filters = []
+            self.filters += [[("submit_time", "<=", pd.Timestamp("2020-05-01", tz = "UTC"))]],
+
         self.load_data()
         return self
 

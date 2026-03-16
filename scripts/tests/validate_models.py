@@ -51,10 +51,13 @@ def main(model_folder:str | Path, run_dummy:bool = False):
             
     # Run dummy evaluation
     for _, model_class in model_classes.items():
-        train_configs = model_class.get_dummy_config()
-        for dataset, configs in train_configs:
-            logger.info(f"Validating {model_class.model_name} on {dataset}")
-            model_instance, dataloader_instance = configs
+        train_configs = model_class.get_train_config()
+        for model_instance, dataset, data_configs in train_configs.items():
+            logger.info(f"Validating {model_instance.model_name} on {dataset}")
+            dataset_config, dataloader_config = data_configs
+            dataset_config.is_dummy = True
+            dataset = dataset.from_config(dataset_config)
+            dataloader_instance = SeanergysDataloader.from_config(data_loader_config=dataloader_config, dataset=dataset)
             model_instance.train(dataloader_instance)
           
     

@@ -6,7 +6,9 @@ import pickle
 import joblib
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from xgboost import XGBClassifier
@@ -180,35 +182,7 @@ class MACK(SeanergysSklearnModel):
         
     
     @classmethod
-    def get_dummy_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
-        """
-        Get dummy configuration for MACK on FDATA.
-
-        """     
-        # Create config dict
-        config_dict = {}
-        
-        model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
-        model_fdata.logger.info(f"Validation on FData")
-        
-        # Define pclass creation
-        def preprocess_fdata(df):
-            df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
-            return df
-        
-        fdata = FDataDataset(use_zenodo_url=True,
-                    files = "21_04",
-                    transform=model_fdata.embedding_parsing,
-                    preprocessing_functions = [preprocess_fdata],
-                    filters=[[("adt", "<=", "2021-04-02")]],
-                    input_features=["embedding"],
-                    output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
-        return config_dict
-    
-    @classmethod
-    def get_train_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+    def get_train_config(cls) -> Dict[Tuple["MACK", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MACK on FDATA.
 
@@ -217,14 +191,13 @@ class MACK(SeanergysSklearnModel):
         config_dict = {}
         
         model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
-        model_fdata.logger.info(f"Validation on FData")
         
         # Define pclass creation
         def preprocess_fdata(df):
             df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
             return df
                 
-        fdata = FDataDataset(use_zenodo_url=True,
+        fdata_config = SeanergysDatasetParams(use_zenodo_url=True,
                     files = "all",
                     transform=model_fdata.embedding_parsing,
                     preprocessing_functions = [preprocess_fdata],
@@ -234,8 +207,8 @@ class MACK(SeanergysSklearnModel):
                     ]],
                     input_features=["embedding"],
                     output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         return config_dict
     
     @classmethod
@@ -256,7 +229,7 @@ class MACK(SeanergysSklearnModel):
             df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
             return df
                 
-        fdata = FDataDataset(use_zenodo_url=True,
+        fdata_config = SeanergysDatasetParams(use_zenodo_url=True,
                     files = "all",
                     transform=model_fdata.embedding_parsing,
                     preprocessing_functions = [preprocess_fdata],
@@ -266,8 +239,8 @@ class MACK(SeanergysSklearnModel):
                     ]],
                     input_features=["embedding"],
                     output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        data_loader_fdata = SeanergysDataloader(batch_size=1)
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         return config_dict
         
 

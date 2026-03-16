@@ -28,6 +28,7 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
     target_transform: Optional[Any] = Field(default=None, description="Transformations to apply to targets")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata about the dataset")
     preprocessing_functions: Optional[List[Callable]] = Field(default_factory=list, description="Preprocessing functions to apply")
+    is_dummy: Optional[bool] = Field(default=False, description = "Whether to load the dataset in dummy mode. Defaults to False")
     logger: Optional[SeanergysLogger] = Field(default=None, description="Logger instance")
     stats: Dict[str, Any] = Field(
         default_factory=lambda: {
@@ -99,17 +100,14 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
         pass
     
     @classmethod
-    def from_config(cls, dataset_config: SeanergysDatasetParams, dummy:bool = False) -> "SeanergysDataset":
+    def from_config(cls, dataset_config: SeanergysDatasetParams) -> "SeanergysDataset":
         """
         Instantiate the model class from the SeanergysDatasetConfiguration
         
         Args:
             dataset_config: SeanergysDatasetConfiguration to use
         """
-        config = dataset_config.model_dump()
-        if dummy:
-            config.update(cls.get_dummy_params())
-        return cls(**config)
+        return cls(**dataset_config.model_dump())
     
     @classmethod
     def get_dummy_params(cls) -> dict:

@@ -105,55 +105,7 @@ class JPCP(SeanergysSklearnModel):
         return arr
                             
     @classmethod
-    def get_dummy_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
-        """
-        Get dummy configuration for JPCP.
-
-        """     
-        # Dictionary containing the configurations
-        config_dict = {}           
-        
-        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
-        
-        model_fdata.logger.info(f"Validation on FData")
-        fdata = FDataDataset(use_zenodo_url=True,
-                    files = "21_04",
-                    transform=model_fdata.embedding_parsing,
-                    target_transform=lambda output_features: (
-                        output_features[0] / output_features[1]
-                    ),
-                    filters=[[("adt", "<=", "2021-04-02")]],
-                    input_features=["embedding"],
-                    output_features=["avgpcon", "nnuma"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        
-        # Load the fdata config
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
-        
-        model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
-        model_pm100.logger.info(f"Validation on PM100")
-        pm100 = PM100Dataset(
-            use_zenodo_url=True,
-            transform=None,
-            target_transform=lambda output_features: (
-                np.mean(output_features[0]) / output_features[1]
-            ),
-            preprocessing_functions=[
-                lambda features: model_pm100.transform_embeddings(features=features, fit=True)
-                
-            ],
-            filters=[[("submit_time", "<=", pd.Timestamp("2020-07-01", tz = "UTC"))]],
-            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
-            input_features=["num_nodes_req_cat", "user_id_cat"],
-            output_features=["node_power_consumption", "num_nodes_alloc"],
-            )
-        data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
-        # Load the pm100 config
-        config_dict["pm100"] = (model_pm100, data_loader_pm100)
-        return config_dict
-    
-    @classmethod
-    def get_train_config(cls):
+    def get_train_config(cls) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for JPCP.
 
@@ -164,7 +116,7 @@ class JPCP(SeanergysSklearnModel):
         model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
         
         model_fdata.logger.info(f"Training on FData")
-        fdata = FDataDataset(
+        fdata_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             files="all",
             transform=model_fdata.embedding_parsing,
@@ -178,14 +130,14 @@ class JPCP(SeanergysSklearnModel):
             input_features=["embedding"],
             output_features=["avgpcon", "nnuma"],
         )
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
         
         # Load the fdata config
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         
         model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
         model_pm100.logger.info(f"Training on PM100")
-        pm100 = PM100Dataset(
+        pm100_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             transform=None,
             target_transform=lambda output_features: (
@@ -200,24 +152,24 @@ class JPCP(SeanergysSklearnModel):
             input_features=["num_nodes_req_cat", "user_id_cat"],
             output_features=["node_power_consumption", "num_nodes_alloc"],
         )
-        data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
+        data_loader_pm100 = SeanergysDataloaderParams(batch_size=1)
         # Load the pm100 config
-        config_dict["pm100"] = (model_pm100, data_loader_pm100)
+        config_dict["pm100"] = (model_pm100, PM100Dataset(pm100_config, data_loader_pm100))
         return config_dict
     
     @classmethod
-    def get_test_config(cls, saved_model_path: dict):
+    def get_test_config(cls, saved_model_path: dict) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get testing configuration for JPCP. It requires the saved model path as a dict mapping dataset -> path
 
         """     
         # Dictionary containing the configurations
-        config_dict = {}           
-        
+        config_dict = {}    
         model_fdata = cls.load(saved_model_path["fdata"])
         
-        model_fdata.logger.info(f"Testing on FData")
-        fdata = FDataDataset(
+        model_fdata.logger.info(f"Testing on FData")       
+                
+        fdata_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             files="all",
             transform=model_fdata.embedding_parsing,
@@ -231,14 +183,14 @@ class JPCP(SeanergysSklearnModel):
             input_features=["embedding"],
             output_features=["avgpcon", "nnuma"],
         )
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
         
         # Load the fdata config
-        config_dict["fdata"] = (model_fdata, data_loader_fdata)
-        
+        config_dict["fdata"] = (model_fdata, FDataDataset,(fdata_config, data_loader_fdata))
         model_pm100 = cls.load(saved_model_path["pm100"])
         model_pm100.logger.info(f"Testing on PM100")
-        pm100 = PM100Dataset(
+        
+        pm100_config = SeanergysDatasetParams(
             use_zenodo_url=True,
             transform=None,
             target_transform=lambda output_features: (
@@ -253,9 +205,9 @@ class JPCP(SeanergysSklearnModel):
             input_features=["num_nodes_req_cat", "user_id_cat"],
             output_features=["node_power_consumption", "num_nodes_alloc"],
         )
-        data_loader_pm100 = SeanergysDataloader(dataset = pm100, batch_size=1)
+        data_loader_pm100 = SeanergysDataloader(batch_size=1)
         # Load the pm100 config
-        config_dict["pm100"] = (model_pm100, data_loader_pm100)
+        config_dict["pm100"] = (model_pm100, PM100Dataset, (pm100_config, data_loader_pm100))
         return config_dict
         
         
