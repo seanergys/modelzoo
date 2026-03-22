@@ -15,7 +15,7 @@
 | **Dataset load tests** | `tests/smoke/test_datasets_load.py` — load from Zenodo or local fixtures (Option 2) |
 | **Sample data** | `scripts/create_sample_data.py` — download small subsets from Zenodo to `tests/fixtures/sample_data/` |
 | **Makefile** | `make sample-data`, `make test`, `make test-unit`, `make test-smoke`, `make test-datasets`, `make lint` |
-| **Pytest** | `conftest.py`, `sample_data_dir` fixture, `pyproject.toml` (pytest/ruff config), `requirements-test.txt` |
+| **Pytest** | `conftest.py`, `sample_data_dir` fixture, `pyproject.toml` (pytest/ruff config, Poetry dev deps) |
 | **Fixtures** | `tests/fixtures/sample_data/` — sample_fdata.parquet, sample_pm100.parquet (via `make sample-data`) |
 | **Bug fix** | `seanergys_dataloader.py` — added `from __future__ import annotations` |
 | **Docs** | `docs/CI.md`, `tests/fixtures/README.md` |
@@ -67,7 +67,7 @@ This document defines the full testing strategy for seanergys-modelzoo across:
 - **Run**: `pytest tests/` or `pytest tests/unit/ -v`
 - **Assertions**: Use `assert`; pytest gives clear failure output
 - **Fixtures**: Shared setup in `conftest.py` (e.g. temp dirs, synthetic data)
-- **Install**: `pip install pytest` (see `requirements-test.txt`)
+- **Install**: `poetry install --with dev` (pytest in dev deps)
 
 Pytest complements the CI validation scripts (`ci/validate_models.py`, etc.): scripts handle discovery and full runs; pytest handles granular, fast, isolated checks.
 
@@ -301,11 +301,9 @@ ci/
 ├── validate_models.py
 ├── validate_datasets.py
 ├── utils.py
-├── requirements-ci.txt
 └── seanergys_model_evaluator.py
 
-requirements-test.txt   # pytest, pydantic (for unit/smoke)
-pyproject.toml          # ruff config, pytest markers, project metadata
+pyproject.toml          # Poetry: deps (dev, ci groups), ruff, pytest config
 Makefile                # sample-data, test, lint, format
 ```
 

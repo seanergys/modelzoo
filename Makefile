@@ -3,7 +3,7 @@
 
 .PHONY: help install sample-data test test-unit test-smoke test-dataset test-datasets test-integration lint format typecheck audit check-secrets clean
 
-# Use venv Python (create with: python -m venv .venv)
+# Use Poetry-managed venv (run: poetry config virtualenvs.in-project true && poetry install)
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
 PYTEST ?= $(VENV)/bin/pytest
@@ -43,15 +43,14 @@ help:
 # Install
 # -----------------------------------------------------------------------------
 install:
-	$(PYTHON) -m pip install -e .
-	$(PYTHON) -m pip install -r requirements-test.txt
+	poetry install --with dev
 
 # -----------------------------------------------------------------------------
 # Sample data (for local dev and CI)
 # -----------------------------------------------------------------------------
 sample-data:
 	@echo "Creating sample datasets for tests..."
-	$(PYTHON) -m pip install -q pandas pyarrow 2>/dev/null || true
+	poetry install -q --with ci 2>/dev/null || true
 	$(PYTHON) scripts/create_sample_data.py $(ARGS)
 	@echo "Sample data created in tests/fixtures/sample_data/"
 	@echo "  Use: make sample-data ARGS='--fdata-only' or ARGS='--pm100-only'"
@@ -77,7 +76,7 @@ test-datasets:
 test-integration:
 	@echo "Running integration tests (requires sample-data)..."
 	@echo "  Run 'make sample-data' first if tests/fixtures/sample_data/ is empty"
-	$(PYTEST) tests/integration/ -v
+	$(PYTEST) tests/integration/ -v -s
 
 test-all:
 	$(PYTEST) tests/ -v
@@ -90,11 +89,9 @@ test-smoke-zenodo:
 # Lint & Format
 # -----------------------------------------------------------------------------
 lint:
-	$(PYTHON) -m pip install -q ruff 2>/dev/null || true
 	$(PYTHON) -m ruff check seanergys_modelzoo ci tests
 
 format:
-	$(PYTHON) -m pip install -q ruff 2>/dev/null || true
 	$(PYTHON) -m ruff format seanergys_modelzoo ci tests
 
 typecheck:
@@ -103,7 +100,7 @@ typecheck:
 
 audit:
 	$(PYTHON) -m pip install -q pip-audit 2>/dev/null || true
-	$(PYTHON) -m pip_audit -r requirements-test.txt -r ci/requirements-ci.txt
+	poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt && $(PYTHON) -m pip_audit -r /tmp/poetry-audit-reqs.txt
 
 check-secrets:
 	@chmod +x ci/check_secrets.sh 2>/dev/null || true

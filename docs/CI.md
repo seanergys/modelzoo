@@ -18,7 +18,7 @@ The pipeline runs automatically on every push and merge request using GitLab sha
 | Job | Description | Allow failure |
 |-----|-------------|--------------|
 | **sanity:python-syntax** | Compiles Python files in `seanergys_modelzoo/`, `ci/`, `tests/` | No |
-| **sanity:check-structure** | Ensures `setup.py`, `seanergys_modelzoo/`, `ci/`, `tests/` exist | No |
+| **sanity:check-structure** | Ensures `pyproject.toml`, `seanergys_modelzoo/`, `ci/`, `tests/` exist | No |
 | **sanity:check-secrets** | Scans for hardcoded secrets (api_key, etc.) in code | Yes |
 
 ### Validate
@@ -45,7 +45,7 @@ The pipeline runs automatically on every push and merge request using GitLab sha
 | **test:validate-models** | On models/ci change / always | `pytest tests/smoke/test_models_smoke.py` + `ci/validate_models.py` | Yes |
 | **test:validate-datasets** | On datasets/ci change / always | `pytest tests/smoke/test_datasets_smoke.py` + `ci/validate_datasets.py` | Yes |
 | **test:integration** | On models/datasets/tests/scripts change | `make sample-data` then `pytest tests/integration/` | No |
-| **test:audit** | On dependency file changes | `pip-audit -r requirements-test.txt -r ci/requirements-ci.txt` | Yes |
+| **test:audit** | On `pyproject.toml`/`poetry.lock` changes | `poetry export` → `pip-audit` | Yes |
 
 ## Directory Layout
 
@@ -56,9 +56,10 @@ ci/
 ├── validate_yaml.py      # YAML/JSON validation
 ├── validate_models.py    # Model discovery & validation
 ├── validate_datasets.py  # Dataset discovery & validation
-├── utils.py              # Shared discovery helpers
-└── requirements-ci.txt   # Dependencies for model validation
+└── utils.py             # Shared discovery helpers
 ```
+
+Dependencies are managed in `pyproject.toml` (Poetry) via the `ci` dependency group.
 
 ## Caching
 
@@ -70,7 +71,7 @@ Pip packages are cached per branch (`$CI_COMMIT_REF_SLUG`).
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 
 # Install and run tests (via Makefile)
-make install
+make install              # poetry install --with dev
 make sample-data          # Create small datasets for tests (from Zenodo)
 make test                 # Unit + smoke tests
 make test-datasets        # Dataset load tests (use sample-data first)
@@ -81,20 +82,19 @@ make typecheck           # Mypy (optional)
 make audit               # pip-audit for dependency vulnerabilities
 make check-secrets       # Scan for accidental secrets in code
 
-# Or manually:
-pip install -r requirements-test.txt
-pytest tests/unit/ tests/smoke/ -v -m "not zenodo"
+# Or manually (Poetry):
+poetry install --with dev
+poetry run pytest tests/unit/ tests/smoke/ -v -m "not zenodo"
 
 # Validate YAML/JSON
 pip install pyyaml && python ci/validate_yaml.py
 
-# Model validation (requires deps and Zenodo access)
-pip install -r ci/requirements-ci.txt
-python ci/validate_models.py --model-folder seanergys_modelzoo/models
+# Model validation (requires ci deps)
+poetry install --with dev,ci
+poetry run python ci/validate_models.py --model-folder seanergys_modelzoo/models
 
 # Dataset validation (discovery only)
-pip install pydantic torch pyarrow
-python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
+poetry run python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
 ```
 
 ### Sample data for tests

@@ -28,7 +28,7 @@ def test_ci_utils_imports():
 def test_model_discovery(project_root):
     """
     Discover all SeanergysModel classes. Requires full deps (torch, sklearn, etc).
-    Skipped if deps missing (use ci/requirements-ci.txt for full run).
+    Skipped if deps missing (use `poetry install --with ci` for full run).
     """
     pytest.importorskip("torch", reason="Model discovery requires torch")
     pytest.importorskip("sklearn", reason="Model discovery requires sklearn")

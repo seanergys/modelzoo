@@ -34,7 +34,7 @@ sanity:check-structure:
   stage: sanity
   image: python:3.11-slim
   script:
-    - test -f setup.py
+    - test -f pyproject.toml
     - test -d seanergys_modelzoo
     - test -d ci
     - test -d tests
@@ -108,9 +108,11 @@ test:unit:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pytest pydantic
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev
   script:
-    - pytest tests/unit/ -v
+    - poetry run pytest tests/unit/ -v
   rules:
     - changes: ["**/*.py"]
   allow_failure: false
@@ -123,9 +125,11 @@ test:smoke:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pytest pydantic
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev
   script:
-    - pytest tests/smoke/ -v
+    - poetry run pytest tests/smoke/ -v
   rules:
     - changes: ["**/*.py"]
   allow_failure: false
@@ -138,9 +142,11 @@ test:import-check:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pydantic numpy
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev,ci
   script:
-    - python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('Import OK')"
+    - poetry run python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('Import OK')"
   allow_failure: false
 
 test:validate-models:
@@ -151,11 +157,12 @@ test:validate-models:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pytest
-    - pip install --quiet -r ci/requirements-ci.txt
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev,ci
   script:
-    - pytest tests/smoke/test_models_smoke.py -v
-    - python ci/validate_models.py --model-folder seanergys_modelzoo/models
+    - poetry run pytest tests/smoke/test_models_smoke.py -v
+    - poetry run python ci/validate_models.py --model-folder seanergys_modelzoo/models
   rules:
     - changes:
         - "seanergys_modelzoo/models/**"
@@ -166,12 +173,17 @@ test:validate-models:
 test:validate-datasets:
   stage: test
   image: python:3.11-slim
+  cache:
+    - <<: *pip_cache
+      policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pytest pydantic torch pyarrow
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev,ci
   script:
-    - pytest tests/smoke/test_datasets_smoke.py -v
-    - python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
+    - poetry run pytest tests/smoke/test_datasets_smoke.py -v
+    - poetry run python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
   rules:
     - changes:
         - "seanergys_modelzoo/datasets/**"
@@ -187,10 +199,12 @@ test:integration:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet pytest pydantic pandas pyarrow torch scikit-learn joblib
-    - python scripts/create_sample_data.py
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev,ci
+    - poetry run python scripts/create_sample_data.py
   script:
-    - pytest tests/integration/ -v
+    - poetry run pytest tests/integration/ -v
   rules:
     - changes:
         - "seanergys_modelzoo/models/**"
@@ -208,9 +222,13 @@ test:audit:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
+    - pip install --quiet poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction
     - pip install --quiet pip-audit
   script:
-    - pip-audit -r requirements-test.txt -r ci/requirements-ci.txt
+    - poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt
+    - pip-audit -r /tmp/poetry-audit-reqs.txt
   rules:
-    - changes: ["**/requirements*.txt", "**/pyproject.toml", "**/setup.py", "ci/requirements-ci.txt"]
+    - changes: ["**/pyproject.toml", "**/poetry.lock"]
   allow_failure: true
