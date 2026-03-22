@@ -27,6 +27,7 @@ def pytest_configure(config):
 # Model discovery (runs at collection time, used to parametrize tests)
 # ---------------------------------------------------------------------------
 
+
 def _collect_model_classes() -> Dict[str, Type]:
     """
     Discover all concrete SeanergysModel subclasses in models/tasks/.
@@ -37,9 +38,6 @@ def _collect_model_classes() -> Dict[str, Type]:
     try:
         from ci.utils import retrieve_instances_from_file
         from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel
-        from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
-            SeanergysSklearnModel,
-        )
     except ImportError:
         return {}
 
@@ -65,6 +63,7 @@ MODEL_CLASSES = _collect_model_classes()
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def project_root() -> Path:

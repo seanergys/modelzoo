@@ -1,6 +1,5 @@
 """Unit tests for Seanergys configurator (Pydantic params)."""
 
-import pytest
 
 
 def test_model_params_instantiation():

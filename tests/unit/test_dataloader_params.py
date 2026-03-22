@@ -1,6 +1,5 @@
 """Unit tests for SeanergysDataloaderParams validation."""
 
-import pytest
 
 
 def test_dataloader_params_from_dict():

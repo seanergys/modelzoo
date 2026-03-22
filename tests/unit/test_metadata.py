@@ -1,8 +1,6 @@
 """Unit tests for SeanergysModelMetadata."""
 
-from datetime import datetime
 
-import pytest
 
 
 def test_metadata_instantiation():

@@ -85,7 +85,7 @@ lint:mypy:
   image: python:3.12-slim
   script:
     - pip install --quiet mypy types-PyYAML
-    - mypy seanergys_modelzoo ci tests
+    - mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
   allow_failure: true
 
 # -----------------------------------------------------------------------------
@@ -191,7 +191,7 @@ test:audit:
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
+    - pip install --quiet poetry poetry-plugin-export
     - poetry config virtualenvs.create false
     - poetry install --no-interaction
     - pip install --quiet pip-audit

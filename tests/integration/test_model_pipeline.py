@@ -40,6 +40,7 @@ def _resolve_fixture_path(dataset_cls, sample_data_dir):
 # Test 1: get_train_config() returns a valid structure
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
 def test_get_train_config_structure(model_name, model_cls):
     """
@@ -50,7 +51,9 @@ def test_get_train_config_structure(model_name, model_cls):
 
     config = model_cls.get_train_config()
 
-    assert isinstance(config, dict), f"{model_name}.get_train_config() must return a dict"
+    assert isinstance(config, dict), (
+        f"{model_name}.get_train_config() must return a dict"
+    )
     assert len(config) > 0, f"{model_name}.get_train_config() returned empty dict"
 
     for entry_name, entry in config.items():
@@ -69,7 +72,10 @@ def test_get_train_config_structure(model_name, model_cls):
             )
 
         # Dataset class is a proper subclass
-        from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+        from seanergys_modelzoo.datasets.common.seanergys_dataset import (
+            SeanergysDataset,
+        )
+
         assert issubclass(dataset_cls, SeanergysDataset), (
             f"{model_name}/{entry_name}: dataset_cls must subclass SeanergysDataset"
         )
@@ -78,6 +84,7 @@ def test_get_train_config_structure(model_name, model_cls):
 # ---------------------------------------------------------------------------
 # Test 2: full pipeline — train → predict → save → load
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
 def test_full_pipeline(model_name, model_cls, tmp_path, sample_data_dir):
@@ -96,8 +103,11 @@ def test_full_pipeline(model_name, model_cls, tmp_path, sample_data_dir):
 
     config = model_cls.get_train_config()
 
-    for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
-
+    for entry_name, (
+        model_instance,
+        dataset_cls,
+        (ds_params, dl_params),
+    ) in config.items():
         # Use is_dummy to reduce data volume
         ds_params.is_dummy = True
 
@@ -128,7 +138,9 @@ def test_full_pipeline(model_name, model_cls, tmp_path, sample_data_dir):
 
         # Train
         history = model_instance.train(loader)
-        assert model_instance.is_trained, f"{model_name}: is_trained must be True after train()"
+        assert model_instance.is_trained, (
+            f"{model_name}: is_trained must be True after train()"
+        )
         assert history is not None, f"{model_name}: train() must return a history dict"
 
         # Predict

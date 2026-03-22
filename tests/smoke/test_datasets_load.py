@@ -140,7 +140,7 @@ def test_load_pm100_from_zenodo():
     # PM100 from Zenodo - use numeric columns only (no categorical preprocessing)
     ds = PM100Dataset(
         use_zenodo_url=True,
-        input_features=["num_nodes_req", "elapsed_time"],
+        input_features=["num_nodes_req", "run_time"],
         output_features=["num_nodes_alloc"],
     )
     assert len(ds) >= 1

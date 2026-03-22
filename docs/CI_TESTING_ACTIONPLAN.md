@@ -168,6 +168,7 @@ Mohsen's CI branch should not touch these files.
 | C5 | `mack_model.py` | `get_train_config()` hardcodes `use_zenodo_url=True` — CI without network fails | Support a local `data_path` override |
 | C6 | `seanergys_model_evaluator.py` | Was placed in `tests/` (non-standard) | Already moved to `ci/` in Mohsen's branch; will be deleted as part of the refactor |
 | C7 | `scripts/tests/validate_models.py` | Imports from `tests.seanergys_model_evaluator` (hardcoded path) | Use relative import or move to a proper package |
+| C8 | Multiple files | ruff format check fails — these files need reformatting: `seanergys_dataset.py`, `f_data.py`, `pm100.py`, `seanergys_model.py`, `mack_model.py`, `mcbound_model.py`, `jpcp_model.py` | Run `ruff format seanergys_modelzoo` |
 
 ---
 

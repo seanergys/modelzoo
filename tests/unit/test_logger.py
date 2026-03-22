@@ -2,7 +2,6 @@
 
 import logging
 
-import pytest
 
 
 def test_logger_instantiation():
