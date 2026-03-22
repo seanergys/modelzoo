@@ -1,7 +1,13 @@
 local_data
 saved_models/*
-
+.venv
+venv
 .env
+.vscode
+.claude
+.claude/*
+CLAUDE.md
+.vscode/*
 
 DS_Store
 __pycache__
