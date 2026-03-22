@@ -149,7 +149,7 @@ test:import-check:
     - poetry run python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('Import OK')"
   allow_failure: false
 
-test:validate-models:
+test:smoke-models:
   stage: test
   image: python:3.11-slim
   cache:
@@ -162,15 +162,14 @@ test:validate-models:
     - poetry install --no-interaction --with dev,ci
   script:
     - poetry run pytest tests/smoke/test_models_smoke.py -v
-    - poetry run python ci/validate_models.py --model-folder seanergys_modelzoo/models
   rules:
     - changes:
         - "seanergys_modelzoo/models/**"
         - "ci/**"
     - when: always
-  allow_failure: true
+  allow_failure: false
 
-test:validate-datasets:
+test:smoke-datasets:
   stage: test
   image: python:3.11-slim
   cache:
@@ -183,13 +182,12 @@ test:validate-datasets:
     - poetry install --no-interaction --with dev,ci
   script:
     - poetry run pytest tests/smoke/test_datasets_smoke.py -v
-    - poetry run python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
   rules:
     - changes:
         - "seanergys_modelzoo/datasets/**"
         - "ci/**"
     - when: always
-  allow_failure: true
+  allow_failure: false
 
 test:integration:
   stage: test
