@@ -122,7 +122,7 @@ ruff check --fix seanergys_modelzoo
 These are not linter errors but design gaps that will cause problems in CI and for other
 developers using your code.
 
-### 6.1 `get_dummy_params()` returns `None`
+### 6.1 `get_dummy_params()` returns `None` — **this blocks CI tests for your datasets**
 
 **Files:** `seanergys_modelzoo/datasets/common/seanergys_dataset.py`,
 `seanergys_modelzoo/models/common/seanergys_model.py`
@@ -139,56 +139,136 @@ This means any code that calls `get_dummy_params()` expecting a dict will silent
 and crash later in a confusing way. It should either raise `NotImplementedError` (forcing
 subclasses to implement it) or return a sensible default.
 
-**Suggested fix:**
+The CI smoke tests and integration tests are now fully dynamic — they discover every dataset
+class and test it automatically. **If `get_dummy_params()` returns None, those tests will
+skip with a message.** The test will never cover your dataset until you implement it.
+
+Each concrete dataset class must implement it, for example:
+
+```python
+# In FDataDataset:
+@classmethod
+def get_dummy_params(cls) -> dict:
+    return {
+        "input_features": ["nnuma", "duration"],
+        "output_features": ["avgpcon"],
+    }
+
+# In PM100Dataset:
+@classmethod
+def get_dummy_params(cls) -> dict:
+    return {
+        "input_features": ["num_nodes_req", "run_time"],
+        "output_features": ["num_nodes_alloc"],
+    }
+```
+
+The base class should raise `NotImplementedError` instead of silently returning None:
+
 ```python
 @classmethod
 def get_dummy_params(cls) -> dict:
     raise NotImplementedError(
         f"{cls.__name__} must implement get_dummy_params() "
-        "to support dummy/CI validation mode."
+        "to be automatically tested in CI."
     )
 ```
 
-### 6.2 `get_train_config()` return type hint is wrong
+### 6.2 `get_train_config()` and `get_test_config()` return type hints are wrong — **CRITICAL: was breaking all integration tests**
 
 **Files:** `mack_model.py`, `jpcp_model.py`, `mcbound_model.py`
+**Fixed by Mohsen on branch `ci/add-gitlab-pipeline`.**
 
-The return type is annotated as `Dict[Tuple[...]]` but a `Dict` needs two type parameters:
-key type and value type. It should be `Dict[str, Tuple[...]]` since the keys are strings
-like `"fdata"`, `"pm100"`.
+Both `get_train_config()` and `get_test_config()` were annotated as `Dict[Tuple[...]]`.
+`Dict` requires **two** type parameters (key type and value type). In Python 3.12 this
+raises a `TypeError` at import time — before any test even starts:
+
+```
+TypeError: Too few arguments for typing.Dict; actual 1, expected 2
+```
+
+Because the error happened when the module was first imported, `retrieve_instances_from_file`
+failed for every model file. The result: `MODEL_CLASSES` in `tests/conftest.py` was always
+empty, and all integration tests were silently skipped with `[NOTSET]` — no model was ever
+tested in CI.
+
+The fix was adding `str,` as the key type in all six methods (3 files × 2 methods):
 
 ```python
-# Wrong
+# Before — caused TypeError at import time in Python 3.12
 def get_train_config(cls) -> Dict[Tuple["MACK", SeanergysDataset, ...]]:
+def get_test_config(cls, ...)  -> Dict[Tuple[SeanergysModel, ...]]:
+
+# After — correct
+def get_train_config(cls) -> Dict[str, Tuple["MACK", SeanergysDataset, ...]]:
+def get_test_config(cls, ...) -> Dict[str, Tuple[SeanergysModel, ...]]:
+```
+
+**For future models:** always use `Dict[str, Tuple[...]]` — the string key is the config
+entry name (e.g. `"fdata"`, `"pm100"`) that you already use inside the method body.
+
+### 6.3 `is_dummy=True` has two bugs in `FDataDataset` — **breaks sample data creation**
+
+**File:** `f_data.py`
+
+Running `make sample-data` revealed two bugs in the `is_dummy=True` block:
+
+**Bug 1 — wrong file name (hyphen vs underscore):**
+```python
+# Wrong — "21-04" does not exist in AVAILABLE_FILES
+self.files = "21-04"
 
 # Correct
-def get_train_config(cls) -> Dict[str, Tuple["MACK", SeanergysDataset, ...]]:
+self.files = "21_04"
 ```
 
-### 6.3 `is_dummy=True` still downloads from Zenodo
+**Bug 2 — invalid filter format:**
+```python
+# Wrong — appends a bare tuple to a list-of-lists, creating mixed format
+# If filters = [[("adt", ">=", "2023-12-01"), ...]], after += it becomes:
+# [[("adt", ">=", "2023-12-01"), ...], ("adt", "<=", "2021-04-02")]
+# pyarrow sees the bare tuple and raises: "a" is not a valid operator
+self.filters += [("adt", "<=", "2021-04-02")]
 
-**Files:** `f_data.py`, and all models that call `get_train_config()`
+# Correct — wrap in a list to match the list-of-lists format
+self.filters += [[ ("adt", "<=", "2021-04-02") ]]
+```
 
-When `is_dummy=True` is set on `FDataDataset`, it narrows the data to a small date range
-but still tries to load from a Zenodo URL or a parquet file on disk. In CI (no network,
-no pre-downloaded files) this will fail.
-
-The intended purpose of `is_dummy` in CI is: *"load a tiny amount of data without needing
-the real dataset"*. The cleanest way to support this is to generate a small synthetic
-DataFrame when `is_dummy=True`, instead of trying to load from a file:
+Beyond these bugs, `is_dummy=True` still downloads from Zenodo with filters — it does not
+generate synthetic data in memory. The intended purpose of `is_dummy` in CI is:
+*"load a tiny amount of data without needing the real dataset or network."*
+The cleanest fix is to generate a small synthetic DataFrame:
 
 ```python
-def model_post_init(self, __context):
-    if self.is_dummy:
-        # Generate tiny synthetic data — no file or network needed
-        self._data = pd.DataFrame({
-            "nnuma": [1, 2, 3, 4, 5],
-            "duration": [10.0, 20.0, 30.0, 40.0, 50.0],
-            "avgpcon": [100.0, 200.0, 300.0, 400.0, 500.0],
-        })
-        return
-    self.load_data()
+if self.is_dummy:
+    # No file, no network — tiny synthetic data for CI
+    self._df = pd.DataFrame({
+        "nnuma": [1, 2, 3, 4, 5],
+        "duration": [10.0, 20.0, 30.0, 40.0, 50.0],
+        "avgpcon": [100.0, 200.0, 300.0, 400.0, 500.0],
+    })
+    return
 ```
+
+### 6.5 `JPCP.get_train_config()` — wrong tuple format for PM100 entry
+
+**File:** `jpcp_model.py`, line 157
+
+The PM100 entry does not follow the `(model, dataset_cls, (ds_params, dl_params))` contract.
+Francesco is instantiating `PM100Dataset` directly with positional arguments (which Pydantic
+does not support) instead of passing the class and params separately:
+
+```python
+# Wrong — PM100Dataset is a Pydantic BaseModel, does not accept positional args
+# Also breaks the (model, dataset_cls, (ds_params, dl_params)) contract
+config_dict["pm100"] = (model_pm100, PM100Dataset(pm100_config, data_loader_pm100))
+
+# Correct — pass the class, not an instance
+config_dict["pm100"] = (model_pm100, PM100Dataset, (pm100_config, data_loader_pm100))
+```
+
+This causes `JPCP.get_train_config()` to raise `BaseModel.__init__() takes 1 positional
+argument but 3 were given`, so the PM100 dataset is never included in CI testing for JPCP.
 
 ### 6.4 `get_train_config()` hardcodes `use_zenodo_url=True`
 
@@ -220,9 +300,10 @@ def get_train_config(cls, data_path: Optional[Path] = None) -> dict:
 | 4 | Duplicate import | `mcbound_model.py` | Yes — `ruff check --fix seanergys_modelzoo` |
 | 5 | f-strings | `mack_model.py`, `mcbound_model.py`, `jpcp_model.py` | Yes — `ruff check --fix seanergys_modelzoo` |
 | 6.1 | `get_dummy_params()` returns None | base classes | Manual |
-| 6.2 | Wrong type hint on `get_train_config()` | model files | Manual |
-| 6.3 | `is_dummy` still needs network | `f_data.py` | Manual |
+| 6.2 | ~~**CRITICAL** Wrong type hint on `get_train_config()` / `get_test_config()` — broke all integration tests~~ **Fixed by Mohsen** | model files | Done |
+| 6.3 | `is_dummy=True` has two bugs (wrong filename, invalid filter format) + still needs network | `f_data.py` | Manual |
 | 6.4 | `use_zenodo_url=True` hardcoded | model files | Manual |
+| 6.5 | **JPCP** `get_train_config()` PM100 entry uses wrong tuple format + positional Pydantic args | `jpcp_model.py` line 157 | Manual (one line fix) |
 
 **Quick wins** (run these two commands and items 1, 2, 4, 5 are done):
 ```bash

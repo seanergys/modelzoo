@@ -156,7 +156,32 @@ class MACK(SeanergysSklearnModel):
         return encoder.encode(sentences)        
     
     @classmethod
-    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["MACK", SeanergysDataloader]:
+    def run_dummy_validation(cls):
+        """
+        Run dummy validation for MACK on FData
+        """                
+        
+        model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
+        model_fdata.logger.info(f"Validation on FData")
+        
+        # Define pclass creation
+        def preprocess_fdata(df):
+            df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
+            return df
+        
+        fdata = FDataDataset(use_zenodo_url=True,
+                    files = "21_04",
+                    transform=model_fdata.embedding_parsing,
+                    preprocessing_functions = [preprocess_fdata],
+                    filters=[[("adt", "<=", "2021-04-02")]],
+                    input_features=["embedding"],
+                    output_features=["mem_compute_bound"])
+        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
+        model_fdata.train(train_data_loader=data_loader_fdata)
+        
+    
+    @classmethod
+    def get_train_config(cls) -> Dict[str, Tuple["MACK", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MACK on FDATA.
 
@@ -187,7 +212,7 @@ class MACK(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
             
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
+    def get_test_config(cls, saved_model_path:dict ) -> Dict[str, Tuple[SeanergysModel, SeanergysDataloader]]:
         """
         Get testing configuration for MACK on FDATA. It requires the model and the dataset_name
 

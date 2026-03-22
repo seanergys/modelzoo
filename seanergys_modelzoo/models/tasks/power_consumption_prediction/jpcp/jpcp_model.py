@@ -104,7 +104,7 @@ class JPCP(SeanergysSklearnModel):
         return arr
                             
     @classmethod
-    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["JPCP", SeanergysDataloader]:
+    def get_train_config(cls) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for JPCP.
 
@@ -161,7 +161,7 @@ class JPCP(SeanergysSklearnModel):
             
         
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
+    def get_test_config(cls, saved_model_path: dict) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get testing configuration for JPCP. It requires the model and the dataset_name
 

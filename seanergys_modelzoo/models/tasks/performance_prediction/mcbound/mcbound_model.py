@@ -102,7 +102,7 @@ class MCBound(SeanergysSklearnModel):
     
         
     @classmethod
-    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["MCBound", SeanergysDataloader]:
+    def get_train_config(cls) -> Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MCBound on FDATA.
 
@@ -129,7 +129,7 @@ class MCBound(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
     
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
+    def get_test_config(cls, saved_model_path:dict) ->Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get testing configuration for MCBound on FDATA. 
 

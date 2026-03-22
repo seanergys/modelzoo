@@ -1,0 +1,783 @@
+
+════════════════════════════════════════
+ Simulating GitLab CI pipeline locally
+════════════════════════════════════════
+
+── Stage 1: sanity ──
+find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 python -m py_compile && echo "✓ syntax OK"
+✓ syntax OK
+test -f pyproject.toml && test -d seanergys_modelzoo && test -d ci && test -d tests && echo "✓ structure OK"
+✓ structure OK
+
+── Stage 2: validate ──
+.venv/bin/python ci/validate_yaml.py && echo "✓ YAML OK"
+  OK  .gitlab-ci.yml
+
+All 1 file(s) valid.
+✓ YAML OK
+
+── Stage 3: lint ──
+.venv/bin/python -m ruff check seanergys_modelzoo ci tests
+F401 [*] `pydantic.field_validator` imported but unused
+ --> seanergys_modelzoo/datasets/common/seanergys_dataset.py:4:52
+  |
+2 | from typing import Any, Dict, Optional, Tuple, Union, List, Callable
+3 | from pathlib import Path
+4 | from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+  |                                                    ^^^^^^^^^^^^^^^
+5 | from torch.utils.data import Dataset
+  |
+help: Remove unused import: `pydantic.field_validator`
+
+F401 [*] `os` imported but unused
+ --> seanergys_modelzoo/datasets/f_data.py:1:8
+  |
+1 | import os
+  |        ^^
+2 | from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, Iterable
+3 | from pathlib import Path
+  |
+help: Remove unused import: `os`
+
+F401 [*] `typing.Any` imported but unused
+ --> seanergys_modelzoo/datasets/f_data.py:2:20
+  |
+1 | import os
+2 | from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, Iterable
+  |                    ^^^
+3 | from pathlib import Path
+4 | import time
+  |
+help: Remove unused import
+
+F401 [*] `typing.Iterable` imported but unused
+ --> seanergys_modelzoo/datasets/f_data.py:2:70
+  |
+1 | import os
+2 | from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, Iterable
+  |                                                                      ^^^^^^^^
+3 | from pathlib import Path
+4 | import time
+  |
+help: Remove unused import
+
+F401 [*] `seanergys_modelzoo.logger.seanergys_logger.SeanergysLogger` imported but unused
+  --> seanergys_modelzoo/datasets/f_data.py:11:56
+   |
+10 | from seanergys_modelzoo.datasets.common.seanergys_parquet_dataset import SeanergysParquetDataset
+11 | from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
+   |                                                        ^^^^^^^^^^^^^^^
+   |
+help: Remove unused import: `seanergys_modelzoo.logger.seanergys_logger.SeanergysLogger`
+
+F401 [*] `typing.Literal` imported but unused
+ --> seanergys_modelzoo/models/common/seanergys_model.py:4:54
+  |
+3 | from abc import ABC, abstractmethod
+4 | from typing import Any, Dict, Optional, Union, List, Literal, Tuple, Callable
+  |                                                      ^^^^^^^
+5 | from pathlib import Path
+6 | import json
+  |
+help: Remove unused import: `typing.Literal`
+
+F401 [*] `pickle` imported but unused
+ --> seanergys_modelzoo/models/common/seanergys_model.py:7:8
+  |
+5 | from pathlib import Path
+6 | import json
+7 | import pickle
+  |        ^^^^^^
+8 | from datetime import datetime
+9 | from enum import Enum
+  |
+help: Remove unused import: `pickle`
+
+F401 [*] `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelConfiguration` imported but unused
+  --> seanergys_modelzoo/models/common/seanergys_model.py:15:120
+   |
+13 | …nergysDataloader
+14 | …eanergysDataset
+15 | …t SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelConfiguration, SeanergysModelParams
+   |                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 | …ort SeanergysModelMetadata
+   |
+help: Remove unused import: `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelConfiguration`
+
+F401 [*] `pickle` imported but unused
+ --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:5:8
+  |
+3 | import os
+4 | from pathlib import Path
+5 | import pickle
+  |        ^^^^^^
+6 | import joblib
+7 | from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+  |
+help: Remove unused import: `pickle`
+
+F401 [*] `typing.Iterable` imported but unused
+ --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:7:31
+  |
+5 | import pickle
+6 | import joblib
+7 | from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+  |                               ^^^^^^^^
+8 | from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+9 | from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+  |
+help: Remove unused import: `typing.Iterable`
+
+F401 [*] `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelParams` imported but unused
+  --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:11:120
+   |
+ 9 | …t SeanergysDataset
+10 | …
+11 | …port SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
+   |                                                          ^^^^^^^^^^^^^^^^^^^^
+12 | …anergysModel, SeanergysModelTask
+13 | …import SeanergysModelMetadata
+   |
+help: Remove unused import: `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelParams`
+
+F811 Redefinition of unused `transform_embeddings` from line 69
+   --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:143:9
+    |
+141 |         return out
+142 |
+143 |     def transform_embeddings(self, features: np.ndarray, encoder_weights:str = "google/embeddinggemma-300m") -> np.ndarray:
+    |         ^^^^^^^^^^^^^^^^^^^^ `transform_embeddings` redefined here
+144 |         """
+145 |         Concatenate feature values into strings and encode with SentenceTransformer.
+    |
+   ::: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:69:9
+    |
+ 67 |         return self
+ 68 |     
+ 69 |     def transform_embeddings(self, features: np.ndarray) -> np.ndarray:
+    |         -------------------- previous definition of `transform_embeddings` here
+ 70 |         """
+ 71 |         Concatenate feature values into strings and encode with SentenceTransformer.
+    |
+help: Remove definition: `transform_embeddings`
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:166:33
+    |
+165 |         model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
+166 |         model_fdata.logger.info(f"Validation on FData")
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^
+167 |         
+168 |         # Define pclass creation
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:225:33
+    |
+223 |         model_fdata = cls.load(saved_model_path["fdata"])
+224 |         
+225 |         model_fdata.logger.info(f"Validation on FData")
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^
+226 |         
+227 |         # Define pclass creation
+    |
+help: Remove extraneous `f` prefix
+
+F401 [*] `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelParams` imported but unused
+  --> seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:9:120
+   |
+ 7 | …
+ 8 | …
+ 9 | …port SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
+   |                                                          ^^^^^^^^^^^^^^^^^^^^
+10 | …
+11 | …
+   |
+help: Remove unused import: `seanergys_modelzoo.models.common.seanergys_configurator.SeanergysModelParams`
+
+F811 [*] Redefinition of unused `Enum` from line 7
+  --> seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:7:18
+   |
+ 5 | from sklearn.ensemble import RandomForestClassifier
+ 6 | from pydantic import model_validator, Field
+ 7 | from enum import Enum
+   |                  ---- previous definition of `Enum` here
+ 8 | from sklearn.preprocessing import LabelEncoder
+ 9 | from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelP…
+10 | from sentence_transformers import SentenceTransformer
+11 | import joblib
+12 | from enum import Enum
+   |                  ^^^^ `Enum` redefined here
+13 | import numpy as np
+   |
+help: Remove definition: `Enum`
+
+F401 [*] `seanergys_modelzoo.dataloader.seanergys_dataloader.SeanergysDataloader` imported but unused
+  --> seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:15:64
+   |
+13 | import numpy as np
+14 |
+15 | from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
+   |                                                                ^^^^^^^^^^^^^^^^^^^
+16 | from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+17 | from seanergys_modelzoo.datasets.f_data import FDataDataset
+   |
+help: Remove unused import: `seanergys_modelzoo.dataloader.seanergys_dataloader.SeanergysDataloader`
+
+F401 [*] `seanergys_modelzoo.models.common.seanergys_model.SeanergysModel` imported but unused
+  --> seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:18:62
+   |
+16 | from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+17 | from seanergys_modelzoo.datasets.f_data import FDataDataset
+18 | from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
+   |                                                              ^^^^^^^^^^^^^^
+19 | from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
+20 | from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
+   |
+help: Remove unused import: `seanergys_modelzoo.models.common.seanergys_model.SeanergysModel`
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:141:33
+    |
+139 |         model_fdata = cls.load(saved_model_path["fdata"])
+140 |         
+141 |         model_fdata.logger.info(f"Testing on FData")
+    |                                 ^^^^^^^^^^^^^^^^^^^
+142 |         fdata_config = SeanergysDatasetParams(
+143 |             use_zenodo_url=True,
+    |
+help: Remove extraneous `f` prefix
+
+F401 [*] `time` imported but unused
+ --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:4:8
+  |
+2 | import os
+3 | from pathlib import Path
+4 | import time
+  |        ^^^^
+5 | from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+6 | from sklearn.ensemble import RandomForestRegressor
+  |
+help: Remove unused import: `time`
+
+F401 [*] `typing.Callable` imported but unused
+ --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:5:25
+  |
+3 | from pathlib import Path
+4 | import time
+5 | from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+  |                         ^^^^^^^^
+6 | from sklearn.ensemble import RandomForestRegressor
+7 | from sklearn.preprocessing import LabelEncoder
+  |
+help: Remove unused import
+
+F401 [*] `typing.Iterable` imported but unused
+ --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:5:41
+  |
+3 | from pathlib import Path
+4 | import time
+5 | from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+  |                                         ^^^^^^^^
+6 | from sklearn.ensemble import RandomForestRegressor
+7 | from sklearn.preprocessing import LabelEncoder
+  |
+help: Remove unused import
+
+F401 [*] `typing.Type` imported but unused
+ --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:5:74
+  |
+3 | from pathlib import Path
+4 | import time
+5 | from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+  |                                                                          ^^^^
+6 | from sklearn.ensemble import RandomForestRegressor
+7 | from sklearn.preprocessing import LabelEncoder
+  |
+help: Remove unused import
+
+F401 [*] `seanergys_modelzoo.models.common.seanergys_model.SeanergysModel` imported but unused
+  --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:20:62
+   |
+18 | from seanergys_modelzoo.datasets.pm100 import PM100Dataset
+19 | from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelP…
+20 | from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
+   |                                                              ^^^^^^^^^^^^^^
+21 | from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
+22 | from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
+   |
+help: Remove unused import: `seanergys_modelzoo.models.common.seanergys_model.SeanergysModel`
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:118:33
+    |
+116 |         model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+117 |         
+118 |         model_fdata.logger.info(f"Training on FData")
+    |                                 ^^^^^^^^^^^^^^^^^^^^
+119 |         fdata_config = SeanergysDatasetParams(
+120 |             use_zenodo_url=True,
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:139:33
+    |
+138 |         model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
+139 |         model_pm100.logger.info(f"Training on PM100")
+    |                                 ^^^^^^^^^^^^^^^^^^^^
+140 |         pm100_config = SeanergysDatasetParams(
+141 |             use_zenodo_url=True,
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:170:33
+    |
+168 |         model_fdata = cls.load(saved_model_path["fdata"])
+169 |         
+170 |         model_fdata.logger.info(f"Testing on FData")       
+    |                                 ^^^^^^^^^^^^^^^^^^^
+171 |                 
+172 |         fdata_config = SeanergysDatasetParams(
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:191:33
+    |
+189 |         config_dict["fdata"] = (model_fdata, FDataDataset,(fdata_config, data_loader_fdata))
+190 |         model_pm100 = cls.load(saved_model_path["pm100"])
+191 |         model_pm100.logger.info(f"Testing on PM100")
+    |                                 ^^^^^^^^^^^^^^^^^^^
+192 |         
+193 |         pm100_config = SeanergysDatasetParams(
+    |
+help: Remove extraneous `f` prefix
+
+Found 28 errors.
+[*] 27 fixable with the `--fix` option.
+.venv/bin/python -m ruff format --check seanergys_modelzoo ci tests
+Would reformat: seanergys_modelzoo/datasets/common/seanergys_dataset.py
+Would reformat: seanergys_modelzoo/datasets/f_data.py
+Would reformat: seanergys_modelzoo/datasets/pm100.py
+Would reformat: seanergys_modelzoo/models/common/seanergys_model.py
+Would reformat: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
+Would reformat: seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py
+Would reformat: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
+Would reformat: tests/conftest.py
+Would reformat: tests/integration/test_model_pipeline.py
+Would reformat: tests/smoke/test_datasets_load.py
+Would reformat: tests/smoke/test_datasets_smoke.py
+Would reformat: tests/unit/test_configurator.py
+Would reformat: tests/unit/test_dataloader_params.py
+Would reformat: tests/unit/test_logger.py
+Would reformat: tests/unit/test_metadata.py
+15 files would be reformatted, 25 files already formatted
+.venv/bin/python -m mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
+seanergys_modelzoo/datasets/common/seanergys_dataset.py:113: error: Missing return statement  [empty-body]
+seanergys_modelzoo/datasets/common/seanergys_dataset.py:113: note: If the method is meant to be abstract, use @abc.abstractmethod
+seanergys_modelzoo/datasets/common/seanergys_dataset.py:123: error: Unpacked dict entry 0 has incompatible type "dict[str, Any] | None"; expected "SupportsKeysAndGetItem[str, Any]"  [dict-item]
+tests/unit/test_dataset_contract.py:42: error: Need type annotation for "_samples" (hint: "_samples: list[<type>] = ...")  [var-annotated]
+seanergys_modelzoo/datasets/script_ai.py:48: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:57: error: Item "None" of "dict[str, Any] | None" has no attribute "update"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:80: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:88: error: Argument 1 to "len" has incompatible type "Any | None"; expected "Sized"  [arg-type]
+seanergys_modelzoo/datasets/script_ai.py:90: error: Item "None" of "Any | None" has no attribute "columns"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:94: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:105: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:109: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:117: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:126: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:131: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:146: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:156: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:159: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:169: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:175: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:176: error: Unsupported target for indexed assignment ("dict[str, Any] | None")  [index]
+seanergys_modelzoo/datasets/script_ai.py:225: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
+seanergys_modelzoo/datasets/script_ai.py:238: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
+seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py:59: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py:65: error: "Callable[..., Any]" object is not iterable  [misc]
+seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py:66: error: Cannot determine type of "columns"  [has-type]
+seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py:66: error: Cannot determine type of "fn"  [has-type]
+seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py:78: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:62: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:73: error: Item "None" of "dict[str, Any] | None" has no attribute "update"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:88: error: No overload variant of "__add__" of "list" matches argument type "tuple[list[list[tuple[str, str, Any]]]]"  [operator]
+seanergys_modelzoo/datasets/pm100.py:88: note: Possible overload variants:
+seanergys_modelzoo/datasets/pm100.py:88: note:     def __add__(self, list[tuple[Any, ...]], /) -> list[tuple[Any, ...]]
+seanergys_modelzoo/datasets/pm100.py:88: note:     def [_S] __add__(self, list[_S], /) -> list[_S | tuple[Any, ...]]
+seanergys_modelzoo/datasets/pm100.py:88: note:     def __add__(self, list[list[tuple[Any, ...]]], /) -> list[list[tuple[Any, ...]]]
+seanergys_modelzoo/datasets/pm100.py:88: note:     def [_S] __add__(self, list[_S], /) -> list[_S | list[tuple[Any, ...]]]
+seanergys_modelzoo/datasets/pm100.py:88: note: Left operand is of type "list[tuple[Any, ...]] | list[list[tuple[Any, ...]]]"
+seanergys_modelzoo/datasets/pm100.py:103: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:107: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:114: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:119: error: Item "None" of "list[Callable[..., Any]] | None" has no attribute "__iter__" (not iterable)  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:128: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:141: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:149: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/pm100.py:153: error: Incompatible default for argument "dtype" (default has type "None", argument has type "str | TypeVar")  [assignment]
+seanergys_modelzoo/datasets/pm100.py:153: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+seanergys_modelzoo/datasets/pm100.py:153: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+seanergys_modelzoo/datasets/pm100.py:183: error: Argument "dtype" to "tensor" has incompatible type "str | TypeVar"; expected "dtype | None"  [arg-type]
+seanergys_modelzoo/datasets/pm100.py:184: error: Argument "dtype" to "tensor" has incompatible type "str | TypeVar"; expected "dtype | None"  [arg-type]
+seanergys_modelzoo/datasets/f_data.py:100: error: Item "None" of "dict[str, Any] | None" has no attribute "update"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:116: error: List item 0 has incompatible type "tuple[str, str, str]"; expected "list[tuple[Any, ...]]"  [list-item]
+seanergys_modelzoo/datasets/f_data.py:116: note: Left operand is of type "list[tuple[Any, ...]] | list[list[tuple[Any, ...]]]"
+seanergys_modelzoo/datasets/f_data.py:180: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:188: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:196: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:198: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:201: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:203: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:206: error: Argument 1 to "Path" has incompatible type "str | Path | None"; expected "str | PathLike[str]"  [arg-type]
+seanergys_modelzoo/datasets/f_data.py:209: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:214: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:217: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:224: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:227: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:230: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:236: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:239: error: Item "None" of "list[Callable[..., Any]] | None" has no attribute "__iter__" (not iterable)  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:247: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:249: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:260: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:268: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/datasets/f_data.py:271: error: Incompatible default for argument "dtype" (default has type "None", argument has type "str | TypeVar")  [assignment]
+seanergys_modelzoo/datasets/f_data.py:271: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+seanergys_modelzoo/datasets/f_data.py:271: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+seanergys_modelzoo/datasets/f_data.py:288: error: Value of type "Any | None" is not indexable  [index]
+seanergys_modelzoo/datasets/f_data.py:289: error: Value of type "Any | None" is not indexable  [index]
+seanergys_modelzoo/datasets/f_data.py:298: error: Argument "dtype" to "tensor" has incompatible type "str | TypeVar"; expected "dtype | None"  [arg-type]
+seanergys_modelzoo/datasets/f_data.py:299: error: Argument "dtype" to "tensor" has incompatible type "str | TypeVar"; expected "dtype | None"  [arg-type]
+seanergys_modelzoo/datasets/f_data.py:322: error: Incompatible types in assignment (expression has type "float", target has type "int")  [assignment]
+seanergys_modelzoo/datasets/f_data.py:325: error: Incompatible types in assignment (expression has type "float", target has type "int")  [assignment]
+seanergys_modelzoo/datasets/f_data.py:329: error: Incompatible return value type (got "dict[Any, dict[str, int]]", expected "dict[str, dict[str, float]]")  [return-value]
+seanergys_modelzoo/models/common/seanergys_model.py:46: error: Argument "default_factory" to "Field" has incompatible type "type[SeanergysModelMetadata]"; expected "Callable[[], Never] | Callable[[dict[str, Any]], Never]"  [arg-type]
+seanergys_modelzoo/models/common/seanergys_model.py:58: error: Unexpected keyword argument "task_type" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/seanergys_model.py:60: error: Argument "created_at" to "SeanergysModelMetadata" has incompatible type "str"; expected "datetime"  [arg-type]
+seanergys_modelzoo/models/common/seanergys_model.py:83: error: No return value expected  [return-value]
+seanergys_modelzoo/models/common/seanergys_model.py:86: error: Missing return statement  [empty-body]
+seanergys_modelzoo/models/common/seanergys_model.py:86: note: If the method is meant to be abstract, use @abc.abstractmethod
+seanergys_modelzoo/models/common/seanergys_model.py:184: error: Missing return statement  [empty-body]
+seanergys_modelzoo/models/common/seanergys_model.py:184: note: If the method is meant to be abstract, use @abc.abstractmethod
+seanergys_modelzoo/models/common/seanergys_model.py:184: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/common/seanergys_model.py:188: error: Missing return statement  [empty-body]
+seanergys_modelzoo/models/common/seanergys_model.py:188: note: If the method is meant to be abstract, use @abc.abstractmethod
+seanergys_modelzoo/models/common/seanergys_model.py:188: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/common/seanergys_model.py:208: error: Item "None" of "SeanergysModelMetadata | dict[Any, Any] | None" has no attribute "copy"  [union-attr]
+seanergys_modelzoo/models/common/seanergys_model.py:208: error: Incompatible return value type (got "SeanergysModelMetadata | dict[Any, Any] | Any", expected "dict[str, Any]")  [return-value]
+seanergys_modelzoo/models/common/seanergys_model.py:217: error: "SeanergysModel" has no attribute "training_history"; maybe "get_training_history"?  [attr-defined]
+seanergys_modelzoo/models/common/seanergys_model.py:229: error: Item "None" of "SeanergysModelMetadata | dict[Any, Any] | None" has no attribute "model_dump"  [union-attr]
+seanergys_modelzoo/models/common/seanergys_model.py:236: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/seanergys_model.py:259: error: Item "SeanergysModelMetadata" of "SeanergysModelMetadata | dict[Any, Any] | None" has no attribute "get"  [union-attr]
+seanergys_modelzoo/models/common/seanergys_model.py:259: error: Item "None" of "SeanergysModelMetadata | dict[Any, Any] | None" has no attribute "get"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:55: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:60: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:87: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:100: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:102: error: Argument 1 to "len" has incompatible type "Dataset[Any]"; expected "Sized"  [arg-type]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:104: error: Need type annotation for "all_y_true" (hint: "all_y_true: list[<type>] = ...")  [var-annotated]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:120: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:135: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:140: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:155: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:172: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:193: error: Item "None" of "SeanergysLogger | None" has no attribute "warning"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:204: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:208: error: Item "None" of "SeanergysLogger | None" has no attribute "warning"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:215: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:220: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:244: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:260: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:265: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "description" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "author" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "updated_at" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "framework" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "task" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "input_schema" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "output_schema" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:314: error: Missing named argument "is_active" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:330: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:342: error: Item "None" of "SeanergysModelMetadata | None" has no attribute "hyperparameters"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:344: error: Item "None" of "SeanergysModelMetadata | None" has no attribute "_touch"  [union-attr]
+seanergys_modelzoo/models/common/sklearn_seanergys_model.py:389: error: Item "None" of "SeanergysLogger | None" has no attribute "warning"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:59: error: Unexpected keyword argument "task_type" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:61: error: Argument "created_at" to "SeanergysModelMetadata" has incompatible type "str"; expected "datetime"  [arg-type]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:88: error: Incompatible types in assignment (expression has type "SentenceTransformer", variable has type "list[Any] | None")  [assignment]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:90: error: Item "list[Any]" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:90: error: Item "None" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:94: error: Function "bool" could always be true in boolean context  [truthy-function]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:108: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:116: error: Missing named argument "task_type" for "JPCP"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:116: error: Missing named argument "model_class" for "JPCP"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:118: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:119: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:119: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:119: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:119: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:119: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:138: error: Unexpected keyword argument "embeding_type" for "JPCP"; did you mean "embedding_type"?  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:139: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "preprocessing_functions" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "columns" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:140: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:157: error: Incompatible types in assignment (expression has type "tuple[JPCP, PM100Dataset]", target has type "tuple[JPCP, type[FDataDataset], tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]")  [assignment]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:157: error: Too many positional arguments for "PM100Dataset"  [misc]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:157: error: Missing named argument "input_features" for "PM100Dataset"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:157: error: Missing named argument "output_features" for "PM100Dataset"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:157: error: Argument 1 to "PM100Dataset" has incompatible type "SeanergysDatasetParams"; expected "str | Path | None"  [arg-type]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: error: Signature of "get_test_config" incompatible with supertype "seanergys_modelzoo.models.common.seanergys_model.SeanergysModel"  [override]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:      Superclass:
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:          @classmethod
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:          def get_test_config(cls) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:      Subclass:
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:          @classmethod
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: note:          def get_test_config(cls, saved_model_path: dict[Any, Any]) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:161: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:170: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:172: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:172: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:172: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:172: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:172: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:191: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "preprocessing_functions" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "columns" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:193: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:208: error: Missing positional argument "dataset" in call to "SeanergysDataloader"  [call-arg]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:210: error: Incompatible types in assignment (expression has type "tuple[JPCP, type[PM100Dataset], tuple[SeanergysDatasetParams, SeanergysDataloader]]", target has type "tuple[JPCP, type[FDataDataset], tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]")  [assignment]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:215: error: Missing return statement  [return]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:237: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:241: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:265: error: "SeanergysSklearnModel" has no attribute "embedder"  [attr-defined]
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py:266: error: Incompatible return value type (got "SeanergysSklearnModel", expected "JPCP")  [return-value]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:56: error: Unexpected keyword argument "task_type" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:58: error: Argument "created_at" to "SeanergysModelMetadata" has incompatible type "str"; expected "datetime"  [arg-type]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:84: error: Incompatible types in assignment (expression has type "SentenceTransformer", variable has type "list[Any] | None")  [assignment]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:86: error: Item "list[Any]" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:86: error: Item "None" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:90: error: Function "bool" could always be true in boolean context  [truthy-function]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:105: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:113: error: Missing named argument "task_type" for "MCBound"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:113: error: Missing named argument "model_class" for "MCBound"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:115: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:115: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:115: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:115: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:115: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: error: Signature of "get_test_config" incompatible with supertype "seanergys_modelzoo.models.common.seanergys_model.SeanergysModel"  [override]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:      Superclass:
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:          @classmethod
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:          def get_test_config(cls) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:      Subclass:
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:          @classmethod
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: note:          def get_test_config(cls, saved_model_path: dict[Any, Any]) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:131: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:141: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:142: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:142: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:142: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:142: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:142: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:158: error: Missing return statement  [return]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:180: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:184: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:208: error: "SeanergysSklearnModel" has no attribute "embedder"  [attr-defined]
+seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py:209: error: Incompatible return value type (got "SeanergysSklearnModel", expected "MCBound")  [return-value]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:51: error: Unexpected keyword argument "task_type" for "SeanergysModelMetadata"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:53: error: Argument "created_at" to "SeanergysModelMetadata" has incompatible type "str"; expected "datetime"  [arg-type]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:83: error: Incompatible types in assignment (expression has type "SentenceTransformer", variable has type "list[Any] | None")  [assignment]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:85: error: Item "list[Any]" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:85: error: Item "None" of "list[Any] | None" has no attribute "encode"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:117: error: Item "None" of "Any | None" has no attribute "fit_predict"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:117: error: Item "None" of "Any | None" has no attribute "predict"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:118: error: Item "None" of "Any | None" has no attribute "cluster_centers_"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:120: error: Argument 1 to "arange" has incompatible type "int | None"; expected "int | integer[Any] | numpy.bool[builtins.bool]"  [arg-type]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:123: error: Item "None" of "Any | None" has no attribute "fit_predict"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:123: error: Item "None" of "Any | None" has no attribute "predict"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:124: error: Item "None" of "Any | None" has no attribute "cluster_centers_"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:126: error: Argument 1 to "arange" has incompatible type "int | None"; expected "int | integer[Any] | numpy.bool[builtins.bool]"  [arg-type]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:143: error: Name "transform_embeddings" already defined on line 69  [no-redef]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:185: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:193: error: Missing named argument "task_type" for "MACK"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:193: error: Missing named argument "model_class" for "MACK"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "preprocessing_functions" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:200: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: error: Signature of "get_test_config" incompatible with supertype "seanergys_modelzoo.models.common.seanergys_model.SeanergysModel"  [override]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:      Superclass:
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:          @classmethod
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:          def get_test_config(cls) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:      Subclass:
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:          @classmethod
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: note:          def get_test_config(cls, saved_model_path: dict[Any, Any]) -> dict[Any, Any]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:215: error: "dict" expects 2 type arguments, but 1 given  [type-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:225: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "use_zenodo_url" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "files" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "preprocessing_functions" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "filters" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "input_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:232: error: Unexpected keyword argument "output_features" for "SeanergysDatasetParams"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:242: error: Missing positional argument "dataset" in call to "SeanergysDataloader"  [call-arg]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:247: error: Missing return statement  [return]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:269: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:272: error: Item "None" of "SeanergysLogger | None" has no attribute "info"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:277: error: Item "None" of "SeanergysLogger | None" has no attribute "error"  [union-attr]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:301: error: "SeanergysSklearnModel" has no attribute "kmeans_flops"  [attr-defined]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:302: error: "SeanergysSklearnModel" has no attribute "kmeans_memory_bw"  [attr-defined]
+seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py:303: error: Incompatible return value type (got "SeanergysSklearnModel", expected "MACK")  [return-value]
+ci/validate_yaml.py:17: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+Found 234 errors in 12 files (checked 40 source files)
+
+── Stage 4: test ──
+.venv/bin/pytest tests/unit/ -v
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 20 items
+
+tests/unit/test_configurator.py::test_model_params_instantiation PASSED  [  5%]
+tests/unit/test_configurator.py::test_dataset_params_with_data_path PASSED [ 10%]
+tests/unit/test_configurator.py::test_dataset_params_from_dict PASSED    [ 15%]
+tests/unit/test_configurator.py::test_dataloader_params_defaults PASSED  [ 20%]
+tests/unit/test_configurator.py::test_dataloader_params_custom_batch_size PASSED [ 25%]
+tests/unit/test_dataloader_params.py::test_dataloader_params_from_dict PASSED [ 30%]
+tests/unit/test_dataloader_params.py::test_dataloader_params_to_dict PASSED [ 35%]
+tests/unit/test_dataloader_params.py::test_dataloader_params_roundtrip PASSED [ 40%]
+tests/unit/test_dataset_contract.py::test_dataset_len_and_getitem PASSED [ 45%]
+tests/unit/test_dataset_contract.py::test_dataset_get_stats PASSED       [ 50%]
+tests/unit/test_logger.py::test_logger_instantiation PASSED              [ 55%]
+tests/unit/test_logger.py::test_logger_custom_name PASSED                [ 60%]
+tests/unit/test_logger.py::test_logger_log_levels PASSED                 [ 65%]
+tests/unit/test_metadata.py::test_metadata_instantiation PASSED          [ 70%]
+tests/unit/test_metadata.py::test_metadata_serialize_deserialize PASSED  [ 75%]
+tests/unit/test_metadata.py::test_metadata_set_field PASSED              [ 80%]
+tests/unit/test_utils.py::test_import_module_from_file PASSED            [ 85%]
+tests/unit/test_utils.py::test_import_module_from_file_missing_raises PASSED [ 90%]
+tests/unit/test_utils.py::test_retrieve_instances_from_file_finds_classes PASSED [ 95%]
+tests/unit/test_utils.py::test_retrieve_instances_from_file_empty PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/unit/test_metadata.py::test_metadata_instantiation
+tests/unit/test_metadata.py::test_metadata_serialize_deserialize
+tests/unit/test_metadata.py::test_metadata_set_field
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/lib/python3.12/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/unit/test_metadata.py::test_metadata_set_field
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/seanergys_modelzoo/models/common/seanergys_model_metadata.py:89: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    self.updated_at = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 20 passed, 4 warnings in 0.06s ========================
+.venv/bin/pytest tests/smoke/ -v -m "not zenodo"
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 14 items / 3 deselected / 11 selected
+
+tests/smoke/test_datasets_load.py::test_dataset_loads_with_dummy[FDataDataset-FDataDataset] SKIPPED [  9%]
+tests/smoke/test_datasets_load.py::test_dataset_loads_with_dummy[PM100Dataset-PM100Dataset] SKIPPED [ 18%]
+tests/smoke/test_datasets_load.py::test_dataset_loads_with_dummy[SCRIPTAIDataset-SCRIPTAIDataset] SKIPPED [ 27%]
+tests/smoke/test_datasets_smoke.py::test_dataset_discovery PASSED        [ 36%]
+tests/smoke/test_datasets_smoke.py::test_dataset_dummy_mode[FDataDataset-FDataDataset] SKIPPED [ 45%]
+tests/smoke/test_datasets_smoke.py::test_dataset_dummy_mode[PM100Dataset-PM100Dataset] SKIPPED [ 54%]
+tests/smoke/test_datasets_smoke.py::test_dataset_dummy_mode[SCRIPTAIDataset-SCRIPTAIDataset] SKIPPED [ 63%]
+tests/smoke/test_models_smoke.py::test_logger_imports PASSED             [ 72%]
+tests/smoke/test_models_smoke.py::test_ci_utils_imports PASSED           [ 81%]
+tests/smoke/test_models_smoke.py::test_model_discovery PASSED            [ 90%]
+tests/smoke/test_models_smoke.py::test_model_instantiation PASSED        [100%]
+
+================== 5 passed, 6 skipped, 3 deselected in 0.11s ==================
+.venv/bin/pytest tests/integration/ -v
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 5 items
+
+tests/integration/test_model_pipeline.py::test_get_train_config_structure[NOTSET] SKIPPED [ 20%]
+tests/integration/test_model_pipeline.py::test_full_pipeline[NOTSET] SKIPPED [ 40%]
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip PASSED [ 60%]
+tests/integration/test_model_train.py::test_model_train_on_fixture_data PASSED [ 80%]
+tests/integration/test_model_train.py::test_model_predict_after_train PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+tests/integration/test_model_train.py::test_model_train_on_fixture_data
+tests/integration/test_model_train.py::test_model_predict_after_train
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/lib/python3.12/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/tests/integration/test_model_save_load.py:29: UserWarning: A custom validator is returning a value other than `self`.
+  Returning anything other than `self` from a top level model validator isn't supported when validating via `__init__`.
+  See the `model_validator` docs (https://docs.pydantic.dev/latest/concepts/validators/#model-validators) for more details.
+    model = SeanergysSklearnModel(
+
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/collate.py:288: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:213.)
+    return collate([torch.as_tensor(b) for b in batch], collate_fn_map=collate_fn_map)
+
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+tests/integration/test_model_train.py::test_model_train_on_fixture_data
+tests/integration/test_model_train.py::test_model_predict_after_train
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/.venv/lib/python3.12/site-packages/sklearn/base.py:1336: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+    return fit_method(estimator, *args, **kwargs)
+
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+tests/integration/test_model_train.py::test_model_train_on_fixture_data
+tests/integration/test_model_train.py::test_model_train_on_fixture_data
+tests/integration/test_model_train.py::test_model_predict_after_train
+tests/integration/test_model_train.py::test_model_predict_after_train
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/seanergys_modelzoo/models/common/seanergys_model_metadata.py:89: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    self.updated_at = datetime.utcnow()
+
+tests/integration/test_model_save_load.py::test_model_save_load_roundtrip
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/seanergys_modelzoo/models/common/sklearn_seanergys_model.py:310: UserWarning: A custom validator is returning a value other than `self`.
+  Returning anything other than `self` from a top level model validator isn't supported when validating via `__init__`.
+  See the `model_validator` docs (https://docs.pydantic.dev/latest/concepts/validators/#model-validators) for more details.
+    instance = cls(
+
+tests/integration/test_model_train.py::test_model_train_on_fixture_data
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/tests/integration/test_model_train.py:29: UserWarning: A custom validator is returning a value other than `self`.
+  Returning anything other than `self` from a top level model validator isn't supported when validating via `__init__`.
+  See the `model_validator` docs (https://docs.pydantic.dev/latest/concepts/validators/#model-validators) for more details.
+    model = SeanergysSklearnModel(
+
+tests/integration/test_model_train.py::test_model_predict_after_train
+  /home/mohsen/scratch/SEANERGYS/seanergys-modelzoo/tests/integration/test_model_train.py:63: UserWarning: A custom validator is returning a value other than `self`.
+  Returning anything other than `self` from a top level model validator isn't supported when validating via `__init__`.
+  See the `model_validator` docs (https://docs.pydantic.dev/latest/concepts/validators/#model-validators) for more details.
+    model = SeanergysSklearnModel(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 3 passed, 2 skipped, 18 warnings in 0.69s ===================
+
+✓ CI simulation complete

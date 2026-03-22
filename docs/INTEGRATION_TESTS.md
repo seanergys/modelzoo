@@ -13,6 +13,22 @@ Trains a model, then calls `predict()`. Checks that predictions are returned and
 ### 3. `test_model_save_load_roundtrip`
 Trains a model, saves it to a temp dir, loads it back, and predicts again. Checks that the loaded model gives the same predictions as the original.
 
+### 4. `test_full_pipeline` — **tests ALL steps of the ML pipeline**
+
+**File:** `tests/integration/test_model_pipeline.py`
+
+This is the main end-to-end test. It auto-discovers every concrete `SeanergysModel` subclass and runs the full pipeline for each one:
+
+1. **`get_train_config()`** — loads the model's own declared training recipe
+2. **`train()`** — fits the model on dummy/fixture data
+3. **`predict()`** — runs inference on the same loader
+4. **`save()`** — persists the model to a temp directory
+5. **`load()`** — restores the model from disk and verifies it is not None
+
+Key design: `is_dummy=True` is set on the dataset config to limit data volume, and Zenodo URLs are replaced with local fixture files (from `tests/fixtures/sample_data/`) to avoid network calls in CI. If no fixture exists for a dataset, the test is skipped (not failed).
+
+**When a new model is added**, as long as it implements `get_train_config()` and supports `is_dummy=True`, this test picks it up automatically — no changes to CI or test files needed.
+
 ---
 
 ## Warnings from `make test-integration`
