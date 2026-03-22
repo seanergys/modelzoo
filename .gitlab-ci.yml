@@ -56,9 +56,6 @@ sanity:check-secrets:
 validate:yaml-json:
   stage: validate
   image: python:3.12-slim
-  rules:
-    - changes: ["**/*.yml", "**/*.yaml", "**/*.json"]
-    - when: always
   script:
     - pip install --quiet pyyaml
     - python ci/validate_yaml.py
@@ -70,8 +67,6 @@ validate:yaml-json:
 lint:python:
   stage: lint
   image: python:3.12-slim
-  rules:
-    - changes: ["**/*.py"]
   script:
     - pip install --quiet ruff
     - ruff check seanergys_modelzoo ci tests
@@ -80,8 +75,6 @@ lint:python:
 lint:format:
   stage: lint
   image: python:3.12-slim
-  rules:
-    - changes: ["**/*.py"]
   script:
     - pip install --quiet ruff
     - ruff format --check seanergys_modelzoo ci tests
@@ -90,8 +83,6 @@ lint:format:
 lint:mypy:
   stage: lint
   image: python:3.12-slim
-  rules:
-    - changes: ["**/*.py"]
   script:
     - pip install --quiet mypy types-PyYAML
     - mypy seanergys_modelzoo ci tests
@@ -113,8 +104,6 @@ test:unit:
     - poetry install --no-interaction --with dev
   script:
     - poetry run pytest tests/unit/ -v
-  rules:
-    - changes: ["**/*.py"]
   allow_failure: false
 
 test:smoke:
@@ -130,8 +119,6 @@ test:smoke:
     - poetry install --no-interaction --with dev
   script:
     - poetry run pytest tests/smoke/ -v
-  rules:
-    - changes: ["**/*.py"]
   allow_failure: false
 
 test:import-check:
@@ -162,11 +149,6 @@ test:smoke-models:
     - poetry install --no-interaction --with dev,ci
   script:
     - poetry run pytest tests/smoke/test_models_smoke.py -v
-  rules:
-    - changes:
-        - "seanergys_modelzoo/models/**"
-        - "ci/**"
-    - when: always
   allow_failure: false
 
 test:smoke-datasets:
@@ -182,11 +164,6 @@ test:smoke-datasets:
     - poetry install --no-interaction --with dev,ci
   script:
     - poetry run pytest tests/smoke/test_datasets_smoke.py -v
-  rules:
-    - changes:
-        - "seanergys_modelzoo/datasets/**"
-        - "ci/**"
-    - when: always
   allow_failure: false
 
 test:integration:
@@ -203,12 +180,6 @@ test:integration:
     - poetry run python scripts/create_sample_data.py
   script:
     - poetry run pytest tests/integration/ -v
-  rules:
-    - changes:
-        - "seanergys_modelzoo/models/**"
-        - "seanergys_modelzoo/datasets/**"
-        - "tests/integration/**"
-        - "scripts/**"
   allow_failure: false
 
 # Dependency vulnerability scan
@@ -227,6 +198,4 @@ test:audit:
   script:
     - poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt
     - pip-audit -r /tmp/poetry-audit-reqs.txt
-  rules:
-    - changes: ["**/pyproject.toml", "**/poetry.lock"]
   allow_failure: true
