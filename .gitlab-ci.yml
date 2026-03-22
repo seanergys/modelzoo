@@ -25,14 +25,14 @@ variables:
 # -----------------------------------------------------------------------------
 sanity:python-syntax:
   stage: sanity
-  image: python:3.11-slim
+  image: python:3.12-slim
   script:
     - find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 -r python -m py_compile
   allow_failure: false
 
 sanity:check-structure:
   stage: sanity
-  image: python:3.11-slim
+  image: python:3.12-slim
   script:
     - test -f pyproject.toml
     - test -d seanergys_modelzoo
@@ -42,7 +42,7 @@ sanity:check-structure:
 
 sanity:check-secrets:
   stage: sanity
-  image: python:3.11-slim
+  image: python:3.12-slim
   before_script:
     - apt-get update -qq && apt-get install -y -qq git
   script:
@@ -55,7 +55,7 @@ sanity:check-secrets:
 # -----------------------------------------------------------------------------
 validate:yaml-json:
   stage: validate
-  image: python:3.11-slim
+  image: python:3.12-slim
   rules:
     - changes: ["**/*.yml", "**/*.yaml", "**/*.json"]
     - when: always
@@ -69,7 +69,7 @@ validate:yaml-json:
 # -----------------------------------------------------------------------------
 lint:python:
   stage: lint
-  image: python:3.11-slim
+  image: python:3.12-slim
   rules:
     - changes: ["**/*.py"]
   script:
@@ -79,7 +79,7 @@ lint:python:
 
 lint:format:
   stage: lint
-  image: python:3.11-slim
+  image: python:3.12-slim
   rules:
     - changes: ["**/*.py"]
   script:
@@ -89,7 +89,7 @@ lint:format:
 
 lint:mypy:
   stage: lint
-  image: python:3.11-slim
+  image: python:3.12-slim
   rules:
     - changes: ["**/*.py"]
   script:
@@ -102,7 +102,7 @@ lint:mypy:
 # -----------------------------------------------------------------------------
 test:unit:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -119,7 +119,7 @@ test:unit:
 
 test:smoke:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -136,7 +136,7 @@ test:smoke:
 
 test:import-check:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -151,7 +151,7 @@ test:import-check:
 
 test:smoke-models:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -171,7 +171,7 @@ test:smoke-models:
 
 test:smoke-datasets:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -191,7 +191,7 @@ test:smoke-datasets:
 
 test:integration:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
@@ -214,7 +214,7 @@ test:integration:
 # Dependency vulnerability scan
 test:audit:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
