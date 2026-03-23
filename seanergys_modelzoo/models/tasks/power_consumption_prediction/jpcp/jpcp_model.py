@@ -133,33 +133,66 @@ class JPCP(SeanergysSklearnModel):
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return model_fdata, data_loader_fdata
         
-        elif dataset_name == "pm100":
-            
-            model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
-            model_pm100.logger.info(f"Training on PM100")
-            pm100 = PM100Dataset(
-                use_zenodo_url=True,
-                is_dummy = get_dummy_data,
-                transform=None,
-                target_transform=lambda output_features: (
-                    np.mean(output_features[0]) / output_features[1]
-                ),
-                preprocessing_functions=[ model_pm100.transform_embeddings],
-                filters=[
-                    ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
-                    ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
-                ],
-                columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
-                input_features=["num_nodes_req_cat", "user_id_cat"],
-                output_features=["node_power_consumption", "num_nodes_alloc"],
-            )
-            data_loader_pm100 = SeanergysDataloader(dataset=pm100, batch_size=1)
-            return model_pm100, data_loader_pm100
-        else:
-            raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
-
-            
+        # Load the fdata config
+        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
         
+        model_pm100 = cls(embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1})
+        model_pm100.logger.info(f"Training on PM100")
+
+        # FIXED by Mohsen (2026-03-23) — original used model_pm100.transform_embeddings as
+        # preprocessing_functions, but transform_embeddings expects a numpy array while the
+        # preprocessing API passes a full DataFrame and expects a DataFrame back. It also had
+        # a typo: embeding_type (missing 'd') so embedding_type defaulted to Embedding.NONE.
+        #
+        # Correct approach: a DataFrame→DataFrame function that label-encodes the categorical
+        # input columns and adds _cat versions, then stores the encoders on the model instance
+        # so they are included in the save/load cycle.
+        def _preprocess_pm100(df: pd.DataFrame) -> pd.DataFrame:
+            from sklearn.preprocessing import LabelEncoder
+            df = df.copy()
+            encoders = []
+            for col in ["num_nodes_req", "user_id"]:
+                le = LabelEncoder()
+                df[f"{col}_cat"] = le.fit_transform(df[col].astype(str))
+                encoders.append(le)
+            model_pm100.embedder = encoders
+            return df
+
+        pm100_config = SeanergysDatasetParams(
+            use_zenodo_url=True,
+            transform=None,
+            target_transform=lambda output_features: (
+                np.mean(output_features[0]) / output_features[1]
+            ),
+            preprocessing_functions=[_preprocess_pm100],
+            filters=[[
+                ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
+                ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
+            ]],
+            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+            input_features=["num_nodes_req_cat", "user_id_cat"],
+            output_features=["node_power_consumption", "num_nodes_alloc"],
+        )
+        data_loader_pm100 = SeanergysDataloaderParams(batch_size=1)
+        # FIXED by Mohsen (2026-03-23) — Francesco's original line was:
+        #   config_dict["pm100"] = (model_pm100, PM100Dataset(pm100_config, data_loader_pm100))
+        #
+        # Two bugs in that line:
+        #   1. PM100Dataset is a Pydantic BaseModel — it does NOT accept positional
+        #      constructor arguments. Calling PM100Dataset(pm100_config, data_loader_pm100)
+        #      raises: BaseModel.__init__() takes 1 positional argument but 3 were given
+        #
+        #   2. The tuple contract for get_train_config() is:
+        #        (model_instance, DatasetClass, (ds_params, dl_params))
+        #      Francesco passed an already-instantiated dataset object instead of the class
+        #      and its params separately. The CI pipeline (and create_sample_data.py) both
+        #      unpack the tuple as (model, dataset_cls, (ds_params, dl_params)) — passing
+        #      an instance here breaks all downstream tooling.
+        #
+        # Correct form: pass the CLASS and the params tuple, not an instantiated object.
+        config_dict["pm100"] = (model_pm100, PM100Dataset, (pm100_config, data_loader_pm100))
+        return config_dict
+    
     @classmethod
     def get_test_config(cls, saved_model_path: dict) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
@@ -228,14 +261,15 @@ class JPCP(SeanergysSklearnModel):
             True on success, False on failure.
         """
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
+        path.mkdir(parents=True, exist_ok=True)
+
         try:
             # Save the label encoder
             joblib.dump(self.embedder, f"{os.path.join(str(path), 'embedder.joblib')}", compress = compress)
             self.logger.info(f"Embedder saved to {path}")
             super().save(path=path, compress=compress)
-        
+            return True
+
         except Exception as e:
             self.logger.error(f"Error saving model: {e}")
             return False

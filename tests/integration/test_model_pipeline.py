@@ -14,6 +14,8 @@ CI contract for model authors:
   Tests skip with a clear message if these are not met.
 """
 
+import os
+
 import pytest
 
 from tests.conftest import MODEL_CLASSES
@@ -23,8 +25,8 @@ from tests.conftest import MODEL_CLASSES
 # Test 1: get_train_config() returns a valid structure
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
-def test_get_train_config_structure(model_name, model_cls):
+@pytest.mark.parametrize("model_cls", list(MODEL_CLASSES.values()))
+def test_get_train_config_structure(model_cls):
     """
     get_train_config() must return a non-empty dict where each value is a tuple:
       (model_instance, DatasetClass, (SeanergysDatasetParams, SeanergysDataloaderParams))
@@ -33,6 +35,7 @@ def test_get_train_config_structure(model_name, model_cls):
     """
     pytest.importorskip("sklearn")
 
+    model_name = model_cls.__name__
     config = model_cls.get_train_config()
 
     assert isinstance(config, dict), (
@@ -67,22 +70,30 @@ def test_get_train_config_structure(model_name, model_cls):
 # Test 2: full pipeline — train → predict → save → load
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
-def test_full_pipeline(model_name, model_cls, tmp_path):
+@pytest.mark.zenodo
+@pytest.mark.parametrize("model_cls", list(MODEL_CLASSES.values()))
+def test_full_pipeline(model_cls, tmp_path):
     """
     Full pipeline for each auto-discovered model using its own get_train_config().
 
-    Uses is_dummy=True on the dataset config so no real data or network is needed.
-    The dataset is responsible for providing a small usable subset in dummy mode.
+    Uses is_dummy=True on the dataset config. NOTE: Francesco's is_dummy=True still
+    downloads from Zenodo with filters, so this test requires network access.
+    It will become network-free once is_dummy=True generates data in memory.
+
+    Skip with: CI_SKIP_ZENODO=1 make test-integration
 
     Skips if the dataset does not support is_dummy=True properly (len == 0 or load fails).
     This skip is a signal to the dataset author to implement is_dummy support.
     """
+    if os.environ.get("CI_SKIP_ZENODO") == "1":
+        pytest.skip("SKIP: CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run.")
+
     pytest.importorskip("sklearn")
     pytest.importorskip("torch")
 
     from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 
+    model_name = model_cls.__name__
     config = model_cls.get_train_config()
 
     for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():

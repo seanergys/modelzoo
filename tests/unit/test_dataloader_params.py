@@ -1,6 +1,18 @@
 """Unit tests for SeanergysDataloaderParams validation."""
 
 
+def test_dataloader_params_to_dict():
+    """SeanergysDataloaderParams serializes to dict."""
+    from seanergys_modelzoo.models.common.seanergys_configurator import (
+        SeanergysDataloaderParams,
+    )
+
+    params = SeanergysDataloaderParams(batch_size=8, drop_last=True)
+    d = params.to_dict()
+    assert isinstance(d, dict)
+    assert d.get("batch_size") == 8
+    assert d.get("drop_last") is True
+
 
 def test_dataloader_params_from_dict():
     """SeanergysDataloaderParams instantiates from dict."""
@@ -14,17 +26,7 @@ def test_dataloader_params_from_dict():
     assert params.shuffle is True
 
 
-def test_dataloader_params_to_dict():
-    """SeanergysDataloaderParams serializes to dict."""
-    from seanergys_modelzoo.models.common.seanergys_configurator import (
-        SeanergysDataloaderParams,
-    )
 
-    params = SeanergysDataloaderParams(batch_size=8, drop_last=True)
-    d = params.to_dict()
-    assert isinstance(d, dict)
-    assert d.get("batch_size") == 8
-    assert d.get("drop_last") is True
 
 
 def test_dataloader_params_roundtrip():

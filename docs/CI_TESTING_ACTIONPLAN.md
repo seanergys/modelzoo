@@ -285,3 +285,71 @@ integration → pytest tests/integration/                     (MR + model/datase
 3. Add `tests/integration/test_model_pipeline.py` — parametrized over all discovered models
 4. Implement parametrized model fixture in `tests/conftest.py`
 5. Share `docs/CI_TESTING_ACTIONPLAN.md` Section 6 with Francesco as feedback
+
+---
+
+## 10. Open Design Decision — `test_full_pipeline`: synthetic data vs real sampled data
+
+_Raised: 2026-03-23. To be decided later._
+
+### The question
+
+`test_full_pipeline` currently uses `is_dummy=True` which generates a synthetic
+in-memory DataFrame (5 rows, dummy values). Should it instead load from the real
+sample fixture files created by `create_sample_data.py` (100 rows of actual Zenodo
+data) when those files are available?
+
+### Francesco's original intent (main branch)
+
+Francesco's `is_dummy=True` was designed to download from Zenodo but apply heavy
+date filters to get a small real slice of data. The implementation was broken (three
+bugs — see `COLLEAGUE_FEEDBACK.md §6.3`) but **the intent was correct**: test the
+full ML pipeline with real data, just a tiny piece of it.
+
+### Current state (ci branch)
+
+Two separate strategies exist side by side:
+
+| Test | Data | What it proves |
+|---|---|---|
+| `test_full_pipeline` | `is_dummy=True` → synthetic DataFrame (zeros) | Pipeline **shape** works: train/predict/save/load don't crash |
+| `test_model_train.py` | fixture file from `create_sample_data.py` (real data) | Model trains on **real schema and value distributions** |
+| `test_model_save_load.py` | fixture file from `create_sample_data.py` (real data) | Save/load round-trip on real data |
+
+### The tradeoff
+
+Synthetic data (5 rows of zeros or simple floats) only confirms the code path
+executes without crashing. It does not tell you whether:
+- The model can learn anything from real feature distributions
+- The real column schema matches what the model expects
+- Data preprocessing (transforms, filters) works on real values
+
+Real sampled fixture data (100 rows from Zenodo) catches all of the above.
+
+### Proposed improvement (not yet implemented)
+
+Extend `test_full_pipeline` to try the fixture file first, fall back to
+`is_dummy=True` only if no fixture exists:
+
+```
+test_full_pipeline[MCBound]
+  → does tests/fixtures/sample_data/sample_fdata.parquet exist?
+      YES → load it (100 real rows, created once by `make sample-data`)
+      NO  → fall back to is_dummy=True (synthetic, offline fallback)
+```
+
+This way:
+- **Locally and in CI with network**: `make sample-data` runs before tests → real data
+- **Fully offline CI without fixture files**: synthetic fallback → test still runs
+
+`create_sample_data.py` already downloads these real samples. The gap is that
+`test_full_pipeline` does not look for them — it goes straight to `is_dummy=True`.
+
+### Why not implemented yet
+
+- Requires `test_full_pipeline` to know the fixture file naming convention
+  (`sample_<datasetclassname_lower>.parquet`) — adds coupling between test and script
+- The fixture-based approach already exists in `test_model_train.py` and
+  `test_model_save_load.py`, so real-data testing is not completely absent
+- Acceptable for now; can be revisited when Francesco implements proper `is_dummy`
+  support in his dataset classes

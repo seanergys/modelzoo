@@ -139,6 +139,28 @@ CI_SKIP_ZENODO=1 make test-smoke    # uses local fixtures only, no network
 .venv/bin/pytest tests/smoke/test_models_smoke.py::test_model_discovery -v
 ```
 
+### Manual commands (without Makefile)
+
+If you prefer to run things directly via Poetry:
+
+```bash
+# Install dependencies
+poetry install --with dev        # dev only (unit/smoke/lint)
+poetry install --with dev,ci     # full (adds ML libs for integration tests)
+
+# Run tests
+poetry run pytest tests/unit/ tests/smoke/ -v -m "not zenodo"
+
+# Validate YAML/JSON files
+pip install pyyaml
+python ci/validate_yaml.py
+
+# Run CI validation scripts (requires ci deps)
+poetry install --with dev,ci
+poetry run python ci/validate_models.py --model-folder seanergys_modelzoo/models
+poetry run python ci/validate_datasets.py --data-folder seanergys_modelzoo/datasets
+```
+
 ---
 
 ## Test Structure
@@ -155,8 +177,7 @@ tests/
 │   └── test_dataloader_params.py
 ├── smoke/                           # Import, discover, instantiate — no training
 │   ├── test_models_smoke.py
-│   ├── test_datasets_smoke.py
-│   └── test_datasets_load.py
+│   └── test_datasets_smoke.py
 ├── integration/                     # Full pipeline with real data
 │   ├── conftest.py
 │   ├── test_model_pipeline.py       ← key: auto-tests every model
@@ -201,30 +222,209 @@ running the slower integration tests.
 
 #### `test_datasets_smoke.py`
 
-| Test | What it does |
-|---|---|
-| `test_dataset_discovery` | Asserts at least 1 `SeanergysDataset` subclass is discoverable |
-| `test_dataset_dummy_mode` | For each discovered dataset: calls `get_dummy_params()`, instantiates with `is_dummy=True`, calls `load_data()`, checks `len(dataset) > 0` and `dataset[0]` is not None. Skips with a clear message if `get_dummy_params()` is not implemented. |
+All dataset tests live in one file, organised in five sections:
 
-#### `test_datasets_load.py`
-
-| Test | What it does |
-|---|---|
-| `test_dataset_loads_with_dummy` | Loads each dataset with `is_dummy=True` — no network needed. Checks `len >= 1` and `dataset[0]` returns `(x, y)` |
-| `test_dataset_loads_from_zenodo` | Loads each dataset from its Zenodo source with `is_dummy=True`. Skipped if `CI_SKIP_ZENODO=1` or if `use_zenodo_url` is not supported. |
+| Test | Section | What it does |
+|---|---|---|
+| `test_dataset_discovery` | 1. Discovery | Asserts at least 1 `SeanergysDataset` subclass is discoverable |
+| `test_model_discovery` | 1. Discovery | Asserts at least 1 `SeanergysModel` subclass is discoverable |
+| `test_dataset_contract_via_get_dummy_params` | 2. Contract | `get_dummy_params()` returns dict with `input_features` + `output_features` — skips if not implemented |
+| `test_dataset_contract_via_model_config` | 2. Contract | Model's `get_train_config()` provides valid `dataset_cls` + non-empty features — no loading |
+| `test_dataset_loads_approach_a` | 3. Load (A) | `get_dummy_params()` + `is_dummy=True` → `load_data()` → `len > 0`, `dataset[0]` valid. No network. Skips if `get_dummy_params()` not implemented. |
+| `test_dataset_loads_approach_b` | 4. Load (B) | Model `get_train_config()` params + `is_dummy=True` → load. `@zenodo` — skip with `CI_SKIP_ZENODO=1` |
+| `test_dataset_loads_from_zenodo` | 5. Zenodo | `get_dummy_params()` + `use_zenodo_url=True` + `is_dummy=True`. `@zenodo` — skip with `CI_SKIP_ZENODO=1` |
 
 **Key point:** smoke tests are the "does it even start?" layer. They do not train any model
 or run the full pipeline — that is the job of the integration tests.
 
 ### Integration Tests (`tests/integration/`)
 
-Full pipeline with real data from fixture files. Slower — run before opening a MR.
+Full end-to-end pipeline with real data. Slower — run before opening a MR.
 
 | Test file | What it checks |
 |---|---|
-| `test_model_pipeline.py` | **Auto-discovers every model in `models/tasks/`**. For each model: (1) `get_train_config()` returns valid structure; (2) full pipeline: load fixture data → `train()` → `predict()` → `save()` → `load()` |
+| `test_model_pipeline.py` | **Auto-discovers every model in `models/tasks/`**. For each model: (1) `get_train_config()` returns valid structure; (2) full pipeline: load data → `train()` → `predict()` → `save()` → `load()` |
 | `test_model_train.py` | `SeanergysSklearnModel(RandomForest)` trains on FData fixture, `is_trained=True`, history returned |
 | `test_model_save_load.py` | Model saves to disk and reloads correctly |
+
+#### Known warnings from `make test-integration`
+
+All tests pass. These warnings do not stop the tests but are worth fixing to avoid future breakage.
+
+| Warning | Meaning |
+|--------|---------|
+| **`datetime.utcnow() is deprecated`** | Code uses `datetime.utcnow()` instead of `datetime.now(datetime.UTC)`. Safe for now but will break in future Python. Fix in `seanergys_model_metadata.py` and Pydantic. |
+| **`A custom validator is returning a value other than self`** | A Pydantic model validator returns a new object instead of mutating `self`. Pydantic v2 prefers returning `self`. Comes from `SeanergysSklearnModel` and the test files that instantiate it. |
+| **`NumPy array is not writable`** | The dataset yields a read-only NumPy array; PyTorch prefers writable tensors. Can be fixed by copying the array before converting to tensor. |
+| **`A column-vector y was passed when a 1d array was expected`** | Target `y` is shaped as `(n, 1)` but scikit-learn expects `(n,)`. Use `.ravel()` on `y` before fitting. |
+
+---
+
+### How `test_full_pipeline` works — step by step
+
+This is the most important test in the project. It validates the entire ML lifecycle
+for every model automatically, with no hardcoded names anywhere.
+
+**File:** `tests/integration/test_model_pipeline.py` — function `test_full_pipeline`
+
+#### Step 1 — Auto-discovery at collection time
+
+When pytest starts, `tests/conftest.py` scans `seanergys_modelzoo/models/tasks/**/*.py`
+and finds every concrete `SeanergysModel` subclass (e.g. MACK, MCBound, JPCP).
+These are stored in `MODEL_CLASSES = {"MACK": <class MACK>, "MCBound": <class MCBound>, ...}`.
+
+`test_full_pipeline` is parametrized over this dict — pytest generates one independent
+test case per discovered model automatically:
+
+```
+pytest tests/integration/test_model_pipeline.py -v
+→  test_full_pipeline[MACK]
+→  test_full_pipeline[MCBound]
+→  test_full_pipeline[JPCP]
+   ... (one per model, no names hardcoded in the test file)
+```
+
+#### Step 2 — Get the model's own training config
+
+```python
+config = model_cls.get_train_config()
+# returns something like:
+# {
+#   "fdata": (MACK(), FDataDataset, (SeanergysDatasetParams(...), SeanergysDataloaderParams(...)))
+#   "pm100": (MACK(), PM100Dataset, (SeanergysDatasetParams(...), SeanergysDataloaderParams(...)))
+# }
+```
+
+The model defines its own dataset class, input/output features, and dataloader
+settings. The test does not need to know any of this in advance.
+
+#### Step 3 — Override `is_dummy=True`
+
+```python
+ds_params.is_dummy = True
+```
+
+This tells the dataset to load a tiny synthetic subset instead of downloading
+the full dataset from Zenodo. See the [What is `is_dummy=True`?](#what-is-is_dummytrue)
+section for full details.
+
+#### Step 4 — Load the dataset (skip gracefully if it fails)
+
+```python
+try:
+    dataset = dataset_cls.from_config(ds_params)
+    dataset.load_data()
+except Exception as e:
+    pytest.skip(f"dataset setup failed — {e}. Ensure {dataset_cls.__name__} supports is_dummy=True without network.")
+```
+
+If the dataset does not support `is_dummy=True` properly (e.g. still tries to
+download from Zenodo and the network is unavailable), the test **skips** with a
+clear message — it does not fail the whole pipeline. Other models continue running.
+
+#### Step 5 — Skip if dataset is empty
+
+```python
+if len(dataset) == 0:
+    pytest.skip(f"dataset returned 0 samples with is_dummy=True. ...")
+```
+
+A dataset that loads but returns 0 rows cannot be trained on. Skip rather than crash.
+
+#### Step 6 — Build the dataloader
+
+```python
+loader = SeanergysDataloader.from_config(data_loader_config=dl_params, dataset=dataset)
+```
+
+Uses the same `dl_params` from `get_train_config()` — batch size, shuffle etc.
+
+#### Step 7 — Train
+
+```python
+history = model_instance.train(loader)
+
+assert model_instance.is_trained        # model must set this flag after training
+assert history is not None              # train() must return a history dict
+```
+
+#### Step 8 — Predict
+
+```python
+predictions = model_instance.predict(loader)
+
+assert predictions is not None
+assert len(predictions) > 0
+```
+
+#### Step 9 — Save
+
+```python
+saved = model_instance.save(str(save_path / "model"))
+
+assert saved    # save() must return True on success
+```
+
+Saves to a temporary directory (`tmp_path`) provided by pytest. Cleaned up automatically.
+
+#### Step 10 — Load
+
+```python
+loaded_model = type(model_instance).load(str(save_path / "model"))
+
+assert loaded_model is not None    # load() must return a model instance
+```
+
+Loads the saved model back from disk using the class method. Verifies the round-trip works.
+
+#### Full flow diagram
+
+```
+pytest collects tests
+  → conftest scans models/tasks/**/*.py
+  → finds MACK, MCBound, JPCP, ...
+  → generates test_full_pipeline[MACK], test_full_pipeline[MCBound], ...
+
+for each model:
+  get_train_config()
+    ↓
+  for each entry (e.g. "fdata", "pm100"):
+    ds_params.is_dummy = True
+      ↓
+    dataset_cls.from_config(ds_params) + load_data()
+      ↓ fails?   → SKIP (graceful, clear message, next model continues)
+      ↓ 0 rows?  → SKIP
+      ↓ ok
+    SeanergysDataloader.from_config(dl_params, dataset)
+      ↓
+    model.train(loader)         → assert is_trained=True, history not None
+      ↓
+    model.predict(loader)       → assert len(predictions) > 0
+      ↓
+    model.save(tmp_path)        → assert save() returns True
+      ↓
+    type(model).load(tmp_path)  → assert loaded model is not None
+      ↓
+    PASS
+```
+
+#### What the second test in the file does (`test_get_train_config_structure`)
+
+This is a cheaper pre-check that runs before `test_full_pipeline`. It only calls
+`get_train_config()` and validates the structure — no data loading, no training:
+
+```python
+assert isinstance(config, dict) and len(config) > 0
+# for each entry:
+assert hasattr(model_instance, "train")
+assert hasattr(model_instance, "predict")
+assert hasattr(model_instance, "save")
+assert hasattr(model_instance, "load")
+assert issubclass(dataset_cls, SeanergysDataset)
+```
+
+If `get_train_config()` returns garbage or raises, this test catches it early without
+having to run the full pipeline.
 
 ---
 
@@ -573,6 +773,11 @@ warnings. Once those are fixed, these can be changed to `allow_failure: false`.
 fixture files. The script then uses those local files — no network needed during the
 actual test run.
 
+### Caching
+
+Pip packages are cached per branch using `$CI_COMMIT_REF_SLUG` as the cache key.
+Re-runs on the same branch reuse the cached virtualenv, making subsequent jobs faster.
+
 #### Why sample data is created per model, not per dataset
 
 You might expect the script to discover datasets directly and create a sample for each.
@@ -665,3 +870,69 @@ make test-datasets  # checks it loads
 ```bash
 make ci
 ```
+
+---
+
+## Understanding the 18 Expected Skips
+
+_Added: 2026-03-23 — after full test suite cleanup (Mohsen)_
+
+After all known bugs are fixed the suite runs: **36 passed, 18 skipped, 0 failed.**
+All 18 skips are intentional and expected — not bugs. They split into two groups.
+
+---
+
+### Group 1 — 9 skips: `get_dummy_params()` not implemented
+
+Three dataset classes (`FDataDataset`, `PM100Dataset`, `SCRIPTAIDataset`) have not yet implemented
+`get_dummy_params()`. Three tests per dataset depend on this method:
+
+| Test file | Test name | Reason skipped |
+|-----------|-----------|----------------|
+| `tests/smoke/test_datasets_smoke.py` | `test_dataset_contract_via_get_dummy_params[*]` | `get_dummy_params()` returns `None` |
+| `tests/smoke/test_datasets_load.py` | `test_dataset_loads_approach_a[*]` | `get_dummy_params()` returns `None` |
+| `tests/smoke/test_datasets_load.py` | `test_dataset_loads_from_zenodo[*]` | `get_dummy_params()` returns `None` |
+
+3 datasets × 3 tests = **9 skips**.
+
+**Fix (Francesco's task):** Implement `get_dummy_params()` on each concrete dataset class.
+See `docs/COLLEAGUE_FEEDBACK.md §6.1` for the implementation guide.
+The method should return a dict like:
+```python
+{"input_features": [...], "output_features": [...]}
+```
+
+---
+
+### Group 2 — 9 skips: fixture parquet missing the `"embedding"` column
+
+All three models (`MACK`, `MCBound`, `JPCP`) use `input_features=["embedding"]` in their FData
+`get_train_config()` entry. The `"embedding"` column is **pre-computed** — it does not exist in the
+raw FData Zenodo parquet. When the fixture-based integration tests load `sample_fdata.parquet` with
+these params, the dataset loading fails on the missing column and the test skips gracefully.
+
+| Test file | Test name | Reason skipped |
+|-----------|-----------|----------------|
+| `tests/integration/test_model_train.py` | `test_model_train_on_fixture_data[*]` | `"embedding"` column missing in raw fixture |
+| `tests/integration/test_model_train.py` | `test_model_predict_after_train[*]` | `"embedding"` column missing in raw fixture |
+| `tests/integration/test_model_save_load.py` | `test_model_save_load_roundtrip[*]` | `"embedding"` column missing in raw fixture |
+
+3 models × 3 tests = **9 skips**.
+
+**These are acceptable.** All three models are fully exercised by `test_full_pipeline` (which uses
+`is_dummy=True` and passes). The fixture-based path just cannot cover the `"embedding"` feature
+without a pre-computed fixture file.
+
+**Fix (if desired):** Add a CI-friendly config variant in `get_train_config()` that uses raw columns
+available in the parquet (e.g. `input_features=["nnuma", "duration"]`). `load_first_fixture_entry`
+will find and use that entry instead, making these tests pass.
+
+---
+
+### Quick reference: skip count by cause
+
+| Cause | Skips | Owner | Fixable without network? |
+|-------|-------|-------|--------------------------|
+| `get_dummy_params()` not implemented | 9 | Francesco | Yes — implement in dataset class |
+| `"embedding"` column not in raw fixture | 9 | Model authors | Yes — add raw-column config variant |
+| **Total** | **18** | | |

@@ -1,35 +1,61 @@
 """
-Smoke tests: dataset discovery and contract validation. No data loading, no network.
+Smoke tests: dataset discovery, contract validation, and data loading.
 
-TWO APPROACHES ARE TESTED
---------------------------
+SECTIONS
+--------
 
-Approach A — via get_dummy_params() (dataset-level contract):
-    Each dataset class implements get_dummy_params() returning the constructor
-    kwargs needed to instantiate it. This is the cleanest contract but requires
-    Francesco to implement it on each concrete dataset class.
-    Status: NOT YET IMPLEMENTED on FDataDataset, PM100Dataset, SCRIPTAIDataset.
+1. Discovery       — at least one dataset/model class found. No deps, no I/O.
+2. Contract checks — dataset and model interfaces look correct. No data loaded.
+3. is_dummy        — load via model get_train_config() + is_dummy=True.
+                     Marked @zenodo (is_dummy=True still hits Zenodo with filters).
+                     Skip with: CI_SKIP_ZENODO=1 make test-smoke
+4. Zenodo          — load directly from Zenodo URL with is_dummy=True.
+                     Marked @zenodo. Requires network.
+                     Skip with: CI_SKIP_ZENODO=1 make test-smoke
 
-Approach B — via get_train_config() (model-level contract):
-    Each model implements get_train_config() which already defines which dataset
-    class to use and which input/output features to pass. We use this to verify
-    the dataset contract without needing get_dummy_params().
-    Status: WORKS TODAY — no changes needed from Francesco.
-
-Both approaches are fully dynamic. No dataset or model names are hardcoded.
-Adding a new dataset or model is picked up automatically.
+Both section 3 and 4 are driven by model get_train_config() — no dataset names
+are hardcoded. Adding a new model automatically adds its dataset to both tests.
 """
+
+import os
 
 import pytest
 
-pytest.importorskip("torch", reason="Dataset discovery requires torch")
-pytest.importorskip("sklearn", reason="Model discovery requires sklearn")
+pytest.importorskip("pandas")
+pytest.importorskip("pyarrow")
+pytest.importorskip("torch")
+pytest.importorskip("sklearn")
 
 from tests.conftest import DATASET_CLASSES, MODEL_CLASSES
 
 
 # ---------------------------------------------------------------------------
-# Test 1: discovery — always runs
+# Shared helper
+# ---------------------------------------------------------------------------
+
+def _collect_dataset_configs_from_models():
+    """
+    Collect unique (dataset_cls, ds_params) from all model get_train_config() calls.
+    Deduplicated by dataset class name so each dataset is loaded only once.
+    """
+    seen = {}
+    for model_name, model_cls in MODEL_CLASSES.items():
+        try:
+            config = model_cls.get_train_config()
+        except Exception:
+            continue
+        for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
+            key = dataset_cls.__name__
+            if key not in seen:
+                seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
+    return seen
+
+
+_DATASET_CONFIGS_FROM_MODELS = _collect_dataset_configs_from_models()
+
+
+# ---------------------------------------------------------------------------
+# 1. Discovery
 # ---------------------------------------------------------------------------
 
 def test_dataset_discovery():
@@ -63,90 +89,21 @@ def test_model_discovery():
 
 
 # ---------------------------------------------------------------------------
-# Test 2A — Approach A: dataset contract via get_dummy_params()
+# 2. Contract checks (no data loaded)
 # ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("dataset_name,dataset_cls", list(DATASET_CLASSES.items()))
-def test_dataset_contract_via_get_dummy_params(dataset_name, dataset_cls):
-    """
-    Approach A — dataset-level contract (get_dummy_params).
-
-    PASS: get_dummy_params() returns a dict with input_features and output_features.
-    SKIP: get_dummy_params() is not implemented — dataset cannot be auto-tested
-          without a model. Add get_dummy_params() to enable this check.
-    FAIL: get_dummy_params() returns something other than a dict, or is missing
-          required keys (input_features, output_features).
-
-    No data is loaded — this only checks the contract, not actual loading.
-    """
-    params = dataset_cls.get_dummy_params()
-
-    if params is None:
-        pytest.skip(
-            f"\n  SKIP [{dataset_name}] Approach A: get_dummy_params() not implemented.\n"
-            f"  → The dataset cannot be tested without a model in Approach A.\n"
-            f"  → Either implement get_dummy_params() on {dataset_name},\n"
-            f"    or rely on Approach B (model-based) which works today.\n"
-            f"  → See docs/COLLEAGUE_FEEDBACK.md §6.1 for the implementation guide."
-        )
-
-    assert isinstance(params, dict), (
-        f"FAIL [{dataset_name}] get_dummy_params() must return a dict, got {type(params)}."
-    )
-    assert "input_features" in params, (
-        f"FAIL [{dataset_name}] get_dummy_params() dict must contain 'input_features'."
-    )
-    assert "output_features" in params, (
-        f"FAIL [{dataset_name}] get_dummy_params() dict must contain 'output_features'."
-    )
-    assert len(params["input_features"]) >= 1, (
-        f"FAIL [{dataset_name}] get_dummy_params()['input_features'] must not be empty."
-    )
-    assert len(params["output_features"]) >= 1, (
-        f"FAIL [{dataset_name}] get_dummy_params()['output_features'] must not be empty."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Test 2B — Approach B: dataset contract via model get_train_config()
-# ---------------------------------------------------------------------------
-
-def _collect_dataset_configs_from_models():
-    """
-    Collect unique (dataset_name, dataset_cls, ds_params) from all model
-    get_train_config() calls. Deduplicated by dataset class name.
-    """
-    seen = {}
-    for model_name, model_cls in MODEL_CLASSES.items():
-        try:
-            config = model_cls.get_train_config()
-        except Exception:
-            continue
-        for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
-            key = dataset_cls.__name__
-            if key not in seen:
-                seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
-    return seen
-
-
-_DATASET_CONFIGS_FROM_MODELS = _collect_dataset_configs_from_models()
-
 
 @pytest.mark.parametrize(
     "dataset_name,config",
-    [(k, v) for k, v in _DATASET_CONFIGS_FROM_MODELS.items()],
+    list(_DATASET_CONFIGS_FROM_MODELS.items()),
+    ids=list(_DATASET_CONFIGS_FROM_MODELS.keys()),
 )
 def test_dataset_contract_via_model_config(dataset_name, config):
     """
-    Approach B — model-level contract (get_train_config).
+    Contract check — model get_train_config() shape only, no loading.
 
-    PASS: get_train_config() on the model provides a valid dataset class with
-          input_features, output_features defined — dataset is ready for CI.
-    SKIP: no model references this dataset via get_train_config(). Either add
-          a model that uses it, or implement get_dummy_params() (Approach A).
+    PASS: model provides a valid dataset class with non-empty features defined.
+    SKIP: no model references this dataset via get_train_config().
     FAIL: dataset_cls or ds_params missing required fields.
-
-    No data is loaded — this only checks the contract, not actual loading.
     """
     dataset_cls, ds_params, source = config
 
@@ -165,3 +122,106 @@ def test_dataset_contract_via_model_config(dataset_name, config):
     assert len(ds_params.output_features) >= 1, (
         f"FAIL [{dataset_name}] ds_params.output_features from {source} is empty."
     )
+
+
+# ---------------------------------------------------------------------------
+# 3. is_dummy — load via model get_train_config() + is_dummy=True
+# ---------------------------------------------------------------------------
+
+@pytest.mark.zenodo
+@pytest.mark.parametrize(
+    "dataset_name,config",
+    list(_DATASET_CONFIGS_FROM_MODELS.items()),
+    ids=list(_DATASET_CONFIGS_FROM_MODELS.keys()),
+)
+def test_dataset_loads_with_is_dummy(dataset_name, config):
+    """
+    Load dataset using params from model get_train_config() + is_dummy=True.
+
+    PASS: dataset instantiates with model-provided params, loads data, len > 0,
+          dataset[0] returns a valid (x, y) tuple.
+    SKIP: CI_SKIP_ZENODO=1 set, or no model references this dataset.
+    FAIL: dataset loads 0 rows, or dataset[0] fails.
+
+    Marked @zenodo because is_dummy=True still downloads from Zenodo with filters.
+    Skip with: CI_SKIP_ZENODO=1 make test-smoke
+    """
+    if os.environ.get("CI_SKIP_ZENODO") == "1":
+        pytest.skip("SKIP: CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run.")
+
+    dataset_cls, ds_params, source = config
+
+    params = ds_params.model_dump()
+    params["is_dummy"] = True
+
+    try:
+        dataset = dataset_cls(**params)
+    except Exception as e:
+        pytest.fail(
+            f"FAIL [{dataset_name}] failed to instantiate using params "
+            f"from {source}.\n  → Error: {e}"
+        )
+
+    assert len(dataset) >= 1, (
+        f"FAIL [{dataset_name}] loaded 0 samples with is_dummy=True.\n"
+        f"  → Params came from {source}.\n"
+        f"  → Check that is_dummy=True reduces data but still returns at least 1 row."
+    )
+
+    item = dataset[0]
+    assert item is not None, (
+        f"FAIL [{dataset_name}] dataset[0] returned None.\n"
+        f"  → Check that {dataset_name}.__getitem__() returns a valid (x, y) tuple."
+    )
+
+
+# ---------------------------------------------------------------------------
+# 4. Zenodo — load directly from Zenodo URL with is_dummy=True
+# ---------------------------------------------------------------------------
+
+@pytest.mark.zenodo
+@pytest.mark.parametrize(
+    "dataset_name,config",
+    list(_DATASET_CONFIGS_FROM_MODELS.items()),
+    ids=list(_DATASET_CONFIGS_FROM_MODELS.keys()),
+)
+def test_dataset_loads_from_zenodo(dataset_name, config):
+    """
+    Load each dataset from its Zenodo source with is_dummy=True (small subset).
+
+    PASS: dataset downloads from Zenodo, loads data, len > 0, dataset[0] valid.
+    SKIP: CI_SKIP_ZENODO=1 set, or dataset does not support use_zenodo_url=True.
+    FAIL: Zenodo download succeeds but 0 rows loaded, or dataset[0] fails.
+
+    Requires network. Skip locally with: CI_SKIP_ZENODO=1 make test-smoke
+    """
+    if os.environ.get("CI_SKIP_ZENODO") == "1":
+        pytest.skip("SKIP: CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run.")
+
+    dataset_cls, ds_params, source = config
+
+    params = ds_params.model_dump()
+    params["is_dummy"] = True
+    params["use_zenodo_url"] = True
+
+    try:
+        dataset = dataset_cls(**params)
+    except TypeError:
+        pytest.skip(
+            f"\n  SKIP [{dataset_name}] use_zenodo_url=True not supported.\n"
+            f"  → Add use_zenodo_url field to {dataset_name} to enable Zenodo testing."
+        )
+    except Exception as e:
+        pytest.fail(
+            f"FAIL [{dataset_name}] Zenodo download or load failed.\n"
+            f"  → Error: {e}"
+        )
+
+    assert len(dataset) >= 1, (
+        f"FAIL [{dataset_name}] loaded 0 samples from Zenodo with is_dummy=True.\n"
+        f"  → Check that is_dummy=True filters the Zenodo data to at least 1 row."
+    )
+
+    x, y = dataset[0]
+    assert x is not None, f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned x=None."
+    assert y is not None, f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned y=None."

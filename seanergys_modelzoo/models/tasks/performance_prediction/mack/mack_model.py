@@ -260,18 +260,19 @@ class MACK(SeanergysSklearnModel):
             True on success, False on failure.
         """
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
+        path.mkdir(parents=True, exist_ok=True)
+
         try:
             # Save the kmeans
             joblib.dump(self.kmeans_flops, f"{os.path.join(str(path), 'kmeans_flops.joblib')}", compress = compress)
             self.logger.info(f"Kmeans flops saved to {path}")
-            
+
             joblib.dump(self.kmeans_memory_bw, f"{os.path.join(str(path), 'kmeans_memory_bw.joblib')}", compress = compress)
             self.logger.info(f"Kmeans memory_bw saved to {path}")
-            
+
             super().save(path=path, compress=compress)
-        
+            return True
+
         except Exception as e:
             self.logger.error(f"Error saving model: {e}")
             return False

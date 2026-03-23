@@ -1,51 +1,55 @@
 """
 Integration tests: model save and load round-trip.
 
-Uses FDataDataset from tests/fixtures/sample_data/ (run `make sample-data`).
+Auto-discovers all models via MODEL_CLASSES. For each model, uses
+get_train_config() to find the right dataset class and params, then loads
+data from the local fixture file in tests/fixtures/sample_data/.
+
+No model or dataset names are hardcoded. Adding a new model to models/tasks/
+automatically adds it to this test.
 """
 
 import pytest
 
+from tests.conftest import MODEL_CLASSES
+from tests.integration.conftest import load_first_fixture_entry
 
-def test_model_save_load_roundtrip(fdata_dataset, temp_model_dir):
+
+@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
+def test_model_save_load_roundtrip(model_name, model_cls, integration_data_dir, temp_model_dir):
     """
-    Train, save, load, predict. Validates save/load round-trip.
+    Train → save → load → predict for each auto-discovered model.
+
+    PASS: save() returns True, loaded model is_trained, predictions before and
+          after save/load are identical.
+    SKIP: no fixture file found — run `make sample-data`.
+    FAIL: save() fails, load() returns None, or predictions differ after reload.
     """
-    pytest.importorskip("sklearn")
-    pytest.importorskip("torch")
     pytest.importorskip("joblib")
 
-    from sklearn.ensemble import RandomForestRegressor
-
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
-        SeanergysModelMetadata,
-    )
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
-        SeanergysSklearnModel,
+    model_instance, dataset, loader = load_first_fixture_entry(
+        model_name, model_cls, integration_data_dir
     )
 
-    model = SeanergysSklearnModel(
-        model_class=RandomForestRegressor,
-        task_type=SeanergysModelTask.REGRESSION,
-        model_hyperparameters={"n_estimators": 5, "max_depth": 2},
-        metadata=SeanergysModelMetadata(name="TestRegressor"),
+    model_instance.train(train_data_loader=loader)
+    pred_before = model_instance.predict(loader)
+
+    save_path = temp_model_dir / model_name
+    save_path.mkdir(parents=True, exist_ok=True)
+    saved = model_instance.save(path=str(save_path / "model"))
+    assert saved is True, f"{model_name}: save() must return True"
+
+    loaded = type(model_instance).load(path=str(save_path / "model"))
+    assert loaded is not None, f"{model_name}: load() returned None"
+    assert loaded.is_trained is True, f"{model_name}: loaded model must be trained"
+
+    pred_after = loaded.predict(loader)
+
+    assert len(pred_before) == len(pred_after), (
+        f"{model_name}: prediction length changed after save/load "
+        f"({len(pred_before)} → {len(pred_after)})"
     )
-
-    data_loader = SeanergysDataloader(dataset=fdata_dataset, batch_size=4)
-    model.train(train_data_loader=data_loader)
-    pred_before = model.predict(data_loader)
-
-    save_path = temp_model_dir
-    result = model.save(path=save_path)
-    assert result is True
-
-    loaded = SeanergysSklearnModel.load(path=save_path)
-    assert loaded.is_trained is True
-    pred_after = loaded.predict(data_loader)
-
-    assert len(pred_before) == len(pred_after)
-    # Predictions should match for the same model
-    for a, b in zip(pred_before, pred_after, strict=True):
-        assert a == b
+    for i, (a, b) in enumerate(zip(pred_before, pred_after, strict=True)):
+        assert a == b, (
+            f"{model_name}: prediction[{i}] changed after save/load: {a} → {b}"
+        )

@@ -171,14 +171,15 @@ class MCBound(SeanergysSklearnModel):
             True on success, False on failure.
         """
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
+        path.mkdir(parents=True, exist_ok=True)
+
         try:
             # Save the label encoder
             joblib.dump(self.embedder, f"{os.path.join(str(path), 'embedder.joblib')}", compress = compress)
             self.logger.info(f"Embedder saved to {path}")
             super().save(path=path, compress=compress)
-        
+            return True
+
         except Exception as e:
             self.logger.error(f"Error saving model: {e}")
             return False

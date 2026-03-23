@@ -116,49 +116,62 @@ def _collect_dataset_configs(model_classes: dict) -> dict:
 
 def create_sample(dataset_cls, ds_params, max_rows: int, out_dir: Path) -> Path:
     """
-    Download a small sample from Zenodo and save to parquet.
+    Download a small raw sample from Zenodo and save to parquet.
 
-    WHY WE DO NOT USE is_dummy=True HERE
-    --------------------------------------
-    Francesco's is_dummy=True implementation is currently broken:
-      - FDataDataset: appends a tuple to a list-of-lists filter → invalid pyarrow
-        predicate format. Also uses "21-04" (hyphen) instead of "21_04" (underscore).
-      - These are documented in docs/COLLEAGUE_FEEDBACK.md §6.3.
+    WHY WE BYPASS THE DATASET CLASS ENTIRELY
+    -----------------------------------------
+    Going through the dataset class has several problems:
 
-    Instead we use only the essential params from get_train_config() — just
-    input_features, output_features, and use_zenodo_url=True — and override
-    `files` to a single month to keep the download small. No transforms, no
-    preprocessing, no filters. We then take head(max_rows) after loading.
+    1. is_dummy=True is broken in FDataDataset (see COLLEAGUE_FEEDBACK.md §6.3):
+       wrong filename "21-04" vs "21_04", invalid filter format.
 
-    WHY WE STRIP TRANSFORMS AND PREPROCESSING
-    ------------------------------------------
-    Some models (e.g. MACK) define transforms that require a fitted model
-    (e.g. embedding_parsing, transform_kmeans). These cannot run at sample
-    creation time — the model has not been trained yet. Raw column values
-    are sufficient for fixture files; the integration tests load data
-    and apply transforms at training time.
+    2. Column filtering: MACK uses output_features=["mem_compute_bound"] which
+       only exists in late 2023+ files. Using AVAILABLE_FILES[0] (21_03) fails
+       because that column did not exist yet.
+
+    3. Transforms require fitted models: embedding_parsing, transform_kmeans etc.
+       cannot run at sample creation time — the model has not been trained yet.
+
+    SOLUTION: download raw parquet directly with pandas, no column filtering,
+    using the LAST available file (most complete schema — all columns that were
+    ever added to the dataset are present). Take head(max_rows) and save all
+    columns. The integration tests then load this fixture and select only the
+    columns they need via their own ds_params.
     """
-    # Build minimal safe params — only what is needed to download raw data
-    essential_params = {
-        "input_features": ds_params.input_features,
-        "output_features": ds_params.output_features,
-        "use_zenodo_url": True,
-    }
+    import pandas as pd
 
-    # If the dataset supports a `files` field (e.g. FDataDataset loads monthly
-    # parquet files), load only the first available file instead of all 38.
-    if hasattr(dataset_cls, "AVAILABLE_FILES") and dataset_cls.AVAILABLE_FILES:
-        essential_params["files"] = dataset_cls.AVAILABLE_FILES[0]
+    # ZENODO_BASE_URL and ZENODO_URL are Pydantic fields (not plain class attrs),
+    # so we read their default values from model_fields rather than the class directly.
+    fields = dataset_cls.model_fields
 
-    # Instantiate — model_validator fires load_data() automatically
-    dataset = dataset_cls(**essential_params)
+    # --- Multi-file datasets (e.g. FDataDataset: 38 monthly parquet files) ---
+    if "ZENODO_BASE_URL" in fields and "AVAILABLE_FILES" in fields:
+        base_url = fields["ZENODO_BASE_URL"].default
+        available_files = fields["AVAILABLE_FILES"].default
+        # Use the LAST available file — most complete schema (new columns added over time)
+        last_file = available_files[-1]
+        url = f"{base_url}/{last_file}.parquet"
+        print(f"         downloading {last_file}.parquet from Zenodo (no column filter)...")
+        df = pd.read_parquet(url)
 
-    df = dataset._df.head(max_rows)
+    # --- Single-file datasets (e.g. PM100Dataset: one parquet URL) ---
+    elif "ZENODO_URL" in fields:
+        url = fields["ZENODO_URL"].default
+        print(f"         downloading from Zenodo (no column filter)...")
+        df = pd.read_parquet(url)
+
+    else:
+        raise ValueError(
+            f"{dataset_cls.__name__} has no ZENODO_BASE_URL or ZENODO_URL Pydantic field. "
+            "Cannot determine download URL. Add one of these fields to the dataset class."
+        )
+
+    sample = df.head(max_rows)
 
     # Consistent naming: FDataDataset → sample_fdata.parquet
     name = dataset_cls.__name__.lower().replace("dataset", "")
     out_path = out_dir / f"sample_{name}.parquet"
-    df.to_parquet(out_path, index=False)
+    sample.to_parquet(out_path, index=False)
 
     return out_path
 

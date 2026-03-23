@@ -1,75 +1,71 @@
 """
-Integration tests: model training on subset data.
+Integration tests: model training on fixture data.
 
-Uses FDataDataset from tests/fixtures/sample_data/ (run `make sample-data`).
+Auto-discovers all models via MODEL_CLASSES. For each model, uses
+get_train_config() to find the right dataset class and params, then loads
+data from the local fixture file in tests/fixtures/sample_data/.
+
+No model or dataset names are hardcoded. Adding a new model to models/tasks/
+automatically adds it to both tests here.
+
+Complements test_model_pipeline.py (which uses is_dummy=True for fully offline
+testing). These tests use fixture files created by `make sample-data`.
 """
 
 import pytest
 
+from tests.conftest import MODEL_CLASSES
+from tests.integration.conftest import load_first_fixture_entry
 
-def test_model_train_on_fixture_data(fdata_dataset):
+
+@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
+def test_model_train_on_fixture_data(model_name, model_cls, integration_data_dir):
     """
-    Train a sklearn-based model on F-DATA fixture for 1 epoch.
-    Validates train() runs without error.
+    Train each auto-discovered model on its fixture dataset.
+
+    PASS: train() completes, model.is_trained is True, history is returned.
+    SKIP: no fixture file found — run `make sample-data`.
+    FAIL: train() raises, or is_trained is still False after training.
     """
-    pytest.importorskip("sklearn")
-    pytest.importorskip("torch")
-
-    from sklearn.ensemble import RandomForestRegressor
-
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
-        SeanergysModelMetadata,
-    )
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
-        SeanergysSklearnModel,
+    model_instance, dataset, loader = load_first_fixture_entry(
+        model_name, model_cls, integration_data_dir
     )
 
-    model = SeanergysSklearnModel(
-        model_class=RandomForestRegressor,
-        task_type=SeanergysModelTask.REGRESSION,
-        model_hyperparameters={"n_estimators": 5, "max_depth": 2},
-        metadata=SeanergysModelMetadata(name="TestRegressor"),
+    history = model_instance.train(train_data_loader=loader)
+
+    assert model_instance.is_trained is True, (
+        f"{model_name}: is_trained must be True after train()"
+    )
+    assert history is not None, (
+        f"{model_name}: train() must return a history dict, got None"
+    )
+    assert "training" in history, (
+        f"{model_name}: history must contain a 'training' key"
+    )
+    assert len(dataset) >= 1, (
+        f"{model_name}: dataset must have at least 1 sample"
     )
 
-    data_loader = SeanergysDataloader(dataset=fdata_dataset, batch_size=4)
-    history = model.train(train_data_loader=data_loader)
 
-    assert model.is_trained is True
-    assert history is not None
-    assert "training" in history
-    assert len(fdata_dataset) >= 1
-
-
-def test_model_predict_after_train(fdata_dataset):
+@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
+def test_model_predict_after_train(model_name, model_cls, integration_data_dir):
     """
-    Train then predict. Validates predict() returns valid output shape.
+    Train then predict on each auto-discovered model.
+
+    PASS: predict() returns a non-empty result with the same length as the dataset.
+    SKIP: no fixture file found — run `make sample-data`.
+    FAIL: predict() returns None or wrong length.
     """
-    pytest.importorskip("sklearn")
-    pytest.importorskip("torch")
-
-    from sklearn.ensemble import RandomForestRegressor
-
-    from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
-    from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-    from seanergys_modelzoo.models.common.seanergys_model_metadata import (
-        SeanergysModelMetadata,
-    )
-    from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
-        SeanergysSklearnModel,
+    model_instance, dataset, loader = load_first_fixture_entry(
+        model_name, model_cls, integration_data_dir
     )
 
-    model = SeanergysSklearnModel(
-        model_class=RandomForestRegressor,
-        task_type=SeanergysModelTask.REGRESSION,
-        model_hyperparameters={"n_estimators": 5, "max_depth": 2},
-        metadata=SeanergysModelMetadata(name="TestRegressor"),
+    model_instance.train(train_data_loader=loader)
+    predictions = model_instance.predict(loader)
+
+    assert predictions is not None, (
+        f"{model_name}: predict() returned None"
     )
-
-    data_loader = SeanergysDataloader(dataset=fdata_dataset, batch_size=4)
-    model.train(train_data_loader=data_loader)
-    predictions = model.predict(data_loader)
-
-    assert predictions is not None
-    assert len(predictions) == len(fdata_dataset)
+    assert len(predictions) == len(dataset), (
+        f"{model_name}: len(predictions)={len(predictions)} != len(dataset)={len(dataset)}"
+    )

@@ -250,6 +250,27 @@ if self.is_dummy:
     return
 ```
 
+### 6.6 `MACK.get_train_config()` — `mem_compute_bound` does not exist in raw F-DATA files
+
+**File:** `mack_model.py`
+
+MACK declares `output_features=["mem_compute_bound"]` in its `get_train_config()`.
+However, `mem_compute_bound` is **not a column in the raw F-DATA parquet files** — it is
+absent from all 38 monthly files (verified on `24_04.parquet`, the most recent).
+
+The raw F-DATA schema contains `opint` (operational intensity), `flops`, `mbwidth`, and
+`pclass` (a computed kmeans cluster label), but no `mem_compute_bound`.
+
+This means:
+- `make sample-data` creates `sample_fdata.parquet` with all 45 raw columns — correct
+- The integration test then tries to load the fixture with `output_features=["mem_compute_bound"]`
+  and fails: `No match for FieldRef.Name(mem_compute_bound)`
+
+**What to do:**
+Either change `output_features` to a column that actually exists in the raw data
+(e.g. `"pclass"`, `"avgpcon"`), or add `mem_compute_bound` as a preprocessing step
+that derives it from `opint` before the dataset is loaded.
+
 ### 6.5 `JPCP.get_train_config()` — wrong tuple format for PM100 entry
 
 **File:** `jpcp_model.py`, line 157
@@ -304,6 +325,7 @@ def get_train_config(cls, data_path: Optional[Path] = None) -> dict:
 | 6.3 | `is_dummy=True` has two bugs (wrong filename, invalid filter format) + still needs network | `f_data.py` | Manual |
 | 6.4 | `use_zenodo_url=True` hardcoded | model files | Manual |
 | 6.5 | **JPCP** `get_train_config()` PM100 entry uses wrong tuple format + positional Pydantic args | `jpcp_model.py` line 157 | Manual (one line fix) |
+| 6.6 | **MACK** `output_features=["mem_compute_bound"]` — column does not exist in raw F-DATA files | `mack_model.py` | Manual — use an existing column or derive it in preprocessing |
 
 **Quick wins** (run these two commands and items 1, 2, 4, 5 are done):
 ```bash
