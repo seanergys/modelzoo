@@ -108,10 +108,6 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
             dataset_config: SeanergysDatasetConfiguration to use
         """
         return cls(**dataset_config.model_dump())
-    
-    @classmethod
-    def get_dummy_params(cls) -> dict:
-        pass
             
     def get_stats(self) -> Dict[str, Any]:
         """Return dataset statistics."""
