@@ -88,15 +88,18 @@ def _discover_model_classes() -> dict:
     return classes
 
 
-def _collect_dataset_configs(model_classes: dict) -> dict:
+def _collect_dataset_configs_from_models(model_classes: dict) -> dict:
     """
     Call get_train_config() on every model and collect unique datasets.
 
-    Returns a dict of {dataset_class_name: (dataset_cls, ds_params)} —
-    deduplicated so the same dataset is not downloaded multiple times even
-    if multiple models use it.
+    For each dataset, accumulates the union of raw columns required by all
+    models that use it. This ensures the fixture file has every column any
+    model might need.
+
+    Returns a dict of {dataset_class_name: (dataset_cls, set[str])} where
+    the set contains all required raw column names.
     """
-    seen = {}
+    seen: dict = {}  # {name: (dataset_cls, set_of_columns)}
 
     for model_name, model_cls in model_classes.items():
         try:
@@ -105,16 +108,80 @@ def _collect_dataset_configs(model_classes: dict) -> dict:
             print(f"  WARN  {model_name}.get_train_config() failed: {e}")
             continue
 
-        for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
+        for entry_name, (_, dataset_cls, (ds_params, _dl)) in config.items():
             key = dataset_cls.__name__
+
+            # Prefer explicit columns list; fall back to input + output features
+            if getattr(ds_params, "columns", None):
+                cols = set(ds_params.columns)
+            else:
+                cols = set(getattr(ds_params, "input_features", []) +
+                           getattr(ds_params, "output_features", []))
+
             if key not in seen:
-                seen[key] = (dataset_cls, ds_params)
+                seen[key] = (dataset_cls, cols)
                 print(f"  found {key} (via {model_name}/{entry_name})")
+            else:
+                # Accumulate columns from additional models using the same dataset
+                seen[key][1].update(cols)
 
     return seen
 
 
-def create_sample(dataset_cls, ds_params, max_rows: int, out_dir: Path) -> Path:
+def _collect_dataset_configs_directly() -> dict:
+    """
+    Discover datasets directly by scanning DATASET_CLASSES for any class that
+    has a ZENODO_URL or ZENODO_BASE_URL Pydantic field.
+
+    This covers datasets that exist without a model pointing to them.
+    Returns a dict of {dataset_class_name: (dataset_cls, None)}.
+    """
+    try:
+        from ci.utils import retrieve_instances_from_file
+        from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+    except ImportError as e:
+        print(f"Cannot import project packages: {e}", file=sys.stderr)
+        return {}
+
+    _BASE_CLASSES = {"SeanergysDataset", "SeanergysParquetDataset"}
+    seen = {}
+
+    for py_file in (PROJECT_ROOT / "seanergys_modelzoo" / "datasets").rglob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+        try:
+            classes = retrieve_instances_from_file(py_file, SeanergysDataset)
+        except Exception:
+            continue
+        for name, cls in classes.items():
+            if cls.__name__ in _BASE_CLASSES:
+                continue
+            fields = cls.model_fields
+            if "ZENODO_URL" in fields or "ZENODO_BASE_URL" in fields:
+                if name not in seen:
+                    seen[name] = (cls, None)
+                    print(f"  found {cls.__name__} (via direct dataset discovery)")
+
+    return seen
+
+
+def _collect_dataset_configs(model_classes: dict) -> dict:
+    """
+    Collect unique datasets from both model get_train_config() and direct
+    dataset discovery (for datasets with ZENODO_URL/ZENODO_BASE_URL fields).
+
+    Model-based discovery takes priority (deduplicated by dataset class name).
+    """
+    seen = _collect_dataset_configs_from_models(model_classes)
+
+    for key, value in _collect_dataset_configs_directly().items():
+        if key not in seen:
+            seen[key] = value
+
+    return seen
+
+
+def create_sample(dataset_cls, required_cols, max_rows: int, out_dir: Path) -> Path:
     """
     Download a small raw sample from Zenodo and save to parquet.
 
@@ -122,21 +189,20 @@ def create_sample(dataset_cls, ds_params, max_rows: int, out_dir: Path) -> Path:
     -----------------------------------------
     Going through the dataset class has several problems:
 
-    1. is_dummy=True is broken in FDataDataset (see COLLEAGUE_FEEDBACK.md §6.3):
-       wrong filename "21-04" vs "21_04", invalid filter format.
-
+    1. is_dummy=True in FDataDataset only adds date filters — it still hits Zenodo.
     2. Column filtering: MACK uses output_features=["mem_compute_bound"] which
-       only exists in late 2023+ files. Using AVAILABLE_FILES[0] (21_03) fails
-       because that column did not exist yet.
+       only exists in some files, not the latest one.
+    3. Transforms require fitted models (embedding_parsing, etc.) which cannot
+       run at sample creation time — the model has not been trained yet.
 
-    3. Transforms require fitted models: embedding_parsing, transform_kmeans etc.
-       cannot run at sample creation time — the model has not been trained yet.
+    SOLUTION: download raw parquet directly with pandas (all columns, no filters).
+    For multi-file datasets, try files from newest to oldest until a file that
+    contains all required columns is found. Take head(max_rows) and save all
+    columns — the integration tests select only the columns they need.
 
-    SOLUTION: download raw parquet directly with pandas, no column filtering,
-    using the LAST available file (most complete schema — all columns that were
-    ever added to the dataset are present). Take head(max_rows) and save all
-    columns. The integration tests then load this fixture and select only the
-    columns they need via their own ds_params.
+    Args:
+        required_cols: set of column names that must be present in the fixture.
+                       None means any file is acceptable.
     """
     import pandas as pd
 
@@ -148,11 +214,26 @@ def create_sample(dataset_cls, ds_params, max_rows: int, out_dir: Path) -> Path:
     if "ZENODO_BASE_URL" in fields and "AVAILABLE_FILES" in fields:
         base_url = fields["ZENODO_BASE_URL"].default
         available_files = fields["AVAILABLE_FILES"].default
-        # Use the LAST available file — most complete schema (new columns added over time)
-        last_file = available_files[-1]
-        url = f"{base_url}/{last_file}.parquet"
-        print(f"         downloading {last_file}.parquet from Zenodo (no column filter)...")
-        df = pd.read_parquet(url)
+
+        # Try files from newest to oldest until one contains all required columns.
+        df = None
+        for file_name in reversed(available_files):
+            url = f"{base_url}/{file_name}.parquet"
+            print(f"         trying {file_name}.parquet ...")
+            candidate = pd.read_parquet(url)
+            if required_cols and not required_cols.issubset(set(candidate.columns)):
+                missing = required_cols - set(candidate.columns)
+                print(f"           missing columns {missing}, trying older file...")
+                continue
+            df = candidate
+            print(f"           OK — has all required columns.")
+            break
+
+        if df is None:
+            raise ValueError(
+                f"{dataset_cls.__name__}: no file in AVAILABLE_FILES contains all "
+                f"required columns: {required_cols}"
+            )
 
     # --- Single-file datasets (e.g. PM100Dataset: one parquet URL) ---
     elif "ZENODO_URL" in fields:
@@ -210,10 +291,10 @@ def main() -> None:
     print(f"Max rows   : {max_rows}\n")
 
     errors = []
-    for dataset_name, (dataset_cls, ds_params) in dataset_configs.items():
+    for dataset_name, (dataset_cls, required_cols) in dataset_configs.items():
         try:
             print(f"  ...   {dataset_name}")
-            out_path = create_sample(dataset_cls, ds_params, max_rows=max_rows, out_dir=out_dir)
+            out_path = create_sample(dataset_cls, required_cols, max_rows=max_rows, out_dir=out_dir)
             print(f"  OK    {dataset_name} → {out_path.name}")
         except Exception as e:
             print(f"  ERR   {dataset_name}: {e}")

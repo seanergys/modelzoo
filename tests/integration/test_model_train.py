@@ -18,7 +18,7 @@ from tests.conftest import MODEL_CLASSES
 from tests.integration.conftest import load_first_fixture_entry
 
 
-@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
+@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()), ids=list(MODEL_CLASSES.keys()))
 def test_model_train_on_fixture_data(model_name, model_cls, integration_data_dir):
     """
     Train each auto-discovered model on its fixture dataset.
@@ -47,7 +47,7 @@ def test_model_train_on_fixture_data(model_name, model_cls, integration_data_dir
     )
 
 
-@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()))
+@pytest.mark.parametrize("model_name,model_cls", list(MODEL_CLASSES.items()), ids=list(MODEL_CLASSES.keys()))
 def test_model_predict_after_train(model_name, model_cls, integration_data_dir):
     """
     Train then predict on each auto-discovered model.

@@ -353,3 +353,88 @@ This way:
   `test_model_save_load.py`, so real-data testing is not completely absent
 - Acceptable for now; can be revisited when Francesco implements proper `is_dummy`
   support in his dataset classes
+
+# Mohsen's notes
+  The Problem
+             
+  SCRIPTAIDataset is completely orphaned. No model references it in get_train_config(),
+   so:                                                                                 
+  - Every test in section 2/3/4 is parametrized from _DATASET_CONFIGS_FROM_MODELS — it
+  never appears                                                                        
+  - create_sample_data.py also goes through models — it skips it too
+  - It doesn't use Zenodo — it uses GitHub (use_github_url=True)                       
+                                                                                       
+  FDataDataset and PM100Dataset can technically be instantiated directly from Zenodo   
+  without model config (they have ZENODO_URL/ZENODO_BASE_URL fields), but you still    
+  need input_features and output_features to construct them — those only come from the 
+  model config. So the model config dependency is real.                                
+                                                                  
+  ---
+  What You Should Do
+                    
+  Option A (recommended — no code change): Ask Francesco to add SCRIPTAIDataset to a
+  model's get_train_config(). Once a model references it, it gets fixtures, contract   
+  checks, and zenodo tests for free.
+
+Current Test Coverage by Dataset                                                     
+                                                                                       
+  ┌─────────────────┬────────────┬───────────┬──────────┬─────────┬───────────────┐    
+  │     Dataset     │ Discovered │ Contract  │ is_dummy │ Zenodo  │ Fixture (make │    
+  │                 │            │   check   │   test   │  test   │  sample-data) │    
+  ├─────────────────┼────────────┼───────────┼──────────┼─────────┼───────────────┤    
+  │                 │            │ ✅ via    │ ⚠️        │ ⚠️       │ ✅ via model│ 
+  │ FDataDataset    │ ✅         │ model     │ @zenodo  │ @zenodo │ config        │
+  │                 │            │ config    │          │         │               │    
+  ├─────────────────┼────────────┼───────────┼──────────┼─────────┼───────────────┤
+  │                 │            │ ✅ via    │ ⚠️        │ ⚠️       │ ✅ via model│    
+  │ PM100Dataset    │ ✅         │ model     │ @zenodo  │ @zenodo │ config        │    
+  │                 │            │ config    │          │         │               │
+  ├─────────────────┼────────────┼───────────┼──────────┼─────────┼───────────────┤    
+  │ SCRIPTAIDataset │ ✅         │ ❌        │ ❌       │ ❌      │ ❌ missing    │
+  │                 │            │ skipped   │ skipped  │ skipped │               │    
+  └─────────────────┴────────────┴───────────┴──────────┴─────────┴───────────────┘
+                                                                                       
+Currently the only dataset-independent test is test_dataset_discovery — it just  
+  checks that at least one dataset class was found. That's it.                         
+                                                                                       
+  Every other test (contract, is_dummy, zenodo) is driven by                           
+  _DATASET_CONFIGS_FROM_MODELS, which requires a model's get_train_config().           
+                                                                                       
+  So the situation is:                                                                 
+   
+  - FDataDataset → tested via MACK/MCBound models ✅                                   
+  - PM100Dataset → tested via JPCP model ✅                       
+  - SCRIPTAIDataset → discovered but 0 tests run on it ❌                              
+                                                                                       
+  And create_sample_data.py has the same gap — no fixture is ever created for          
+  SCRIPTAIDataset.                                                                     
+                                                                                       
+  ---                                                             
+  The root cause: Francesco removed get_dummy_params(), which was the only mechanism
+  for a dataset to declare its own test params independently of a model. Now there is  
+  no standard interface for a dataset to say "here's how to instantiate me for testing"
+  without a model.                                                                    
+                                                                  
+  Without hardcoding and without get_dummy_params(), you cannot test SCRIPTAIDataset at
+   all until Francesco either:                                                         
+  1. Adds it to a model's get_train_config(), or
+  2. Brings back some form of self-describing params on the dataset class              
+                                                                  
+
+  create_sample_data.py — now has two discovery paths, merged:                         
+  1. Via model get_train_config() (existing)
+  2. Direct dataset discovery — any dataset class with ZENODO_URL or ZENODO_BASE_URL in
+   its fields is picked up automatically, even with no model                           
+                                                                                       
+  test_datasets_smoke.py — new section 3 test_dataset_fixture_has_data:                
+  - Parametrized directly from _ZENODO_DATASET_CLASSES (no model needed)               
+  - Loads the fixture parquet with plain pandas.read_parquet — no features, no model   
+  config                                                                               
+  - Checks rows ≥ 1 and columns ≥ 1                                                    
+  - Skips gracefully if fixture doesn't exist yet                                   
+                                                                                       
+  So now FDataDataset and PM100Dataset get tested at the dataset level independently.  
+  When you run make sample-data, the fixture is created via direct Zenodo discovery.   
+  Then test_dataset_fixture_has_data verifies it.                                      
+                                                                                       
+✻ Worked for 2m 8s 

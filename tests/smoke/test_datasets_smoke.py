@@ -6,19 +6,26 @@ SECTIONS
 
 1. Discovery       — at least one dataset/model class found. No deps, no I/O.
 2. Contract checks — dataset and model interfaces look correct. No data loaded.
-3. is_dummy        — load via model get_train_config() + is_dummy=True.
+3. Fixtures        — load fixture parquet from tests/fixtures/sample_data/.
+                     No model config needed. Driven by datasets that declare
+                     ZENODO_URL or ZENODO_BASE_URL. Skips if fixture missing
+                     (run `make sample-data` first).
+4. is_dummy        — load via model get_train_config() + is_dummy=True.
                      Marked @zenodo (is_dummy=True still hits Zenodo with filters).
                      Skip with: CI_SKIP_ZENODO=1 make test-smoke
-4. Zenodo          — load directly from Zenodo URL with is_dummy=True.
+5. Zenodo          — load directly from Zenodo URL with is_dummy=True.
                      Marked @zenodo. Requires network.
                      Skip with: CI_SKIP_ZENODO=1 make test-smoke
 
-Both section 3 and 4 are driven by model get_train_config() — no dataset names
-are hardcoded. Adding a new model automatically adds its dataset to both tests.
+Sections 3 is dataset-driven (no model needed).
+Sections 4 and 5 are model-driven via get_train_config().
+No dataset or model names are hardcoded anywhere.
 """
 
 import os
+from pathlib import Path
 
+import pandas as pd
 import pytest
 
 pytest.importorskip("pandas")
@@ -28,10 +35,26 @@ pytest.importorskip("sklearn")
 
 from tests.conftest import DATASET_CLASSES, MODEL_CLASSES
 
+_FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sample_data"
+
 
 # ---------------------------------------------------------------------------
-# Shared helper
+# Shared helpers
 # ---------------------------------------------------------------------------
+
+def _zenodo_dataset_classes() -> dict:
+    """
+    Return dataset classes that declare ZENODO_URL or ZENODO_BASE_URL as a
+    Pydantic field. These can be sampled independently of any model config.
+    """
+    return {
+        name: cls
+        for name, cls in DATASET_CLASSES.items()
+        if "ZENODO_URL" in cls.model_fields or "ZENODO_BASE_URL" in cls.model_fields
+    }
+
+
+_ZENODO_DATASET_CLASSES = _zenodo_dataset_classes()
 
 def _collect_dataset_configs_from_models():
     """
@@ -44,7 +67,7 @@ def _collect_dataset_configs_from_models():
             config = model_cls.get_train_config()
         except Exception:
             continue
-        for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
+        for entry_name, (_, dataset_cls, (ds_params, _dl)) in config.items():
             key = dataset_cls.__name__
             if key not in seen:
                 seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
@@ -125,7 +148,47 @@ def test_dataset_contract_via_model_config(dataset_name, config):
 
 
 # ---------------------------------------------------------------------------
-# 3. is_dummy — load via model get_train_config() + is_dummy=True
+# 3. Fixtures — load from tests/fixtures/sample_data/ (no model config)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "dataset_cls",
+    list(_ZENODO_DATASET_CLASSES.values()),
+    ids=list(_ZENODO_DATASET_CLASSES.keys()),
+)
+def test_dataset_fixture_has_data(dataset_cls):
+    """
+    Load the fixture parquet for each Zenodo-capable dataset and verify it
+    has rows and columns. No model config, no network, no feature lists needed.
+
+    PASS: fixture parquet loads, has at least 1 row and 1 column.
+    SKIP: fixture file not found — run `make sample-data` to create it.
+    FAIL: fixture loads but is empty.
+
+    Fixture naming: FDataDataset → sample_fdata.parquet
+    """
+    dataset_name = dataset_cls.__name__
+    name = dataset_name.lower().replace("dataset", "")
+    fixture = _FIXTURES_DIR / f"sample_{name}.parquet"
+
+    if not fixture.exists():
+        pytest.skip(
+            f"SKIP [{dataset_name}] fixture not found: {fixture.name}\n"
+            f"  → Run `make sample-data` to create it."
+        )
+
+    df = pd.read_parquet(fixture)
+
+    assert len(df) >= 1, (
+        f"FAIL [{dataset_name}] fixture {fixture.name} has 0 rows."
+    )
+    assert len(df.columns) >= 1, (
+        f"FAIL [{dataset_name}] fixture {fixture.name} has 0 columns."
+    )
+
+
+# ---------------------------------------------------------------------------
+# 4. is_dummy — load via model get_train_config() + is_dummy=True (Zenodo)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.zenodo
@@ -176,7 +239,7 @@ def test_dataset_loads_with_is_dummy(dataset_name, config):
 
 
 # ---------------------------------------------------------------------------
-# 4. Zenodo — load directly from Zenodo URL with is_dummy=True
+# 5. Zenodo — load directly from Zenodo URL with is_dummy=True
 # ---------------------------------------------------------------------------
 
 @pytest.mark.zenodo

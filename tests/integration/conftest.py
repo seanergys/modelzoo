@@ -76,10 +76,11 @@ def load_first_fixture_entry(model_name: str, model_cls, data_dir: Path):
         if not fixture.exists():
             continue
 
-        # Override data_path to point at the local fixture. All other params
-        # (input_features, output_features, filters, transforms, etc.) are kept
-        # as defined in get_train_config() — no hardcoding needed here.
-        local_params = ds_params.model_copy(update={"data_path": fixture})
+        # Override data_path to point at the local fixture and clear filters.
+        # Date/range filters from get_train_config() are designed for the full
+        # Zenodo dataset — applying them to a small fixture sample would likely
+        # return 0 rows. All other params (features, transforms, etc.) are kept.
+        local_params = ds_params.model_copy(update={"data_path": fixture, "filters": None})
 
         try:
             dataset = dataset_cls.from_config(local_params)

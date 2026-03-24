@@ -556,3 +556,14 @@ def test_dataloader_params_to_dict():
     assert d.get("batch_size") == 8
     assert d.get("drop_last") is True
 ```
+
+```python
+def add(a, b):
+    return a + b
+```
+
+
+```python
+def test_add():
+    assert add(1, 2) == 3
+```
