@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from xgboost import XGBClassifier
@@ -153,95 +153,67 @@ class MACK(SeanergysSklearnModel):
         """
         encoder = SentenceTransformer(encoder_weights)
         sentences = [" ".join(str(val) for val in row) for row in features]
-        return encoder.encode(sentences)
-
+        return encoder.encode(sentences)        
     
     @classmethod
-    def run_dummy_validation(cls):
-        """
-        Run dummy validation for MACK on FData
-        """                
-        
-        model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
-        model_fdata.logger.info(f"Validation on FData")
-        
-        # Define pclass creation
-        def preprocess_fdata(df):
-            df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
-            return df
-        
-        fdata = FDataDataset(use_zenodo_url=True,
-                    files = "21_04",
-                    transform=model_fdata.embedding_parsing,
-                    preprocessing_functions = [preprocess_fdata],
-                    filters=[[("adt", "<=", "2021-04-02")]],
-                    input_features=["embedding"],
-                    output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(dataset = fdata, batch_size=1)
-        model_fdata.train(train_data_loader=data_loader_fdata)
-        
-    
-    @classmethod
-    def get_train_config(cls) -> Dict[Tuple["MACK", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name:str) -> Tuple["MACK", SeanergysDataloader]:
         """
         Get training configuration for MACK on FDATA.
 
         """         
-        # Create config dict
-        config_dict = {}
+        if dataset_name == "f-data":
         
-        model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
-        
-        # Define pclass creation
-        def preprocess_fdata(df):
-            df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
-            return df
-                
-        fdata_config = SeanergysDatasetParams(use_zenodo_url=True,
-                    files = "all",
-                    transform=model_fdata.embedding_parsing,
-                    preprocessing_functions = [preprocess_fdata],
-                    filters=[[
-                        ("adt", ">=", "2023-12-01"),
-                        ("adt", "<=", "2024-02-01"),
-                    ]],
-                    input_features=["embedding"],
-                    output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
-        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
-        return config_dict
-    
+            model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
+            
+            # Define pclass creation
+            def preprocess_fdata(df):
+                df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
+                return df
+                    
+            fdata = FDataDataset(use_zenodo_url=True,
+                        files = "all",
+                        transform=model_fdata.embedding_parsing,
+                        preprocessing_functions = [preprocess_fdata],
+                        filters=[[
+                            ("adt", ">=", "2023-12-01"),
+                            ("adt", "<=", "2024-02-01"),
+                        ]],
+                        input_features=["embedding"],
+                        output_features=["mem_compute_bound"])
+            data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
+            return model_fdata,  data_loader_fdata
+        else:
+            raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
+            
     @classmethod
-    def get_test_config(cls, saved_model_path:dict ) -> Dict[Tuple[SeanergysModel, SeanergysDataloader]]:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
         """
-        Get testing configuration for MACK on FDATA. It requires the saved model path as a dict mapping dataset -> path
+        Get testing configuration for MACK on FDATA. It requires the model and the dataset_name
 
         """     
-        # Create config dict
-        config_dict = {}
-        
-        model_fdata = cls.load(saved_model_path["fdata"])
-        
-        model_fdata.logger.info(f"Validation on FData")
-        
-        # Define pclass creation
-        def preprocess_fdata(df):
-            df["pclass"] = model_fdata.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
-            return df
-                
-        fdata_config = SeanergysDatasetParams(use_zenodo_url=True,
-                    files = "all",
-                    transform=model_fdata.embedding_parsing,
-                    preprocessing_functions = [preprocess_fdata],
-                    filters=[[
-                        ("adt", ">=", "2023-12-01"),
-                        ("adt", "<=", "2024-02-01"),
-                    ]],
-                    input_features=["embedding"],
-                    output_features=["mem_compute_bound"])
-        data_loader_fdata = SeanergysDataloader(batch_size=1)
-        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
-        return config_dict
+        if dataset_name == "f-data":
+            model.logger.info(f"Validation on FData")
+            
+            # Define pclass creation
+            def preprocess_fdata(df):
+                df["pclass"] = model.transform_kmeans(df.flops.values, df.memory_bw.values, fit = True)
+                return df
+                    
+            fdata = FDataDataset(use_zenodo_url=True,
+                        files = "all",
+                        transform=model.embedding_parsing,
+                        preprocessing_functions = [preprocess_fdata],
+                        filters=[[
+                            ("adt", ">=", "2023-12-01"),
+                            ("adt", "<=", "2024-02-01"),
+                        ]],
+                        input_features=["embedding"],
+                        output_features=["mem_compute_bound"])
+            data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
+            return data_loader_fdata
+        else:
+            raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
+            
         
 
     def save(

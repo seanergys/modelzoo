@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelConfiguration, SeanergysModelParams
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 
 
@@ -179,22 +178,12 @@ class SeanergysModel(BaseModel, ABC):
         pass
     
     @classmethod
-    def get_train_config(cls) -> Dict[Tuple[SeanergysModel, SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name:str) -> Tuple[SeanergysModel, SeanergysDataloader]:
         pass
     
     @classmethod
-    def get_test_config(cls) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
         pass
-    
-    @classmethod
-    def from_config(cls, model_config: SeanergysModelParams) -> 'SeanergysModel':
-        """
-        Instantiate the model class from the SeanergysModelConfiguration
-        
-        Args:
-            model_config: SeanergysModelConfiguration to use
-        """
-        return cls(**model_config.model_dump())
             
     def get_metadata(self) -> Dict[str, Any]:
         """

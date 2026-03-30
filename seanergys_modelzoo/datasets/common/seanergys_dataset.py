@@ -5,8 +5,6 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, model_valida
 from torch.utils.data import Dataset
 
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger 
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDatasetParams
-
 
 class SeanergysDataset(BaseModel, Dataset, ABC):
     """
@@ -62,25 +60,6 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
         """
         return self
     
-    def load_data(self):
-        """
-        Load data from the specified source.
-        """ 
-        try:
-            self._load_data_impl()
-        except Exception as e:
-            self.logger.error(f"Error while loading data: {e}")
-    
-    @abstractmethod
-    def _load_data_impl(self) -> None:
-        """
-        Load data from the specified source.
-        
-        This method must be implemented by subclasses to handle
-        specific data loading logic.
-        """
-        pass
-    
     @abstractmethod
     def __getitem__(self, idx: int) -> Tuple[Any, Any]:
         """
@@ -98,16 +77,6 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
     def __len__(self) -> int:
         """Return the total number of samples in the dataset."""
         pass
-    
-    @classmethod
-    def from_config(cls, dataset_config: SeanergysDatasetParams) -> "SeanergysDataset":
-        """
-        Instantiate the model class from the SeanergysDatasetConfiguration
-        
-        Args:
-            dataset_config: SeanergysDatasetConfiguration to use
-        """
-        return cls(**dataset_config.model_dump())
             
     def get_stats(self) -> Dict[str, Any]:
         """Return dataset statistics."""

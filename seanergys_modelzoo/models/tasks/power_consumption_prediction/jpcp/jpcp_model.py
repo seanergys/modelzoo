@@ -16,7 +16,7 @@ from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataload
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
@@ -105,111 +105,107 @@ class JPCP(SeanergysSklearnModel):
         return arr
                             
     @classmethod
-    def get_train_config(cls) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name:str) -> Tuple["JPCP", SeanergysDataloader]:
         """
         Get training configuration for JPCP.
 
         """     
         # Dictionary containing the configurations
-        config_dict = {}           
+        if dataset_name == "f-data":       
         
-        model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+            model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+            
+            model_fdata.logger.info(f"Training on FData")
+            fdata = FDataDataset(
+                use_zenodo_url=True,
+                files="all",
+                transform=model_fdata.embedding_parsing,
+                target_transform=lambda output_features: (
+                    output_features[0] / output_features[1]
+                ),
+                filters=[[
+                    ("adt", ">=", "2023-12-01"),
+                    ("adt", "<=", "2024-02-01"),
+                ]],
+                input_features=["embedding"],
+                output_features=["avgpcon", "nnuma"],
+            )
+            data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
+            return model_fdata, data_loader_fdata
         
-        model_fdata.logger.info(f"Training on FData")
-        fdata_config = SeanergysDatasetParams(
-            use_zenodo_url=True,
-            files="all",
-            transform=model_fdata.embedding_parsing,
-            target_transform=lambda output_features: (
-                output_features[0] / output_features[1]
-            ),
-            filters=[[
-                ("adt", ">=", "2023-12-01"),
-                ("adt", "<=", "2024-02-01"),
-            ]],
-            input_features=["embedding"],
-            output_features=["avgpcon", "nnuma"],
-        )
-        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
+        elif dataset_name == "pm100":
+            
+            model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
+            model_pm100.logger.info(f"Training on PM100")
+            pm100 = PM100Dataset(
+                use_zenodo_url=True,
+                transform=None,
+                target_transform=lambda output_features: (
+                    np.mean(output_features[0]) / output_features[1]
+                ),
+                preprocessing_functions=[ model_pm100.transform_embeddings],
+                filters=[[
+                    ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
+                    ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
+                ]],
+                columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+                input_features=["num_nodes_req_cat", "user_id_cat"],
+                output_features=["node_power_consumption", "num_nodes_alloc"],
+            )
+            data_loader_pm100 = SeanergysDataloader(dataset=pm100, batch_size=1)
+            return model_pm100, data_loader_pm100
+        else:
+            raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
+
+            
         
-        # Load the fdata config
-        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
-        
-        model_pm100 = cls(embeding_type = Embedding.INT, model_hyperparameters={"n_jobs": -1})
-        model_pm100.logger.info(f"Training on PM100")
-        pm100_config = SeanergysDatasetParams(
-            use_zenodo_url=True,
-            transform=None,
-            target_transform=lambda output_features: (
-                np.mean(output_features[0]) / output_features[1]
-            ),
-            preprocessing_functions=[ model_pm100.transform_embeddings],
-            filters=[[
-                ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
-                ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
-            ]],
-            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
-            input_features=["num_nodes_req_cat", "user_id_cat"],
-            output_features=["node_power_consumption", "num_nodes_alloc"],
-        )
-        data_loader_pm100 = SeanergysDataloaderParams(batch_size=1)
-        # Load the pm100 config
-        config_dict["pm100"] = (model_pm100, PM100Dataset(pm100_config, data_loader_pm100))
-        return config_dict
-    
     @classmethod
-    def get_test_config(cls, saved_model_path: dict) -> Dict[Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
         """
-        Get testing configuration for JPCP. It requires the saved model path as a dict mapping dataset -> path
+        Get testing configuration for JPCP. It requires the model and the dataset_name
 
         """     
-        # Dictionary containing the configurations
-        config_dict = {}    
-        model_fdata = cls.load(saved_model_path["fdata"])
+        if dataset_name == "f-data":
         
-        model_fdata.logger.info(f"Testing on FData")       
-                
-        fdata_config = SeanergysDatasetParams(
-            use_zenodo_url=True,
-            files="all",
-            transform=model_fdata.embedding_parsing,
-            target_transform=lambda output_features: (
-                output_features[0] / output_features[1]
-            ),
-            filters=[[
-                ("adt", ">=", "2024-02-01"),
-                ("adt", "<=", "2024-02-28"),
-            ]],
-            input_features=["embedding"],
-            output_features=["avgpcon", "nnuma"],
-        )
-        data_loader_fdata = SeanergysDataloaderParams(batch_size=1)
-        
-        # Load the fdata config
-        config_dict["fdata"] = (model_fdata, FDataDataset,(fdata_config, data_loader_fdata))
-        model_pm100 = cls.load(saved_model_path["pm100"])
-        model_pm100.logger.info(f"Testing on PM100")
-        
-        pm100_config = SeanergysDatasetParams(
-            use_zenodo_url=True,
-            transform=None,
-            target_transform=lambda output_features: (
-                np.mean(output_features[0]) / output_features[1]
-            ),
-            preprocessing_functions=[ model_pm100.transform_embeddings],
-            filters=[[
-                ("submit_time", ">=", pd.Timestamp("2020-09-01", tz="UTC")),
-                ("submit_time", "<=", pd.Timestamp("2020-10-01", tz="UTC")),
-            ]],
-            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
-            input_features=["num_nodes_req_cat", "user_id_cat"],
-            output_features=["node_power_consumption", "num_nodes_alloc"],
-        )
-        data_loader_pm100 = SeanergysDataloader(batch_size=1)
-        # Load the pm100 config
-        config_dict["pm100"] = (model_pm100, PM100Dataset, (pm100_config, data_loader_pm100))
-        return config_dict
-        
+            model.logger.info(f"Testing on FData")       
+                    
+            fdata = FDataDataset(
+                use_zenodo_url=True,
+                files="all",
+                transform=model.embedding_parsing,
+                target_transform=lambda output_features: (
+                    output_features[0] / output_features[1]
+                ),
+                filters=[[
+                    ("adt", ">=", "2024-02-01"),
+                    ("adt", "<=", "2024-02-28"),
+                ]],
+                input_features=["embedding"],
+                output_features=["avgpcon", "nnuma"],
+            )
+            return SeanergysDataloader(dataset=fdata, batch_size=1)
+        elif dataset_name == "pm100":
+            # Load the fdata config
+            model.logger.info(f"Testing on PM100")
+            
+            pm100 = SeanergysDatasetParams(
+                use_zenodo_url=True,
+                transform=None,
+                target_transform=lambda output_features: (
+                    np.mean(output_features[0]) / output_features[1]
+                ),
+                preprocessing_functions=[model.transform_embeddings],
+                filters=[[
+                    ("submit_time", ">=", pd.Timestamp("2020-09-01", tz="UTC")),
+                    ("submit_time", "<=", pd.Timestamp("2020-10-01", tz="UTC")),
+                ]],
+                columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+                input_features=["num_nodes_req_cat", "user_id_cat"],
+                output_features=["node_power_consumption", "num_nodes_alloc"],
+            )
+            return SeanergysDataloader(dataset=pm100, batch_size=1)
+        else:
+            raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
         
     
     def save(
