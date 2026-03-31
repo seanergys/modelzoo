@@ -16,7 +16,6 @@ from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataload
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
@@ -105,7 +104,7 @@ class JPCP(SeanergysSklearnModel):
         return arr
                             
     @classmethod
-    def get_train_config(cls, dataset_name:str) -> Tuple["JPCP", SeanergysDataloader]:
+    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["JPCP", SeanergysDataloader]:
         """
         Get training configuration for JPCP.
 
@@ -118,6 +117,7 @@ class JPCP(SeanergysSklearnModel):
             model_fdata.logger.info(f"Training on FData")
             fdata = FDataDataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 files="all",
                 transform=model_fdata.embedding_parsing,
                 target_transform=lambda output_features: (
@@ -139,6 +139,7 @@ class JPCP(SeanergysSklearnModel):
             model_pm100.logger.info(f"Training on PM100")
             pm100 = PM100Dataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 transform=None,
                 target_transform=lambda output_features: (
                     np.mean(output_features[0]) / output_features[1]
@@ -160,7 +161,7 @@ class JPCP(SeanergysSklearnModel):
             
         
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
         """
         Get testing configuration for JPCP. It requires the model and the dataset_name
 
@@ -171,6 +172,7 @@ class JPCP(SeanergysSklearnModel):
                     
             fdata = FDataDataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 files="all",
                 transform=model.embedding_parsing,
                 target_transform=lambda output_features: (
@@ -188,8 +190,9 @@ class JPCP(SeanergysSklearnModel):
             # Load the fdata config
             model.logger.info(f"Testing on PM100")
             
-            pm100 = SeanergysDatasetParams(
+            pm100 = PM100Dataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 transform=None,
                 target_transform=lambda output_features: (
                     np.mean(output_features[0]) / output_features[1]

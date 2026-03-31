@@ -42,7 +42,7 @@ class SeanergysParquetDataset(SeanergysDataset):
         self.load_data()
         return self
 
-    def _load_data_impl(self) -> None:
+    def load_data(self) -> None:
         """
         Load data from the specified Parquet file and apply preprocessing.
         """
@@ -75,7 +75,7 @@ class SeanergysParquetDataset(SeanergysDataset):
         self.logger.info(
             f"Loaded {self.stats['n_samples']} samples in {elapsed:.3f}s"
         )
-
+        
     def __len__(self) -> int:
         """Return the total number of samples in the dataset."""
         if self._df is None:

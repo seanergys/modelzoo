@@ -169,7 +169,7 @@ class FDataDataset(SeanergysParquetDataset):
                 f"files must be str, list, or None, got {type(files)}"
             )
 
-    def _load_data_impl(self, use_dummy:bool = False) -> None:
+    def load_data(self) -> None:
         """
         Load data from Parquet file(s) (local or remote) and merge them.
         """

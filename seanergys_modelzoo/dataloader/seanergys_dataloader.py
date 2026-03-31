@@ -3,7 +3,6 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams
 
 class SeanergysDataloader(DataLoader):
     r"""
@@ -116,13 +115,3 @@ class SeanergysDataloader(DataLoader):
         if not(isinstance(dataset, SeanergysDataset)):
             raise ValueError(f"Dataset should be an instance of SeanergysDataset, found {type(dataset)} instead")
         super().__init__(dataset, batch_size=batch_size, shuffle=shuffle, sampler=sampler, batch_sampler=batch_sampler, num_workers=num_workers, collate_fn=collate_fn, pin_memory=pin_memory, drop_last=drop_last, timeout=timeout, worker_init_fn=worker_init_fn, multiprocessing_context=multiprocessing_context, generator=generator, prefetch_factor=prefetch_factor, persistent_workers=persistent_workers, pin_memory_device=pin_memory_device, in_order=in_order, **kwargs)
-        
-    @classmethod
-    def from_config(cls, dataset: SeanergysDataset, data_loader_config: SeanergysDataloaderParams) -> SeanergysDataloader:
-        """
-        Instantiate the model class from the SeanergysDataloaderConfiguration
-        
-        Args:
-            :param data_loader_config: SeanergysDataloaderConfiguration to use
-        """
-        return cls(dataset = dataset, **data_loader_config.__dict__)

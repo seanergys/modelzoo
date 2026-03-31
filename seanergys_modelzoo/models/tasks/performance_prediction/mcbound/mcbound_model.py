@@ -102,7 +102,7 @@ class MCBound(SeanergysSklearnModel):
     
         
     @classmethod
-    def get_train_config(cls, dataset_name:str) -> Tuple["MCBound", SeanergysDataloader]:
+    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["MCBound", SeanergysDataloader]:
         """
         Get training configuration for MCBound on FDATA.
 
@@ -113,6 +113,7 @@ class MCBound(SeanergysSklearnModel):
             
             fdata = FDataDataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 files = "all",
                 transform=model_fdata.embedding_parsing,
                 filters=[[
@@ -128,7 +129,7 @@ class MCBound(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
     
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
         """
         Get testing configuration for MCBound on FDATA. 
 
@@ -138,6 +139,7 @@ class MCBound(SeanergysSklearnModel):
             model.logger.info(f"Testing on FData")
             fdata = FDataDataset(
                 use_zenodo_url=True,
+                is_dummy = get_dummy_data,
                 files = "all",
                 transform=model.embedding_parsing,
                 filters=[[
@@ -151,7 +153,6 @@ class MCBound(SeanergysSklearnModel):
             return data_loader_fdata
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
-        
     
     def save(
         self,

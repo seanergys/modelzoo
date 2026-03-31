@@ -156,7 +156,7 @@ class MACK(SeanergysSklearnModel):
         return encoder.encode(sentences)        
     
     @classmethod
-    def get_train_config(cls, dataset_name:str) -> Tuple["MACK", SeanergysDataloader]:
+    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple["MACK", SeanergysDataloader]:
         """
         Get training configuration for MACK on FDATA.
 
@@ -172,6 +172,7 @@ class MACK(SeanergysSklearnModel):
                     
             fdata = FDataDataset(use_zenodo_url=True,
                         files = "all",
+                        is_dummy = get_dummy_data,
                         transform=model_fdata.embedding_parsing,
                         preprocessing_functions = [preprocess_fdata],
                         filters=[[
@@ -186,7 +187,7 @@ class MACK(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
             
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
         """
         Get testing configuration for MACK on FDATA. It requires the model and the dataset_name
 
@@ -201,6 +202,7 @@ class MACK(SeanergysSklearnModel):
                     
             fdata = FDataDataset(use_zenodo_url=True,
                         files = "all",
+                        is_dummy = get_dummy_data,
                         transform=model.embedding_parsing,
                         preprocessing_functions = [preprocess_fdata],
                         filters=[[

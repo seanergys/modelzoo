@@ -66,7 +66,7 @@ class SCRIPTAIDataset(SeanergysDataset):
         self.load_data()
         return self
 
-    def _load_data_impl(self) -> None:
+    def load_data(self) -> None:
         """
         Load the SCRIPT-AI dataset.
 

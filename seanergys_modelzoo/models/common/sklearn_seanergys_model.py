@@ -220,6 +220,31 @@ class SeanergysSklearnModel(SeanergysModel):
         except Exception as e:
             self.logger.error(f"Error during prediction: {e}")
             raise
+    
+    def evaluate(
+        self,
+        data_loader: SeanergysDataloader,
+        metrics: List[Callable] = None,
+        **kwargs
+    ) -> List:
+        """
+        Evaluate model performance on input data.
+        
+        Args:
+            data_loader: A SeanergysDataloader containing input data for evaluations
+            metrics: List of the metrics to use to evaluate the model, each function should take as input y_true and y_pred. If None the subclasses should implement at least one by default.
+            **kwargs: Additional prediction arguments
+        Returns:
+            List[Score] (format depends on framework and task and metrics given in input)
+        """
+        y_preds = self.predict(data_loader)
+        _, y_test = self._extract_data_from_loader(data_loader)
+        metrics_results = []
+        if metrics:
+            for metric in metrics:
+                res = metric(y_pred=y_preds, y_true=y_test)
+                metrics_results.append(res)
+        return metrics_results
 
     def save(
         self,

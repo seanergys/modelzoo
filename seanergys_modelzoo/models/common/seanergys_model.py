@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, List, Literal, Tuple, Callable
+from typing import Any, Dict, Iterable, Optional, Union, List, Literal, Tuple, Callable
 from pathlib import Path
 import json
 import pickle
@@ -119,7 +119,7 @@ class SeanergysModel(BaseModel, ABC):
         self,
         data_loader: SeanergysDataloader,
         **kwargs
-    ) -> Any:
+    ) -> Iterable:
         """
         Make predictions on input data.
         
@@ -134,6 +134,29 @@ class SeanergysModel(BaseModel, ABC):
             Subclasses should implement framework-specific prediction logic.
         """
         pass
+
+    @abstractmethod
+    def evaluate(
+        self,
+        data_loader: SeanergysDataloader,
+        metrics: List[Callable] = None,
+        **kwargs
+    ) -> List:
+        """
+        Evaluate model performance on input data.
+        
+        Args:
+            data_loader: A SeanergysDataloader containing input data for evaluations
+            metrics: List of the metrics to use to evaluate the model. If None the subclasses should implement at least one by default.
+            **kwargs: Additional prediction arguments
+        Returns:
+            List[Score] (format depends on framework and task and metrics given in input)
+            
+        Note:
+            Subclasses should implement framework-specific evaluation logic.
+        """
+        pass
+
     
     @abstractmethod
     def save(
@@ -178,11 +201,11 @@ class SeanergysModel(BaseModel, ABC):
         pass
     
     @classmethod
-    def get_train_config(cls, dataset_name:str) -> Tuple[SeanergysModel, SeanergysDataloader]:
+    def get_train_config(cls, dataset_name:str, get_dummy_data:bool = False) -> Tuple[SeanergysModel, SeanergysDataloader]:
         pass
     
     @classmethod
-    def get_test_config(cls, model:SeanergysModel, dataset_name:str) -> SeanergysDataloader:
+    def get_test_config(cls, model:SeanergysModel, dataset_name:str, get_dummy_data:bool = False) -> SeanergysDataloader:
         pass
             
     def get_metadata(self) -> Dict[str, Any]:
