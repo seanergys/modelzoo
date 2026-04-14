@@ -114,12 +114,12 @@ class MCBound(SeanergysSklearnModel):
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,
-                files = "all",
+                files = ["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
-                filters=[[
+                filters=[
                     ("adt", ">=", "2023-12-01"),
-                    ("adt", "<=", "2024-02-01"),
-                ]],
+                    ("adt", "<=", "2024-01-31"),
+                ],
                 input_features=["embedding"],
                 output_features=["mem_compute_bound"]
                 )
@@ -140,12 +140,12 @@ class MCBound(SeanergysSklearnModel):
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,
-                files = "all",
+                files = ["24_02"],
                 transform=model.embedding_parsing,
-                filters=[[
+                filters=[
                     ("adt", ">=", "2023-02-01"),
                     ("adt", "<=", "2024-02-28"),
-                ]],
+                ],
                 input_features=["embedding"],
                 output_features=["mem_compute_bound"]
                 )

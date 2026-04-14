@@ -70,16 +70,17 @@ class SeanergysModelMetadata(BaseModel):
 
     def set_field(self, field: str, value: Any) -> None:
         """
-        Set a single existing field to a new value.
+        Set a field to a new value.
 
         Args:
             field: The name of the field to update.
             value: The new value to assign.
 
-        Raises:
-            ValueError: If the field does not exist on the model.
         """
-        setattr(self, field, value)
+        if hasattr(self, field):
+            setattr(self, field, value)
+        else:
+            self.__dict__.update({field:value})
         self._touch()
 
     def update_fields(self, updates: dict[str, Any]) -> None:

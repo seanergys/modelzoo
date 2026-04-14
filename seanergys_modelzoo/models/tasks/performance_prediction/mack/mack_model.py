@@ -171,14 +171,14 @@ class MACK(SeanergysSklearnModel):
                 return df
                     
             fdata = FDataDataset(use_zenodo_url=True,
-                        files = "all",
+                        files = ["23_12", "24_01"],
                         is_dummy = get_dummy_data,
                         transform=model_fdata.embedding_parsing,
                         preprocessing_functions = [preprocess_fdata],
-                        filters=[[
+                        filters=[
                             ("adt", ">=", "2023-12-01"),
-                            ("adt", "<=", "2024-02-01"),
-                        ]],
+                            ("adt", "<=", "2024-01-31"),
+                        ],
                         input_features=["embedding"],
                         output_features=["mem_compute_bound"])
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
@@ -201,14 +201,14 @@ class MACK(SeanergysSklearnModel):
                 return df
                     
             fdata = FDataDataset(use_zenodo_url=True,
-                        files = "all",
+                        files = ["24_02"],
                         is_dummy = get_dummy_data,
                         transform=model.embedding_parsing,
                         preprocessing_functions = [preprocess_fdata],
-                        filters=[[
+                        filters=[
                             ("adt", ">=", "2023-12-01"),
                             ("adt", "<=", "2024-02-01"),
-                        ]],
+                        ],
                         input_features=["embedding"],
                         output_features=["mem_compute_bound"])
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)

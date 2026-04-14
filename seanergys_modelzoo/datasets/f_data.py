@@ -83,15 +83,6 @@ class FDataDataset(SeanergysParquetDataset):
     @model_validator(mode='after')
     def validate_model(self) -> 'FDataDataset':
         """Validate parameters, resolve file list, and trigger data loading."""
-        # Resolve file list
-        if self.data_path is None and self.use_zenodo_url:
-            self._file_list = self._parse_files_parameter(self.files)
-        elif self.data_path is None:
-            raise ValueError(
-                "data_path must be provided or use_zenodo_url must be True."
-            )
-        else:
-            self._file_list = None
         
         if self.columns is None:
             self.columns = self.input_features + self.output_features
@@ -110,10 +101,18 @@ class FDataDataset(SeanergysParquetDataset):
 
         # If dummy swap parameters
         if self.is_dummy:
-            self.files = "21-04"
-            if not(self.filters):
-                self.filters = []
-            self.filters += [("adt", "<=", "2021-04-02")]
+            self.files = "21_04"
+            self.filters = [("adt", "<", "2021-04-02")]
+        
+        # Resolve file list
+        if self.data_path is None and self.use_zenodo_url:
+            self._file_list = self._parse_files_parameter(self.files)
+        elif self.data_path is None:
+            raise ValueError(
+                "data_path must be provided or use_zenodo_url must be True."
+            )
+        else:
+            self._file_list = None
 
         self.load_data()
         return self
@@ -208,6 +207,7 @@ class FDataDataset(SeanergysParquetDataset):
                 if data_path.is_dir():
                     self.logger.info(f"Loading F-DATA from directory: {data_path}")
                     parquet_files = sorted(data_path.glob("*.parquet"))
+                    parquet_files = [f for f in parquet_files if f in self._file_list]
                     if not parquet_files:
                         raise ValueError(f"No parquet files found in {data_path}")
 

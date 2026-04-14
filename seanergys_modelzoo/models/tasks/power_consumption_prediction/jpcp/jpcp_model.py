@@ -118,15 +118,15 @@ class JPCP(SeanergysSklearnModel):
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,
-                files="all",
+                files = ["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
                 target_transform=lambda output_features: (
                     output_features[0] / output_features[1]
                 ),
-                filters=[[
+                filters=[
                     ("adt", ">=", "2023-12-01"),
-                    ("adt", "<=", "2024-02-01"),
-                ]],
+                    ("adt", "<=", "2024-01-31"),
+                ],
                 input_features=["embedding"],
                 output_features=["avgpcon", "nnuma"],
             )
@@ -145,10 +145,10 @@ class JPCP(SeanergysSklearnModel):
                     np.mean(output_features[0]) / output_features[1]
                 ),
                 preprocessing_functions=[ model_pm100.transform_embeddings],
-                filters=[[
+                filters=[
                     ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
                     ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
-                ]],
+                ],
                 columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
                 input_features=["num_nodes_req_cat", "user_id_cat"],
                 output_features=["node_power_consumption", "num_nodes_alloc"],
@@ -173,15 +173,15 @@ class JPCP(SeanergysSklearnModel):
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,
-                files="all",
+                files = ["24_02"],
                 transform=model.embedding_parsing,
                 target_transform=lambda output_features: (
                     output_features[0] / output_features[1]
                 ),
-                filters=[[
+                filters=[
                     ("adt", ">=", "2024-02-01"),
                     ("adt", "<=", "2024-02-28"),
-                ]],
+                ],
                 input_features=["embedding"],
                 output_features=["avgpcon", "nnuma"],
             )
@@ -198,10 +198,10 @@ class JPCP(SeanergysSklearnModel):
                     np.mean(output_features[0]) / output_features[1]
                 ),
                 preprocessing_functions=[model.transform_embeddings],
-                filters=[[
+                filters=[
                     ("submit_time", ">=", pd.Timestamp("2020-09-01", tz="UTC")),
                     ("submit_time", "<=", pd.Timestamp("2020-10-01", tz="UTC")),
-                ]],
+                ],
                 columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
                 input_features=["num_nodes_req_cat", "user_id_cat"],
                 output_features=["node_power_consumption", "num_nodes_alloc"],
