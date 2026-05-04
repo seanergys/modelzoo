@@ -136,24 +136,12 @@ lint:mypy:
 # STAGE 4: TEST
 # -----------------------------------------------------------------------------
 
-# Unit tests with coverage reporting — no ML deps needed
+# Unit tests — fast gate, no ML deps. Coverage collected by test:integration.
 test:unit:
   extends: .install_dev
   stage: test
   script:
-    - mkdir -p coverage
-    - poetry run pytest tests/unit/ -v
-        --cov=seanergys_modelzoo
-        --cov-report=xml:coverage/cobertura-coverage.xml
-        --cov-report=term-missing
-  coverage: '/TOTAL.*\s+(\d+%)$/'
-  artifacts:
-    when: always
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura-coverage.xml
-    expire_in: 1 week
+    - poetry run pytest tests/unit/ -v --tb=short
   allow_failure: false
 
 # Model smoke tests — discovery, contract checks, instantiation (no network)
