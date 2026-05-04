@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from sklearn.ensemble import RandomForestClassifier
 from pydantic import model_validator, Field
 from enum import Enum
@@ -136,7 +136,7 @@ class MCBound(SeanergysSklearnModel):
         str,
         Tuple[
             "MCBound",
-            SeanergysDataset,
+            Type[SeanergysDataset],
             Tuple[SeanergysDatasetParams, SeanergysDataloaderParams],
         ],
     ]:
@@ -181,7 +181,7 @@ class MCBound(SeanergysSklearnModel):
         str,
         Tuple[
             "MCBound",
-            SeanergysDataset,
+            Type[SeanergysDataset],
             Tuple[SeanergysDatasetParams, SeanergysDataloaderParams],
         ],
     ]:

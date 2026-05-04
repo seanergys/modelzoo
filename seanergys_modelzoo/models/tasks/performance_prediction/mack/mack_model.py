@@ -3,7 +3,7 @@ from enum import Enum
 import os
 from pathlib import Path
 import joblib
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
@@ -225,7 +225,7 @@ class MACK(SeanergysSklearnModel):
         str,
         Tuple[
             "MACK",
-            SeanergysDataset,
+            Type[SeanergysDataset],
             Tuple[SeanergysDatasetParams, SeanergysDataloaderParams],
         ],
     ]:

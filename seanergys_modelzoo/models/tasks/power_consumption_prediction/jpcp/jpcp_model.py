@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from pydantic import Field, model_validator
@@ -18,7 +18,6 @@ from seanergys_modelzoo.datasets.pm100 import PM100Dataset
 from seanergys_modelzoo.models.common.seanergys_configurator import (
     SeanergysDataloaderParams,
     SeanergysDatasetParams,
-    SeanergysModelParams,
 )
 from seanergys_modelzoo.models.common.seanergys_model import (
     SeanergysModel,
@@ -139,10 +138,9 @@ class JPCP(SeanergysSklearnModel):
     ) -> Dict[
         str,
         Tuple[
-            SeanergysDataset,
-            Tuple[
-                SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams
-            ],
+            "JPCP",
+            Type[SeanergysDataset],
+            Tuple[SeanergysDatasetParams, SeanergysDataloaderParams],
         ],
     ]:
         """
