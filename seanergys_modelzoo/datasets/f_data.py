@@ -241,7 +241,11 @@ class FDataDataset(SeanergysParquetDataset):
                 if data_path.is_dir():
                     self.logger.info(f"Loading F-DATA from directory: {data_path}")
                     parquet_files = sorted(data_path.glob("*.parquet"))
-                    parquet_files = [f for f in parquet_files if self._file_list is None or f.stem in self._file_list]
+                    parquet_files = [
+                        f
+                        for f in parquet_files
+                        if self._file_list is None or f.stem in self._file_list
+                    ]
                     if not parquet_files:
                         raise ValueError(f"No parquet files found in {data_path}")
 
@@ -266,7 +270,7 @@ class FDataDataset(SeanergysParquetDataset):
                     self.logger.info(f"Loaded F-DATA with shape: {self._df.shape}")
 
             # Apply preprocessing: each entry is (columns, function, output_feature_name)
-            for fn in (self.preprocessing_functions or []):
+            for fn in self.preprocessing_functions or []:
                 self._df = fn(self._df)
 
             # Optionally persist merged data to disk

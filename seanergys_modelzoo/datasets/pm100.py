@@ -119,7 +119,7 @@ class PM100Dataset(SeanergysParquetDataset):
             )
 
             # Apply preprocessing: each entry is (columns, function, output_feature_name)
-            for fn in (self.preprocessing_functions or []):
+            for fn in self.preprocessing_functions or []:
                 self._df = fn(self._df)
 
             # Optionally persist to disk
