@@ -246,6 +246,8 @@ test:wheel:
     PYTHONPATH: ""
   script:
     - pip install --quiet dist/*.whl
+    - TORCH_VER=$(python -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
+    - pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
     - python -c "import seanergys_modelzoo; print('✓ seanergys_modelzoo')"
     - python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('✓ SeanergysLogger')"
     - python -c "from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel; print('✓ SeanergysModel')"
