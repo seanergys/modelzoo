@@ -42,6 +42,7 @@ _FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sample_da
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _zenodo_dataset_classes() -> dict:
     """
     Return dataset classes that declare ZENODO_URL or ZENODO_BASE_URL as a
@@ -55,6 +56,7 @@ def _zenodo_dataset_classes() -> dict:
 
 
 _ZENODO_DATASET_CLASSES = _zenodo_dataset_classes()
+
 
 def _collect_dataset_configs_from_models():
     """
@@ -80,6 +82,7 @@ _DATASET_CONFIGS_FROM_MODELS = _collect_dataset_configs_from_models()
 # ---------------------------------------------------------------------------
 # 1. Discovery
 # ---------------------------------------------------------------------------
+
 
 def test_dataset_discovery():
     """
@@ -114,6 +117,7 @@ def test_model_discovery():
 # ---------------------------------------------------------------------------
 # 2. Contract checks (no data loaded)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "dataset_name,config",
@@ -151,6 +155,7 @@ def test_dataset_contract_via_model_config(dataset_name, config):
 # 3. Fixtures — load from tests/fixtures/sample_data/ (no model config)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "dataset_cls",
     list(_ZENODO_DATASET_CLASSES.values()),
@@ -179,9 +184,7 @@ def test_dataset_fixture_has_data(dataset_cls):
 
     df = pd.read_parquet(fixture)
 
-    assert len(df) >= 1, (
-        f"FAIL [{dataset_name}] fixture {fixture.name} has 0 rows."
-    )
+    assert len(df) >= 1, f"FAIL [{dataset_name}] fixture {fixture.name} has 0 rows."
     assert len(df.columns) >= 1, (
         f"FAIL [{dataset_name}] fixture {fixture.name} has 0 columns."
     )
@@ -190,6 +193,7 @@ def test_dataset_fixture_has_data(dataset_cls):
 # ---------------------------------------------------------------------------
 # 4. is_dummy — load via model get_train_config() + is_dummy=True (Zenodo)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.zenodo
 @pytest.mark.parametrize(
@@ -242,6 +246,7 @@ def test_dataset_loads_with_is_dummy(dataset_name, config):
 # 5. Zenodo — load directly from Zenodo URL with is_dummy=True
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.zenodo
 @pytest.mark.parametrize(
     "dataset_name,config",
@@ -276,8 +281,7 @@ def test_dataset_loads_from_zenodo(dataset_name, config):
         )
     except Exception as e:
         pytest.fail(
-            f"FAIL [{dataset_name}] Zenodo download or load failed.\n"
-            f"  → Error: {e}"
+            f"FAIL [{dataset_name}] Zenodo download or load failed.\n  → Error: {e}"
         )
 
     assert len(dataset) >= 1, (
@@ -286,5 +290,9 @@ def test_dataset_loads_from_zenodo(dataset_name, config):
     )
 
     x, y = dataset[0]
-    assert x is not None, f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned x=None."
-    assert y is not None, f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned y=None."
+    assert x is not None, (
+        f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned x=None."
+    )
+    assert y is not None, (
+        f"FAIL [{dataset_name}] Zenodo test: dataset[0] returned y=None."
+    )

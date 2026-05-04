@@ -15,15 +15,27 @@ from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataload
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset
-from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
-from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
+from seanergys_modelzoo.models.common.seanergys_configurator import (
+    SeanergysDataloaderParams,
+    SeanergysDatasetParams,
+    SeanergysModelParams,
+)
+from seanergys_modelzoo.models.common.seanergys_model import (
+    SeanergysModel,
+    SeanergysModelTask,
+)
+from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+    SeanergysModelMetadata,
+)
+from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
+    SeanergysSklearnModel,
+)
+
 
 class Embedding(Enum):
-    INT = 0 # Input features are mapped to categorical 
-    SB = 1 # Input features are encoded with sentence_transformers
-    NONE = 2 # Input features are used as is
+    INT = 0  # Input features are mapped to categorical
+    SB = 1  # Input features are encoded with sentence_transformers
+    NONE = 2  # Input features are used as is
 
 
 class JPCP(SeanergysSklearnModel):
@@ -40,11 +52,20 @@ class JPCP(SeanergysSklearnModel):
         model.train(train_loader, val_loader, validation_metrics=[mean_absolute_error])
         predictions = model.predict(test_loader)
         model.save("models/jpcp.joblib")
-    """    
-    embedder: Optional[List] = Field(default = None, description = "The list containing the embedder instances to encode the input labels.")
-    embedding_type: Optional[Embedding] = Field(default = Embedding.NONE, description = "The embedding strategy to use on the data.")
-    embedding_weights: Optional[str] = Field(default ="all-MiniLM-L6-v2", description = "The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB") 
-    
+    """
+
+    embedder: Optional[List] = Field(
+        default=None,
+        description="The list containing the embedder instances to encode the input labels.",
+    )
+    embedding_type: Optional[Embedding] = Field(
+        default=Embedding.NONE, description="The embedding strategy to use on the data."
+    )
+    embedding_weights: Optional[str] = Field(
+        default="all-MiniLM-L6-v2",
+        description="The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def _inject_defaults(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -55,22 +76,27 @@ class JPCP(SeanergysSklearnModel):
         values.setdefault("model_class", RandomForestRegressor)
         values.setdefault("task_type", SeanergysModelTask.REGRESSION)
         values.setdefault("supported_datasets", [PM100Dataset, FDataDataset])
-        values.setdefault("metadata", SeanergysModelMetadata(
-                name = "JPCP", 
-                created_at= datetime.now().isoformat(),
-                task_type = SeanergysModelTask.REGRESSION
-                ))
-        
+        values.setdefault(
+            "metadata",
+            SeanergysModelMetadata(
+                name="JPCP",
+                created_at=datetime.now().isoformat(),
+                task_type=SeanergysModelTask.REGRESSION,
+            ),
+        )
+
         return values
-    
-    @model_validator(mode='after')
-    def validate_model(self) -> 'JPCP':
+
+    @model_validator(mode="after")
+    def validate_model(self) -> "JPCP":
         """
         Implement to validate the model
         """
         return self
-    
-    def transform_embeddings(self, features: np.ndarray, fit:bool = False) -> np.ndarray:
+
+    def transform_embeddings(
+        self, features: np.ndarray, fit: bool = False
+    ) -> np.ndarray:
         """
         Concatenate feature values into strings and encode with SentenceTransformer.
 
@@ -87,38 +113,53 @@ class JPCP(SeanergysSklearnModel):
             self.embedder = SentenceTransformer(self.embedding_weights)
             sentences = [" ".join(str(val) for val in row) for row in features]
             return self.embedder.encode(sentences)
-        else: 
+        else:
             self.embedder = [LabelEncoder() for _ in range(features.shape[1])]
-            return np.column_stack([
-                le.fit_transform(features[:, i]) if bool else le.transform(features[:, i])
-                for i, le in enumerate(self.embedder)
-            ])         
+            return np.column_stack(
+                [
+                    le.fit_transform(features[:, i])
+                    if bool
+                    else le.transform(features[:, i])
+                    for i, le in enumerate(self.embedder)
+                ]
+            )
 
-    def embedding_parsing(self, embedding:np.ndarray) -> np.ndarray:
+    def embedding_parsing(self, embedding: np.ndarray) -> np.ndarray:
         """
         Parses the precomputed embedding vector to a suitable format for the model
         """
-        
+
         arr = np.zeros((384,))
         arr[:] = np.array(embedding[0])
         return arr
-                            
+
     @classmethod
-    def get_train_config(cls, dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(
+        cls, dataset_name: str = "f-data", get_dummy_data: bool = False
+    ) -> Dict[
+        str,
+        Tuple[
+            SeanergysDataset,
+            Tuple[
+                SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams
+            ],
+        ],
+    ]:
         """
         Get training configuration for JPCP.
 
-        """     
+        """
         config_dict: Dict = {}
         if dataset_name == "f-data":
-
-            model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
+            model_fdata = cls(
+                embedding_type=Embedding.NONE, model_hyperparameters={"n_jobs": -1}
+            )
 
             model_fdata.logger.info("Training on FData")
             fdata = FDataDataset(
                 use_zenodo_url=True,
-                is_dummy = get_dummy_data,
-                files = ["23_12", "24_01"],
+                is_dummy=get_dummy_data,
+                files=["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
                 target_transform=lambda output_features: (
                     output_features[0] / output_features[1]
@@ -133,7 +174,9 @@ class JPCP(SeanergysSklearnModel):
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return model_fdata, data_loader_fdata
 
-        model_pm100 = cls(embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1})
+        model_pm100 = cls(
+            embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1}
+        )
         model_pm100.logger.info("Training on PM100")
 
         # FIXED by Mohsen (2026-03-23) — original used model_pm100.transform_embeddings as
@@ -146,6 +189,7 @@ class JPCP(SeanergysSklearnModel):
         # so they are included in the save/load cycle.
         def _preprocess_pm100(df: pd.DataFrame) -> pd.DataFrame:
             from sklearn.preprocessing import LabelEncoder
+
             df = df.copy()
             encoders = []
             for col in ["num_nodes_req", "user_id"]:
@@ -162,11 +206,18 @@ class JPCP(SeanergysSklearnModel):
                 np.mean(output_features[0]) / output_features[1]
             ),
             preprocessing_functions=[_preprocess_pm100],
-            filters=[[
-                ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
-                ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
-            ]],
-            columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+            filters=[
+                [
+                    ("submit_time", ">=", pd.Timestamp("2020-05-01", tz="UTC")),
+                    ("submit_time", "<=", pd.Timestamp("2020-09-01", tz="UTC")),
+                ]
+            ],
+            columns=[
+                "num_nodes_req",
+                "user_id",
+                "node_power_consumption",
+                "num_nodes_alloc",
+            ],
             input_features=["num_nodes_req_cat", "user_id_cat"],
             output_features=["node_power_consumption", "num_nodes_alloc"],
         )
@@ -187,23 +238,36 @@ class JPCP(SeanergysSklearnModel):
         #      an instance here breaks all downstream tooling.
         #
         # Correct form: pass the CLASS and the params tuple, not an instantiated object.
-        config_dict["pm100"] = (model_pm100, PM100Dataset, (pm100_config, data_loader_pm100))
+        config_dict["pm100"] = (
+            model_pm100,
+            PM100Dataset,
+            (pm100_config, data_loader_pm100),
+        )
         return config_dict
-    
+
     @classmethod
-    def get_test_config(cls, model: "JPCP", dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_test_config(
+        cls,
+        model: SeanergysModel,
+        dataset_name: str = "f-data",
+        get_dummy_data: bool = False,
+    ) -> Dict[
+        str,
+        Tuple[
+            SeanergysDataset, Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]
+        ],
+    ]:
         """
         Get testing configuration for JPCP. It requires the model and the dataset_name
 
-        """     
+        """
         if dataset_name == "f-data":
-        
-            model.logger.info("Testing on FData")       
-                    
+            model.logger.info("Testing on FData")
+
             fdata = FDataDataset(
                 use_zenodo_url=True,
-                is_dummy = get_dummy_data,
-                files = ["24_02"],
+                is_dummy=get_dummy_data,
+                files=["24_02"],
                 transform=model.embedding_parsing,
                 target_transform=lambda output_features: (
                     output_features[0] / output_features[1]
@@ -219,10 +283,10 @@ class JPCP(SeanergysSklearnModel):
         elif dataset_name == "pm100":
             # Load the fdata config
             model.logger.info("Testing on PM100")
-            
+
             pm100 = PM100Dataset(
                 use_zenodo_url=True,
-                is_dummy = get_dummy_data,
+                is_dummy=get_dummy_data,
                 transform=None,
                 target_transform=lambda output_features: (
                     np.mean(output_features[0]) / output_features[1]
@@ -232,20 +296,21 @@ class JPCP(SeanergysSklearnModel):
                     ("submit_time", ">=", pd.Timestamp("2020-09-01", tz="UTC")),
                     ("submit_time", "<=", pd.Timestamp("2020-10-01", tz="UTC")),
                 ],
-                columns=["num_nodes_req", "user_id", "node_power_consumption", "num_nodes_alloc"],
+                columns=[
+                    "num_nodes_req",
+                    "user_id",
+                    "node_power_consumption",
+                    "num_nodes_alloc",
+                ],
                 input_features=["num_nodes_req_cat", "user_id_cat"],
                 output_features=["node_power_consumption", "num_nodes_alloc"],
             )
             return SeanergysDataloader(dataset=pm100, batch_size=1)
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
-        
-    
+
     def save(
-        self,
-        path: Union[str, Path] = "./saved_model",
-        compress: int = 3,
-        **kwargs
+        self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
         """
         Persist the estimator, embedder, metadata, and supplementary info to disk.
@@ -262,7 +327,11 @@ class JPCP(SeanergysSklearnModel):
 
         try:
             # Save the label encoder
-            joblib.dump(self.embedder, f"{os.path.join(str(path), 'embedder.joblib')}", compress = compress)
+            joblib.dump(
+                self.embedder,
+                f"{os.path.join(str(path), 'embedder.joblib')}",
+                compress=compress,
+            )
             self.logger.info(f"Embedder saved to {path}")
             super().save(path=path, compress=compress)
             return True
@@ -272,11 +341,7 @@ class JPCP(SeanergysSklearnModel):
             return False
 
     @classmethod
-    def load(
-        cls,
-        path: Union[str, Path] = "./saved_model",
-        **kwargs
-    ) -> "JPCP":
+    def load(cls, path: Union[str, Path] = "./saved_model", **kwargs) -> "JPCP":
         """
         Restore a JPCP model from disk.
 
@@ -297,5 +362,3 @@ class JPCP(SeanergysSklearnModel):
 
         except Exception as e:
             raise RuntimeError(f"Error loading model: {e}") from e
-
-    

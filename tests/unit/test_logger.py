@@ -3,7 +3,6 @@
 import logging
 
 
-
 def test_logger_instantiation():
     """SeanergysLogger instantiates with defaults."""
     from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger

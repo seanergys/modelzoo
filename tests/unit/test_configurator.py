@@ -71,7 +71,9 @@ def test_dataset_params_data_path_stored():
 
 def test_dataset_params_from_dict():
     """from_dict reconstructs the object correctly."""
-    params = SeanergysDatasetParams.from_dict({"data_path": "/tmp/data", "transform": None})
+    params = SeanergysDatasetParams.from_dict(
+        {"data_path": "/tmp/data", "transform": None}
+    )
     assert str(params.data_path) == "/tmp/data"
     assert params.transform is None
 
@@ -110,9 +112,10 @@ def test_dataloader_params_to_dict_keys_match_pytorch_dataloader():
     to_dict() keys must match PyTorch DataLoader's signature so that
     DataLoader(**params.to_dict()) works without extra filtering.
     """
-    pytorch_keys = (
-        set(inspect.signature(DataLoader.__init__).parameters) - {"self", "dataset"}
-    )
+    pytorch_keys = set(inspect.signature(DataLoader.__init__).parameters) - {
+        "self",
+        "dataset",
+    }
     # in_order is Seanergys-only — exclude before comparing against PyTorch
     params_keys = set(SeanergysDataloaderParams().to_dict()) - {"in_order"}
     assert params_keys <= pytorch_keys, (
@@ -134,7 +137,9 @@ def test_dataloader_params_invalid_num_workers_type():
 
 def test_dataloader_params_round_trip():
     """to_dict / from_dict preserves all scalar fields."""
-    params = SeanergysDataloaderParams(batch_size=16, num_workers=4, drop_last=True, in_order=False)
+    params = SeanergysDataloaderParams(
+        batch_size=16, num_workers=4, drop_last=True, in_order=False
+    )
     restored = SeanergysDataloaderParams.from_dict(params.to_dict())
     assert restored.batch_size == 16
     assert restored.num_workers == 4

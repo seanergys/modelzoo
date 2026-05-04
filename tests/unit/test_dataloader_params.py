@@ -26,9 +26,6 @@ def test_dataloader_params_from_dict():
     assert params.shuffle is True
 
 
-
-
-
 def test_dataloader_params_roundtrip():
     """SeanergysDataloaderParams round-trips via to_dict and from_dict."""
     from seanergys_modelzoo.models.common.seanergys_configurator import (

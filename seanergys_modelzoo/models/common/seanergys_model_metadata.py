@@ -100,7 +100,7 @@ class SeanergysModelMetadata(BaseModel):
         if hasattr(self, field):
             setattr(self, field, value)
         else:
-            self.__dict__.update({field:value})
+            self.__dict__.update({field: value})
         self._touch()
 
     def update_fields(self, updates: dict[str, Any]) -> None:

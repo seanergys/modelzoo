@@ -29,6 +29,7 @@ def pytest_configure(config):
 # Auto-discovery helpers
 # ---------------------------------------------------------------------------
 
+
 def _collect_model_classes() -> Dict[str, Type]:
     """
     Discover all concrete SeanergysModel subclasses in models/tasks/.
@@ -42,7 +43,9 @@ def _collect_model_classes() -> Dict[str, Type]:
         return {}
 
     classes: Dict[str, Type] = {}
-    for py_file in (_PROJECT_ROOT / "seanergys_modelzoo" / "models" / "tasks").rglob("*.py"):
+    for py_file in (_PROJECT_ROOT / "seanergys_modelzoo" / "models" / "tasks").rglob(
+        "*.py"
+    ):
         if py_file.name == "__init__.py":
             continue
         try:
@@ -60,7 +63,9 @@ def _collect_dataset_classes() -> Dict[str, Type]:
     """
     try:
         from ci.utils import retrieve_instances_from_file
-        from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+        from seanergys_modelzoo.datasets.common.seanergys_dataset import (
+            SeanergysDataset,
+        )
     except ImportError:
         return {}
 
@@ -72,7 +77,9 @@ def _collect_dataset_classes() -> Dict[str, Type]:
             continue
         try:
             objs = retrieve_instances_from_file(py_file, SeanergysDataset)
-            classes.update({k: v for k, v in objs.items() if v.__name__ not in _BASE_CLASSES})
+            classes.update(
+                {k: v for k, v in objs.items() if v.__name__ not in _BASE_CLASSES}
+            )
         except Exception:
             continue
     return classes
@@ -87,6 +94,7 @@ DATASET_CLASSES = _collect_dataset_classes()
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def project_root() -> Path:

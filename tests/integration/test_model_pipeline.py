@@ -25,6 +25,7 @@ from tests.conftest import MODEL_CLASSES
 # Test 1: get_train_config() returns a valid structure
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("model_cls", list(MODEL_CLASSES.values()))
 def test_get_train_config_structure(model_cls):
     """
@@ -41,9 +42,7 @@ def test_get_train_config_structure(model_cls):
     assert isinstance(config, dict), (
         f"{model_name}.get_train_config() must return a dict"
     )
-    assert len(config) > 0, (
-        f"{model_name}.get_train_config() returned an empty dict"
-    )
+    assert len(config) > 0, f"{model_name}.get_train_config() returned an empty dict"
 
     for entry_name, entry in config.items():
         assert len(entry) == 3, (
@@ -59,7 +58,10 @@ def test_get_train_config_structure(model_cls):
                 f"{model_name} is missing required method: {method}"
             )
 
-        from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
+        from seanergys_modelzoo.datasets.common.seanergys_dataset import (
+            SeanergysDataset,
+        )
+
         assert issubclass(dataset_cls, SeanergysDataset), (
             f"{model_name}/{entry_name}: DatasetClass must subclass SeanergysDataset, "
             f"got {dataset_cls}"
@@ -69,6 +71,7 @@ def test_get_train_config_structure(model_cls):
 # ---------------------------------------------------------------------------
 # Test 2: full pipeline — train → predict → save → load
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.zenodo
 @pytest.mark.parametrize("model_cls", list(MODEL_CLASSES.values()))
@@ -96,8 +99,11 @@ def test_full_pipeline(model_cls, tmp_path):
     model_name = model_cls.__name__
     config = model_cls.get_train_config()
 
-    for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
-
+    for entry_name, (
+        model_instance,
+        dataset_cls,
+        (ds_params, dl_params),
+    ) in config.items():
         # Signal CI to use a small subset — dataset must honour this
         ds_params.is_dummy = True
 

@@ -1,8 +1,6 @@
 """Unit tests for SeanergysModelMetadata."""
 
 
-
-
 def test_metadata_instantiation():
     """SeanergysModelMetadata requires name, others optional."""
     from seanergys_modelzoo.models.common.seanergys_model_metadata import (

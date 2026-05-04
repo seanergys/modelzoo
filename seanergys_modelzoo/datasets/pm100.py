@@ -83,9 +83,11 @@ class PM100Dataset(SeanergysParquetDataset):
 
         # If dummy swap parameters
         if self.is_dummy:
-            if not(self.filters):
+            if not (self.filters):
                 self.filters = []
-            self.filters += [[("submit_time", "<=", pd.Timestamp("2020-05-01", tz = "UTC"))]]
+            self.filters += [
+                [("submit_time", "<=", pd.Timestamp("2020-05-01", tz="UTC"))]
+            ]
 
         self.load_data()
         return self

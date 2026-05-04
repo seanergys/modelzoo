@@ -6,7 +6,10 @@ import pandas as pd
 import torch
 from pydantic import Field, model_validator
 
-from seanergys_modelzoo.datasets.common.seanergys_parquet_dataset import SeanergysParquetDataset
+from seanergys_modelzoo.datasets.common.seanergys_parquet_dataset import (
+    SeanergysParquetDataset,
+)
+
 
 class FDataDataset(SeanergysParquetDataset):
     """
@@ -44,16 +47,47 @@ class FDataDataset(SeanergysParquetDataset):
     # Available monthly files
     AVAILABLE_FILES: List[str] = [
         # 2021
-        "21_03", "21_04", "21_05", "21_06", "21_07", "21_08",
-        "21_09", "21_10", "21_11", "21_12",
+        "21_03",
+        "21_04",
+        "21_05",
+        "21_06",
+        "21_07",
+        "21_08",
+        "21_09",
+        "21_10",
+        "21_11",
+        "21_12",
         # 2022
-        "22_01", "22_02", "22_03", "22_04", "22_05", "22_06",
-        "22_07", "22_08", "22_09", "22_10", "22_11", "22_12",
+        "22_01",
+        "22_02",
+        "22_03",
+        "22_04",
+        "22_05",
+        "22_06",
+        "22_07",
+        "22_08",
+        "22_09",
+        "22_10",
+        "22_11",
+        "22_12",
         # 2023
-        "23_01", "23_02", "23_03", "23_04", "23_05", "23_06",
-        "23_07", "23_08", "23_09", "23_10", "23_11", "23_12",
+        "23_01",
+        "23_02",
+        "23_03",
+        "23_04",
+        "23_05",
+        "23_06",
+        "23_07",
+        "23_08",
+        "23_09",
+        "23_10",
+        "23_11",
+        "23_12",
         # 2024
-        "24_01", "24_02", "24_03", "24_04"
+        "24_01",
+        "24_02",
+        "24_03",
+        "24_04",
     ]
 
     # Pydantic fields specific to FDataDataset
@@ -63,44 +97,46 @@ class FDataDataset(SeanergysParquetDataset):
             "Monthly file(s) to load. Can be: "
             "single file ('21_03'), list (['21_03', '21_04']), "
             "range ('21_03:21_06'), or 'all' / None for all files."
-        )
+        ),
     )
     use_zenodo_url: bool = Field(
         default=False,
-        description="If True and data_path is None, load files from Zenodo."
+        description="If True and data_path is None, load files from Zenodo.",
     )
     download_path: Optional[Union[str, Path]] = Field(
         default=None,
-        description="If provided, save the merged dataset to this directory after loading."
+        description="If provided, save the merged dataset to this directory after loading.",
     )
 
     # Private — not a Pydantic field
     _file_list: Optional[List[str]] = None
 
-    @model_validator(mode='after')
-    def validate_model(self) -> 'FDataDataset':
+    @model_validator(mode="after")
+    def validate_model(self) -> "FDataDataset":
         """Validate parameters, resolve file list, and trigger data loading."""
-        
+
         if self.columns is None:
             self.columns = self.input_features + self.output_features
 
         # Enrich metadata with F-DATA specific info
-        self.metadata.update({
-            'dataset_name': 'F-DATA',
-            'dataset_version': '1.0',
-            'source': 'Supercomputer Fugaku (RIKEN, Japan)',
-            'time_period': 'March 2021 - April 2024',
-            'n_jobs': '~24 million',
-            'doi': '10.5281/zenodo.11467483',
-            'paper_doi': '10.1038/s41597-025-05633-1',
-            'files_loaded': self._file_list if self._file_list else 'local'
-        })
+        self.metadata.update(
+            {
+                "dataset_name": "F-DATA",
+                "dataset_version": "1.0",
+                "source": "Supercomputer Fugaku (RIKEN, Japan)",
+                "time_period": "March 2021 - April 2024",
+                "n_jobs": "~24 million",
+                "doi": "10.5281/zenodo.11467483",
+                "paper_doi": "10.1038/s41597-025-05633-1",
+                "files_loaded": self._file_list if self._file_list else "local",
+            }
+        )
 
         # If dummy swap parameters
         if self.is_dummy:
             self.files = "21_04"
             self.filters = [("adt", "<", "2021-04-02")]
-        
+
         # Resolve file list
         if self.data_path is None and self.use_zenodo_url:
             self._file_list = self._parse_files_parameter(self.files)
@@ -114,7 +150,9 @@ class FDataDataset(SeanergysParquetDataset):
         self.load_data()
         return self
 
-    def _parse_files_parameter(self, files: Optional[Union[str, List[str]]]) -> List[str]:
+    def _parse_files_parameter(
+        self, files: Optional[Union[str, List[str]]]
+    ) -> List[str]:
         """
         Parse the files parameter to get list of file names to load.
 
@@ -135,7 +173,7 @@ class FDataDataset(SeanergysParquetDataset):
                 try:
                     start_idx = self.AVAILABLE_FILES.index(start)
                     end_idx = self.AVAILABLE_FILES.index(end)
-                    return self.AVAILABLE_FILES[start_idx:end_idx + 1]
+                    return self.AVAILABLE_FILES[start_idx : end_idx + 1]
                 except ValueError as e:
                     raise ValueError(
                         f"Invalid file range: {files}. "
@@ -155,15 +193,12 @@ class FDataDataset(SeanergysParquetDataset):
             invalid_files = [f for f in file_list if f not in self.AVAILABLE_FILES]
             if invalid_files:
                 raise ValueError(
-                    f"Invalid files: {invalid_files}. "
-                    f"Available: {self.AVAILABLE_FILES}"
+                    f"Invalid files: {invalid_files}. Available: {self.AVAILABLE_FILES}"
                 )
             return file_list
 
         else:
-            raise TypeError(
-                f"files must be str, list, or None, got {type(files)}"
-            )
+            raise TypeError(f"files must be str, list, or None, got {type(files)}")
 
     def load_data(self) -> None:
         """
@@ -184,12 +219,12 @@ class FDataDataset(SeanergysParquetDataset):
                     self.logger.info(f"Downloading {file_name}.parquet...")
                     try:
                         df_chunk = pd.read_parquet(
-                            file_url,
-                            columns=self.columns,
-                            filters=self.filters
+                            file_url, columns=self.columns, filters=self.filters
                         )
                         dfs.append(df_chunk)
-                        self.logger.info(f"  Loaded {file_name}.parquet: {len(df_chunk)} rows")
+                        self.logger.info(
+                            f"  Loaded {file_name}.parquet: {len(df_chunk)} rows"
+                        )
                     except Exception as e:
                         self.logger.error(f"  Failed to load {file_name}.parquet: {e}")
                         raise
@@ -213,9 +248,7 @@ class FDataDataset(SeanergysParquetDataset):
                     for file_path in parquet_files:
                         self.logger.info(f"Loading {file_path.name}...")
                         df_chunk = pd.read_parquet(
-                            file_path,
-                            columns=self.columns,
-                            filters=self.filters
+                            file_path, columns=self.columns, filters=self.filters
                         )
                         dfs.append(df_chunk)
                         self.logger.info(f"  Loaded: {len(df_chunk)} rows")
@@ -226,9 +259,7 @@ class FDataDataset(SeanergysParquetDataset):
                 else:
                     self.logger.info(f"Loading F-DATA from local file: {data_path}")
                     self._df = pd.read_parquet(
-                        data_path,
-                        columns=self.columns,
-                        filters=self.filters
+                        data_path, columns=self.columns, filters=self.filters
                     )
                     self.logger.info(f"Loaded F-DATA with shape: {self._df.shape}")
 
@@ -246,13 +277,15 @@ class FDataDataset(SeanergysParquetDataset):
                 self.logger.info(f"Saved F-DATA to: {out_file}")
 
             # Update statistics
-            self.stats.update({
-                'n_samples': len(self._df),
-                'n_input_features': len(self.input_features),
-                'n_output_features': len(self.output_features),
-                'n_features': len(self.input_features),
-                'load_time': time.time() - start_time,
-            })
+            self.stats.update(
+                {
+                    "n_samples": len(self._df),
+                    "n_input_features": len(self.input_features),
+                    "n_output_features": len(self.output_features),
+                    "n_features": len(self.input_features),
+                    "load_time": time.time() - start_time,
+                }
+            )
 
             self.logger.info(
                 f"{self.__class__.__name__} ready: {self.stats['n_samples']} samples, "
@@ -265,7 +298,9 @@ class FDataDataset(SeanergysParquetDataset):
             self.logger.error(f"Failed to load {self.__class__.__name__} file(s): {e}")
             raise
 
-    def __getitem__(self, idx: int, return_tensor: bool = False, dtype: Union[str, TypeVar] = None) -> Tuple:
+    def __getitem__(
+        self, idx: int, return_tensor: bool = False, dtype: Union[str, TypeVar] = None
+    ) -> Tuple:
         """
         Retrieve a single sample from the dataset.
 
@@ -306,21 +341,21 @@ class FDataDataset(SeanergysParquetDataset):
         """
         if self._df is None:
             raise RuntimeError("Data not loaded. Call load_data() first.")
-        if 'partition' not in self._df.columns:
+        if "partition" not in self._df.columns:
             raise ValueError("'partition' column not available in dataset.")
 
         partition_stats = {}
-        for partition in self._df['partition'].unique():
-            partition_jobs = self._df[self._df['partition'] == partition]
-            partition_stats[partition] = {'n_jobs': len(partition_jobs)}
+        for partition in self._df["partition"].unique():
+            partition_jobs = self._df[self._df["partition"] == partition]
+            partition_stats[partition] = {"n_jobs": len(partition_jobs)}
 
-            for col, key in [('duration', 'avg_duration'), ('n_nodes', 'avg_nodes')]:
+            for col, key in [("duration", "avg_duration"), ("n_nodes", "avg_nodes")]:
                 if col in partition_jobs.columns:
                     partition_stats[partition][key] = float(partition_jobs[col].mean())
 
-            if 'power_consumption' in partition_jobs.columns:
-                partition_stats[partition]['avg_power'] = float(
-                    partition_jobs['power_consumption'].mean()
+            if "power_consumption" in partition_jobs.columns:
+                partition_stats[partition]["avg_power"] = float(
+                    partition_jobs["power_consumption"].mean()
                 )
 
         return partition_stats
@@ -339,4 +374,3 @@ class FDataDataset(SeanergysParquetDataset):
             Tuple of (start_date, end_date) in YY_MM format.
         """
         return (cls.AVAILABLE_FILES[0], cls.AVAILABLE_FILES[-1])
-    

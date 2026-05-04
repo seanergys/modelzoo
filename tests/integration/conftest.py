@@ -68,7 +68,11 @@ def load_first_fixture_entry(model_name: str, model_cls, data_dir: Path):
     config = model_cls.get_train_config()
     tried = []
 
-    for entry_name, (model_instance, dataset_cls, (ds_params, dl_params)) in config.items():
+    for entry_name, (
+        model_instance,
+        dataset_cls,
+        (ds_params, dl_params),
+    ) in config.items():
         fixture = fixture_path_for(dataset_cls, data_dir)
         tried.append(f"{entry_name} → {fixture.name}")
 
@@ -79,7 +83,9 @@ def load_first_fixture_entry(model_name: str, model_cls, data_dir: Path):
         # Date/range filters from get_train_config() are designed for the full
         # Zenodo dataset — applying them to a small fixture sample would likely
         # return 0 rows. All other params (features, transforms, etc.) are kept.
-        local_params = ds_params.model_copy(update={"data_path": fixture, "filters": None})
+        local_params = ds_params.model_copy(
+            update={"data_path": fixture, "filters": None}
+        )
 
         try:
             dataset = dataset_cls.from_config(local_params)
