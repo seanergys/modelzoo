@@ -1,16 +1,18 @@
 # GitLab CI/CD pipeline for seanergys-modelzoo
-# Stages: sanity → validate → lint → test
-# Runs on GitLab shared runners
+# Stages: sanity → validate → lint → test → build → test-wheel
 
 stages:
   - sanity
   - validate
   - lint
   - test
+  - build
+  - test-wheel
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  PYTHONPATH: "${CI_PROJECT_DIR}:${PYTHONPATH}"
+  POETRY_VERSION: "2.1.3"
+  PYTHONPATH: "${CI_PROJECT_DIR}"
 
 # -----------------------------------------------------------------------------
 # CACHE
@@ -21,28 +23,59 @@ variables:
     - .cache/pip
 
 # -----------------------------------------------------------------------------
-# STAGE 1: SANITY (always runs)
+# SHARED TEMPLATES
 # -----------------------------------------------------------------------------
+
+# Dev deps only (pytest, ruff, pydantic) — sufficient for unit tests
+.install_dev:
+  image: python:3.13-slim
+  cache:
+    - <<: *pip_cache
+      policy: pull-push
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet "poetry==${POETRY_VERSION}"
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev
+
+# Full ML stack (torch, sklearn, xgboost, sentence-transformers, pyarrow)
+.install_ci:
+  image: python:3.13-slim
+  cache:
+    - <<: *pip_cache
+      policy: pull-push
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet "poetry==${POETRY_VERSION}"
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --with dev,ci
+
+# -----------------------------------------------------------------------------
+# STAGE 1: SANITY
+# -----------------------------------------------------------------------------
+
 sanity:python-syntax:
   stage: sanity
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 -r python -m py_compile
+    - echo "✓ Syntax OK"
   allow_failure: false
 
 sanity:check-structure:
   stage: sanity
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - test -f pyproject.toml
     - test -d seanergys_modelzoo
     - test -d ci
     - test -d tests
-    - echo "Repository structure OK"
+    - echo "✓ Repository structure OK"
+  allow_failure: false
 
 sanity:check-secrets:
   stage: sanity
-  image: python:3.12-slim
+  image: python:3.13-slim
   before_script:
     - apt-get update -qq && apt-get install -y -qq git
   script:
@@ -51,22 +84,25 @@ sanity:check-secrets:
   allow_failure: true
 
 # -----------------------------------------------------------------------------
-# STAGE 2: VALIDATE (YAML/JSON)
+# STAGE 2: VALIDATE
 # -----------------------------------------------------------------------------
+
 validate:yaml-json:
   stage: validate
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - pip install --quiet pyyaml
     - python ci/validate_yaml.py
+    - echo "✓ YAML/JSON OK"
   allow_failure: false
 
 # -----------------------------------------------------------------------------
 # STAGE 3: LINT
 # -----------------------------------------------------------------------------
+
 lint:python:
   stage: lint
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - pip install --quiet ruff
     - ruff check seanergys_modelzoo ci tests
@@ -74,7 +110,7 @@ lint:python:
 
 lint:format:
   stage: lint
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - pip install --quiet ruff
     - ruff format --check seanergys_modelzoo ci tests
@@ -82,7 +118,7 @@ lint:format:
 
 lint:mypy:
   stage: lint
-  image: python:3.12-slim
+  image: python:3.13-slim
   script:
     - pip install --quiet mypy types-PyYAML
     - mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
@@ -91,107 +127,72 @@ lint:mypy:
 # -----------------------------------------------------------------------------
 # STAGE 4: TEST
 # -----------------------------------------------------------------------------
+
+# Unit tests with coverage reporting — no ML deps needed
 test:unit:
+  extends: .install_dev
   stage: test
-  image: python:3.12-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev
   script:
+    - mkdir -p coverage
     - poetry run pytest tests/unit/ -v
+        --cov=seanergys_modelzoo
+        --cov-report=xml:coverage/cobertura-coverage.xml
+        --cov-report=term-missing
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 1 week
   allow_failure: false
 
+# Model smoke tests — discovery, contract checks, instantiation (no network)
 test:smoke:
+  extends: .install_ci
   stage: test
-  image: python:3.12-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev
-  script:
-    - poetry run pytest tests/smoke/ -v
-  allow_failure: false
-
-test:import-check:
-  stage: test
-  image: python:3.12-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev,ci
-  script:
-    - poetry run python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('Import OK')"
-  allow_failure: false
-
-test:smoke-models:
-  stage: test
-  image: python:3.12-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev,ci
   script:
     - poetry run pytest tests/smoke/test_models_smoke.py -v
   allow_failure: false
 
+# Dataset smoke tests — sections 1-3 only (no Zenodo download)
 test:smoke-datasets:
+  extends: .install_ci
   stage: test
-  image: python:3.12-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev,ci
+  variables:
+    CI_SKIP_ZENODO: "1"
   script:
-    - poetry run pytest tests/smoke/test_datasets_smoke.py -v
+    - poetry run pytest tests/smoke/test_datasets_smoke.py -v -m "not zenodo"
   allow_failure: false
 
+# Full integration tests with sample fixture data (no Zenodo)
 test:integration:
   stage: test
-  image: python:3.12-slim
+  image: python:3.13-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet poetry
+    - pip install --quiet "poetry==${POETRY_VERSION}"
     - poetry config virtualenvs.create false
     - poetry install --no-interaction --with dev,ci
-    - poetry run python scripts/create_sample_data.py
+    - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
   script:
-    - poetry run pytest tests/integration/ -v
+    - CI_SKIP_ZENODO=1 poetry run pytest tests/integration/ -v
   allow_failure: false
 
 # Dependency vulnerability scan
 test:audit:
   stage: test
-  image: python:3.12-slim
+  image: python:3.13-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
-    - pip install --quiet poetry poetry-plugin-export
+    - pip install --quiet "poetry==${POETRY_VERSION}" poetry-plugin-export
     - poetry config virtualenvs.create false
     - poetry install --no-interaction
     - pip install --quiet pip-audit
@@ -199,3 +200,44 @@ test:audit:
     - poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt
     - pip-audit -r /tmp/poetry-audit-reqs.txt
   allow_failure: true
+
+# -----------------------------------------------------------------------------
+# STAGE 5: BUILD
+# -----------------------------------------------------------------------------
+
+build:wheel:
+  stage: build
+  image: python:3.13-slim
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet "poetry==${POETRY_VERSION}"
+  script:
+    - poetry build --format wheel
+    - echo "✓ Built wheel:"
+    - ls -lh dist/*.whl
+  artifacts:
+    paths:
+      - dist/*.whl
+    expire_in: 1 week
+  allow_failure: false
+
+# -----------------------------------------------------------------------------
+# STAGE 6: TEST-WHEEL
+# Validates the distributed package installs and imports correctly.
+# PYTHONPATH cleared so the installed wheel is tested, not the source tree.
+# -----------------------------------------------------------------------------
+
+test:wheel:
+  stage: test-wheel
+  image: python:3.13-slim
+  needs:
+    - build:wheel
+  variables:
+    PYTHONPATH: ""
+  script:
+    - pip install --quiet dist/*.whl
+    - python -c "import seanergys_modelzoo; print('✓ seanergys_modelzoo')"
+    - python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('✓ SeanergysLogger')"
+    - python -c "from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel; print('✓ SeanergysModel')"
+    - python -c "from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset; print('✓ SeanergysDataset')"
+  allow_failure: false

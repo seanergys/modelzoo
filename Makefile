@@ -3,7 +3,8 @@
 
 .PHONY: help venv install install-ci install-hooks sample-data \
         test test-unit test-smoke test-smoke-full test-datasets test-integration test-pipeline test-all \
-        lint format typecheck audit check-secrets pre-push ci clean clean-venv clean-fixtures clean-all
+        lint format format-check typecheck audit check-secrets pre-push ci \
+        coverage clean clean-venv clean-fixtures clean-all
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -18,17 +19,33 @@ help:
 	@echo "seanergys-modelzoo — available commands"
 	@echo "========================================"
 	@echo ""
-	@echo "Setup:"
-	@echo "  make venv            Create .venv virtual environment (run once per clone)"
+	@echo "┌─────────────────────────────────────────────────────────┐"
+	@echo "│  BEFORE YOU PUSH — run these steps every time:         │"
+	@echo "│                                                         │"
+	@echo "│  1. make format       Auto-fix code style              │"
+	@echo "│  2. make pre-push     Lint + secrets + fast tests      │"
+	@echo "│                                                         │"
+	@echo "│  One-time setup: make install-hooks                    │"
+	@echo "│  (runs pre-push automatically on every git push)       │"
+	@echo "└─────────────────────────────────────────────────────────┘"
+	@echo ""
+	@echo "Setup (run once after cloning):"
+	@echo "  make venv            Create .venv virtual environment"
 	@echo "  make install         Create .venv + install dev dependencies"
 	@echo "  make install-ci      Create .venv + install all deps including ML libs"
+	@echo "  make install-hooks   Install git pre-push hook (auto-runs make pre-push)"
 	@echo "  make sample-data     Download small fixture files from Zenodo → tests/fixtures/"
 	@echo ""
-	@echo "Tests (run locally before pushing):"
+	@echo "Before every push:"
+	@echo "  make format          Auto-fix code formatting (run this first)"
+	@echo "  make format-check    Check formatting without modifying files"
+	@echo "  make pre-push        Full pre-push gate: format-check + lint + secrets + tests"
+	@echo ""
+	@echo "Tests:"
 	@echo "  make test            Unit + smoke (fast, no network needed)"
-	@echo "  make test-unit       Unit tests only  — tests/unit/"
-	@echo "  make test-smoke      Smoke tests, no network (skips Approach B + Zenodo)"
-	@echo "  make test-smoke-full Smoke tests including Approach B (needs network)"
+	@echo "  make test-unit       Unit tests + terminal coverage — tests/unit/"
+	@echo "  make test-smoke      Smoke tests, no network (skips Zenodo)"
+	@echo "  make test-smoke-full Smoke tests including Zenodo (needs network)"
 	@echo "  make test-datasets   Dataset load tests (needs sample-data or network)"
 	@echo "  make test-pipeline   Integration: full train→predict→save→load per model"
 	@echo "  make test-integration All integration tests — tests/integration/"
@@ -36,19 +53,15 @@ help:
 	@echo ""
 	@echo "Code quality:"
 	@echo "  make lint            Ruff lint check"
-	@echo "  make format          Ruff auto-format"
-	@echo "  make typecheck       Mypy type check"
+	@echo "  make typecheck       Mypy type check (informational, non-blocking)"
+	@echo "  make coverage        Unit tests + XML/HTML/terminal coverage report"
 	@echo "  make audit           Dependency vulnerability scan (pip-audit)"
 	@echo "  make check-secrets   Scan for secrets in code"
-	@echo ""
-	@echo "Pre-push gate (run before every git push):"
-	@echo "  make pre-push        Secrets scan + lint + fast tests — blocks bad pushes"
-	@echo "  make install-hooks   Install git pre-push hook (auto-runs make pre-push)"
 	@echo ""
 	@echo "CI simulation:"
 	@echo "  make ci              Run everything exactly as GitLab CI does"
 	@echo ""
-	@echo "Other:"
+	@echo "Cleanup:"
 	@echo "  make clean           Remove caches and build artifacts"
 	@echo "  make clean-venv      Remove .venv/ (re-run 'make venv' to recreate)"
 	@echo "  make clean-fixtures  Remove fixture parquet files (forces re-download)"
@@ -100,7 +113,11 @@ test: test-unit test-smoke
 
 test-unit:
 	@echo "→ Running unit tests..."
-	$(PYTEST) tests/unit/ -v
+	mkdir -p coverage
+	$(PYTEST) tests/unit/ -v \
+	    --cov=seanergys_modelzoo \
+	    --cov-report=xml:coverage/cobertura-coverage.xml \
+	    --cov-report=term-missing
 
 test-smoke:
 	@echo "→ Running smoke tests (no network — Approach A contract checks, model discovery)..."
@@ -145,10 +162,24 @@ format:
 	@echo "→ Running ruff format..."
 	$(PYTHON) -m ruff format seanergys_modelzoo ci tests
 
+format-check:
+	@echo "→ Checking code formatting (no changes made)..."
+	$(PYTHON) -m ruff format --check seanergys_modelzoo ci tests
+
 typecheck:
 	@echo "→ Running mypy..."
 	$(PYTHON) -m pip install -q mypy types-PyYAML 2>/dev/null || true
 	-$(PYTHON) -m mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
+
+coverage:
+	@echo "→ Running unit tests with coverage report..."
+	mkdir -p coverage
+	$(PYTEST) tests/unit/ -v \
+	    --cov=seanergys_modelzoo \
+	    --cov-report=xml:coverage/cobertura-coverage.xml \
+	    --cov-report=html:coverage/html \
+	    --cov-report=term-missing
+	@echo "✓ HTML report: coverage/html/index.html"
 
 audit:
 	@echo "→ Running dependency vulnerability scan..."
@@ -171,7 +202,7 @@ install-hooks:
 	@chmod +x .git/hooks/pre-push
 	@echo "✓ Hook installed — 'make pre-push' will run automatically on every git push"
 
-pre-push: check-secrets lint test
+pre-push: format-check check-secrets lint test
 	@echo ""
 	@echo "✓ Pre-push checks passed — safe to push"
 
@@ -185,7 +216,7 @@ ci:
 	@echo "════════════════════════════════════════"
 	@echo ""
 	@echo "── Stage 1: sanity ──"
-	find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 python -m py_compile && echo "✓ syntax OK"
+	find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 $(PYTHON) -m py_compile && echo "✓ syntax OK"
 	test -f pyproject.toml && test -d seanergys_modelzoo && test -d ci && test -d tests && echo "✓ structure OK"
 	@echo ""
 	@echo "── Stage 2: validate ──"
@@ -197,9 +228,14 @@ ci:
 	-$(PYTHON) -m mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
 	@echo ""
 	@echo "── Stage 4: test ──"
-	$(PYTEST) tests/unit/ -v
-	$(PYTEST) tests/smoke/ -v -m "not zenodo"
-	$(PYTEST) tests/integration/ -v
+	mkdir -p coverage
+	$(PYTEST) tests/unit/ -v \
+	    --cov=seanergys_modelzoo \
+	    --cov-report=xml:coverage/cobertura-coverage.xml \
+	    --cov-report=term-missing
+	$(PYTEST) tests/smoke/test_models_smoke.py -v
+	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_datasets_smoke.py -v -m "not zenodo"
+	CI_SKIP_ZENODO=1 $(PYTEST) tests/integration/ -v
 	@echo ""
 	@echo "✓ CI simulation complete"
 
@@ -207,7 +243,7 @@ ci:
 # Clean
 # -----------------------------------------------------------------------------
 clean:
-	rm -rf .pytest_cache .ruff_cache build/ dist/ *.egg-info
+	rm -rf .pytest_cache .ruff_cache build/ dist/ *.egg-info coverage/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "✓ Cleaned caches and build artifacts"
 

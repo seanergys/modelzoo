@@ -241,14 +241,13 @@ class MACK(SeanergysSklearnModel):
                 model_hyperparameters={"n_jobs": -1},
             )
 
-            # Define pclass creation
             def preprocess_fdata(df):
                 df["pclass"] = model_fdata.transform_kmeans(
                     df.flops.values, df.memory_bw.values, fit=True
                 )
                 return df
 
-            fdata = FDataDataset(
+            ds_params = SeanergysDatasetParams(
                 use_zenodo_url=True,
                 files=["23_12", "24_01"],
                 is_dummy=get_dummy_data,
@@ -261,8 +260,13 @@ class MACK(SeanergysSklearnModel):
                 input_features=["embedding"],
                 output_features=["mem_compute_bound"],
             )
-            data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
-            return model_fdata, data_loader_fdata
+            return {
+                "f-data": (
+                    model_fdata,
+                    FDataDataset,
+                    (ds_params, SeanergysDataloaderParams(batch_size=1)),
+                )
+            }
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 

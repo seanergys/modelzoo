@@ -156,7 +156,7 @@ class JPCP(SeanergysSklearnModel):
             )
 
             model_fdata.logger.info("Training on FData")
-            fdata = FDataDataset(
+            ds_params = SeanergysDatasetParams(
                 use_zenodo_url=True,
                 is_dummy=get_dummy_data,
                 files=["23_12", "24_01"],
@@ -171,8 +171,13 @@ class JPCP(SeanergysSklearnModel):
                 input_features=["embedding"],
                 output_features=["avgpcon", "nnuma"],
             )
-            data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
-            return model_fdata, data_loader_fdata
+            return {
+                "f-data": (
+                    model_fdata,
+                    FDataDataset,
+                    (ds_params, SeanergysDataloaderParams(batch_size=1)),
+                )
+            }
 
         model_pm100 = cls(
             embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1}

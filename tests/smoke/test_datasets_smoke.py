@@ -62,7 +62,13 @@ def _collect_dataset_configs_from_models():
     """
     Collect unique (dataset_cls, ds_params) from all model get_train_config() calls.
     Deduplicated by dataset class name so each dataset is loaded only once.
+
+    Skipped when CI_SKIP_ZENODO=1 because some models instantiate datasets
+    (which connect to Zenodo) inside get_train_config(), causing a hang during
+    pytest collection even before -m "not zenodo" can filter any tests.
     """
+    if os.environ.get("CI_SKIP_ZENODO"):
+        return {}
     seen = {}
     for model_name, model_cls in MODEL_CLASSES.items():
         try:
