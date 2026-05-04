@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -29,7 +29,8 @@ class SeanergysModelMetadata(BaseModel):
     # --- Timestamps ---
     # created_at is auto-populated with the current UTC time if not provided
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Model creation timestamp"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Model creation timestamp",
     )
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
@@ -86,7 +87,7 @@ class SeanergysModelMetadata(BaseModel):
 
     def _touch(self) -> None:
         """Update the updated_at timestamp to the current UTC time."""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def set_field(self, field: str, value: Any) -> None:
         """

@@ -44,6 +44,7 @@ variables:
 # Full ML stack (torch, sklearn, xgboost, sentence-transformers, pyarrow)
 # torch is reinstalled as CPU-only after poetry install; python:3.13-slim has no
 # CUDA/NCCL, so the default PyPI CUDA wheel fails with undefined symbol errors.
+# We pin the same version that poetry locked to avoid a mismatch.
 .install_ci:
   image: python:3.13-slim
   cache:
@@ -54,7 +55,9 @@ variables:
     - pip install --quiet "poetry==${POETRY_VERSION}"
     - poetry config virtualenvs.create false
     - poetry install --no-interaction --with dev,ci
-    - pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+    - TORCH_VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
+    - pip install --quiet "torch==${TORCH_VER}" --index-url https://download.pytorch.org/whl/cpu
+    - pip uninstall -y nvidia-nccl-cu12 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # STAGE 1: SANITY
@@ -184,7 +187,9 @@ test:integration:
     - pip install --quiet "poetry==${POETRY_VERSION}"
     - poetry config virtualenvs.create false
     - poetry install --no-interaction --with dev,ci
-    - pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+    - TORCH_VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
+    - pip install --quiet "torch==${TORCH_VER}" --index-url https://download.pytorch.org/whl/cpu
+    - pip uninstall -y nvidia-nccl-cu12 2>/dev/null || true
     - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
   script:
     - CI_SKIP_ZENODO=1 poetry run pytest tests/integration/ -v
