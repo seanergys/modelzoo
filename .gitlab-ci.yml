@@ -128,7 +128,7 @@ lint:mypy:
   stage: lint
   image: python:3.13-slim
   script:
-    - pip install --quiet mypy types-PyYAML
+    - pip install --quiet mypy types-PyYAML pydantic
     - mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
   allow_failure: true
 
