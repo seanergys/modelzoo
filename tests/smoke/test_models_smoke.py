@@ -82,7 +82,9 @@ def test_model_instantiation(model_name, model_cls):
     assert model is not None
     assert hasattr(model, "model_name"), f"{model_name}: model_name attribute missing"
     for method in ("train", "predict", "save", "load"):
-        assert hasattr(model, method), f"{model_name}: missing required method '{method}'"
+        assert hasattr(model, method), (
+            f"{model_name}: missing required method '{method}'"
+        )
 
 
 # ---------------------------------------------------------------------------
