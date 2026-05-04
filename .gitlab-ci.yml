@@ -190,7 +190,20 @@ test:integration:
     - pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
     - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
   script:
-    - CI_SKIP_ZENODO=1 poetry run pytest tests/integration/ -v
+    - mkdir -p coverage
+    - CI_SKIP_ZENODO=1 poetry run pytest tests/unit/ tests/smoke/ tests/integration/
+        -v -m "not zenodo"
+        --cov=seanergys_modelzoo
+        --cov-report=xml:coverage/cobertura-coverage.xml
+        --cov-report=term-missing
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 1 week
   allow_failure: false
 
 # Dependency vulnerability scan
