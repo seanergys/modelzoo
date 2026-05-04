@@ -4,7 +4,6 @@ import inspect
 
 import pytest
 from pydantic import ValidationError
-from torch.utils.data import DataLoader
 
 from seanergys_modelzoo.models.common.seanergys_configurator import (
     SeanergysDataloaderParams,
@@ -112,6 +111,8 @@ def test_dataloader_params_to_dict_keys_match_pytorch_dataloader():
     to_dict() keys must match PyTorch DataLoader's signature so that
     DataLoader(**params.to_dict()) works without extra filtering.
     """
+    from torch.utils.data import DataLoader
+
     pytorch_keys = set(inspect.signature(DataLoader.__init__).parameters) - {
         "self",
         "dataset",

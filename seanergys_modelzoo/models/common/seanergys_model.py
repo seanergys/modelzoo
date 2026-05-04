@@ -45,8 +45,8 @@ class SeanergysModel(BaseModel, ABC):
     logger: SeanergysLogger = Field(
         default_factory=SeanergysLogger, description="Logger instance for tracking"
     )
-    metadata: Optional[SeanergysModelMetadata | dict] = Field(
-        default_factory=SeanergysModelMetadata,
+    metadata: Optional[SeanergysModelMetadata] = Field(
+        default=None,
         description="SeanergysModelMetadata instance storing the metadata for the model",
     )
 
@@ -59,15 +59,7 @@ class SeanergysModel(BaseModel, ABC):
 
         # Initialize metadata
         if not self.metadata:
-            self.metadata = SeanergysModelMetadata(
-                name=self.model_name,
-                created_at=datetime.now().isoformat(),
-                task_type=self.task_type,
-            )
-
-        else:
-            if isinstance(self.metadata, dict):
-                self.metadata = SeanergysModelMetadata.from_dict(self.metadata)
+            self.metadata = SeanergysModelMetadata(name=self.model_name)
         # Initialize logger if not provided
         if self.logger is None:
             self.logger = SeanergysLogger()
@@ -83,14 +75,13 @@ class SeanergysModel(BaseModel, ABC):
         This method should define all model components and architecture.
         Must be implemented by subclasses.
         """
-        return self
 
     @model_validator(mode="after")
     def validate_model(self) -> "SeanergysModel":
         """
         Implement to validate the model
         """
-        pass
+        return self
 
     @abstractmethod
     def train(
@@ -139,7 +130,10 @@ class SeanergysModel(BaseModel, ABC):
 
     @abstractmethod
     def evaluate(
-        self, data_loader: SeanergysDataloader, metrics: List[Callable] = None, **kwargs
+        self,
+        data_loader: SeanergysDataloader,
+        metrics: Optional[List[Callable]] = None,
+        **kwargs,
     ) -> List:
         """
         Evaluate model performance on input data.
@@ -212,16 +206,9 @@ class SeanergysModel(BaseModel, ABC):
         Returns:
             Model metadata dictionary
         """
-        return self.metadata.copy()
-
-    def get_training_history(self) -> Dict[str, List[float]]:
-        """
-        Get training history.
-
-        Returns:
-            Training history dictionary
-        """
-        return self.training_history.copy()
+        if self.metadata is None:
+            return {}
+        return self.metadata.model_dump()
 
     def _save_metadata(self, path: Union[str, Path]) -> None:
         """
@@ -232,11 +219,9 @@ class SeanergysModel(BaseModel, ABC):
         """
         path = Path(path)
         metadata_path = path.parent / f"{path.stem}_metadata.json"
-        to_dump = (
-            self.metadata.model_dump(mode="json")
-            if hasattr(self.metadata, "model_dump")
-            else self.metadata
-        )
+        if self.metadata is None:
+            return
+        to_dump = self.metadata.model_dump(mode="json")
         with open(metadata_path, "w") as f:
             json.dump(to_dump, f, indent=2)
 
@@ -261,9 +246,10 @@ class SeanergysModel(BaseModel, ABC):
         Note:
             Subclasses can override this to provide framework-specific summaries
         """
+        created = self.metadata.created_at if self.metadata else "unknown"
         summary_lines = [
             f"Model: {self.model_name}",
-            f"Created: {self.metadata.get('created_at', 'unknown')}",
+            f"Created: {created}",
             f"Is Trained: {self.is_trained}",
         ]
 

@@ -13,6 +13,9 @@ from seanergys_modelzoo.models.common.seanergys_model import (
     SeanergysModel,
     SeanergysModelTask,
 )
+from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+    SeanergysModelMetadata,
+)
 
 
 class SeanergysSklearnModel(SeanergysModel):
@@ -101,7 +104,8 @@ class SeanergysSklearnModel(SeanergysModel):
                     f"Training on {len(train_data_loader)} batches via partial_fit "
                     f"({len(train_data_loader.dataset)} total samples)"
                 )
-                all_y_true, all_y_pred = [], []
+                all_y_true: list = []
+                all_y_pred: list = []
                 for X_batch, y_batch in train_data_loader:
                     X_np = self._to_numpy(X_batch)
                     y_np = self._to_numpy(y_batch)
@@ -127,6 +131,7 @@ class SeanergysSklearnModel(SeanergysModel):
             # Update state
             self.is_trained = True
             training_time = time.time() - start_time
+            assert self.metadata is not None
             self.metadata.set_field("last_trained", datetime.now().isoformat())
             self.metadata.set_field("training_time", training_time)
             if train_loss_value is not None:
@@ -221,7 +226,10 @@ class SeanergysSklearnModel(SeanergysModel):
             raise
 
     def evaluate(
-        self, data_loader: SeanergysDataloader, metrics: List[Callable] = None, **kwargs
+        self,
+        data_loader: SeanergysDataloader,
+        metrics: Optional[List[Callable]] = None,
+        **kwargs,
     ) -> List:
         """
         Evaluate model performance on input data.
@@ -325,10 +333,6 @@ class SeanergysSklearnModel(SeanergysModel):
             task_type = SeanergysModelTask[info["task_type"]]
 
             # 4. Build a fresh (unfitted) instance via Pydantic
-            from seanergys_modelzoo.models.common.seanergys_model_metadata import (
-                SeanergysModelMetadata,
-            )
-
             instance = cls(
                 model_class=model_class,
                 task_type=task_type,
@@ -347,7 +351,7 @@ class SeanergysSklearnModel(SeanergysModel):
             metadata_path = path.parent / f"{path.stem}_metadata.json"
             if metadata_path.exists():
                 with open(metadata_path, "r") as f:
-                    instance.metadata = json.load(f)
+                    instance.metadata = SeanergysModelMetadata.from_dict(json.load(f))
 
             instance.logger.info(f"Model loaded from {path}")
             return instance
@@ -356,16 +360,11 @@ class SeanergysSklearnModel(SeanergysModel):
             raise RuntimeError(f"Error loading model: {e}") from e
 
     def _set_metadata(self, key: str, value: Any) -> None:
-        """Update metadata (supports dict or SeanergysModelMetadata)."""
-        if isinstance(self.metadata, dict):
-            self.metadata[key] = value
-        elif hasattr(self.metadata, "hyperparameters"):
-            # SeanergysModelMetadata: store training info in hyperparameters dict
-            self.metadata.hyperparameters[key] = value
-            if hasattr(self.metadata, "_touch"):
-                self.metadata._touch()
-        else:
-            setattr(self.metadata, key, value)
+        """Update a field inside the model's metadata hyperparameters dict."""
+        if self.metadata is None:
+            return
+        self.metadata.hyperparameters[key] = value
+        self.metadata._touch()
 
     @staticmethod
     def _to_numpy(tensor: Any) -> np.ndarray:

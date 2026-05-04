@@ -77,11 +77,7 @@ class MACK(SeanergysSklearnModel):
         values.setdefault("task_type", SeanergysModelTask.CLASSIFICATION)
         values.setdefault(
             "metadata",
-            SeanergysModelMetadata(
-                name="MACK",
-                created_at=datetime.now().isoformat(),
-                task_type=SeanergysModelTask.CLASSIFICATION,
-            ),
+            SeanergysModelMetadata(name="MACK"),
         )
         return values
 
@@ -145,6 +141,7 @@ class MACK(SeanergysSklearnModel):
             List of tuples combining flops and memory bandwidth labels
         """
 
+        assert self.kmeans_flops is not None, "kmeans_flops not initialised"
         flops_labels = (
             self.kmeans_flops.fit_predict(flops.reshape(-1, 1))
             if fit
@@ -157,6 +154,7 @@ class MACK(SeanergysSklearnModel):
         label_mapping_flops[sorted_centroid_indices_flops] = np.arange(self.k_flops)
         flops_labels = label_mapping_flops[flops_labels]
 
+        assert self.kmeans_memory_bw is not None, "kmeans_memory_bw not initialised"
         memory_bw_labels = (
             self.kmeans_memory_bw.fit_predict(memory_bw.reshape(-1, 1))
             if fit
@@ -234,7 +232,7 @@ class MACK(SeanergysSklearnModel):
 
         """
         if dataset_name == "f-data":
-            model_fdata = cls(
+            model_fdata = cls(  # type: ignore[call-arg]
                 embedding_type=Embedding.SB,
                 k_flops=2,
                 k_memory_bw=2,
@@ -273,7 +271,7 @@ class MACK(SeanergysSklearnModel):
     @classmethod
     def get_test_config(
         cls,
-        model: SeanergysModel,
+        model: "MACK",
         dataset_name: str = "f-data",
         get_dummy_data: bool = False,
     ) -> Dict[str, Tuple[SeanergysModel, SeanergysDataloader]]:
@@ -305,7 +303,7 @@ class MACK(SeanergysSklearnModel):
                 output_features=["mem_compute_bound"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
-            return data_loader_fdata
+            return {"f-data": (model, data_loader_fdata)}
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
@@ -365,6 +363,7 @@ class MACK(SeanergysSklearnModel):
 
         try:
             obj = super().load(path=path, **kwargs)
+            assert isinstance(obj, cls), f"Expected {cls.__name__}, got {type(obj).__name__}"
             obj.kmeans_flops = joblib.load(
                 f"{os.path.join(str(path), 'kmeans_flops.joblib')}"
             )
