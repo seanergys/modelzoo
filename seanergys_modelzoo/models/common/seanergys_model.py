@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, Optional, Union, List, Literal, Tuple, Callable
+from typing import Any, Dict, Iterable, Optional, Union, List, Tuple, Callable
 from pathlib import Path
 import json
-import pickle
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
-from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 
 

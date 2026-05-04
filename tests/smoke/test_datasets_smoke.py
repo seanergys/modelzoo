@@ -65,12 +65,12 @@ def _collect_dataset_configs_from_models():
     for model_name, model_cls in MODEL_CLASSES.items():
         try:
             config = model_cls.get_train_config()
+            for entry_name, (_, dataset_cls, (ds_params, _dl)) in config.items():
+                key = dataset_cls.__name__
+                if key not in seen:
+                    seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
         except Exception:
             continue
-        for entry_name, (_, dataset_cls, (ds_params, _dl)) in config.items():
-            key = dataset_cls.__name__
-            if key not in seen:
-                seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
     return seen
 
 

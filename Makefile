@@ -1,9 +1,9 @@
 # seanergys-modelzoo Makefile
 # Run `make help` for usage
 
-.PHONY: help install install-ci sample-data \
+.PHONY: help venv install install-ci install-hooks sample-data \
         test test-unit test-smoke test-smoke-full test-datasets test-integration test-pipeline test-all \
-        lint format typecheck audit check-secrets ci clean clean-fixtures clean-all
+        lint format typecheck audit check-secrets pre-push ci clean clean-venv clean-fixtures clean-all
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -19,8 +19,9 @@ help:
 	@echo "========================================"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make install         Install dev dependencies (pytest, ruff, black, pydantic)"
-	@echo "  make install-ci      Install all dependencies including ML libs (torch, sklearn...)"
+	@echo "  make venv            Create .venv virtual environment (run once per clone)"
+	@echo "  make install         Create .venv + install dev dependencies"
+	@echo "  make install-ci      Create .venv + install all deps including ML libs"
 	@echo "  make sample-data     Download small fixture files from Zenodo → tests/fixtures/"
 	@echo ""
 	@echo "Tests (run locally before pushing):"
@@ -40,13 +41,18 @@ help:
 	@echo "  make audit           Dependency vulnerability scan (pip-audit)"
 	@echo "  make check-secrets   Scan for secrets in code"
 	@echo ""
+	@echo "Pre-push gate (run before every git push):"
+	@echo "  make pre-push        Secrets scan + lint + fast tests — blocks bad pushes"
+	@echo "  make install-hooks   Install git pre-push hook (auto-runs make pre-push)"
+	@echo ""
 	@echo "CI simulation:"
 	@echo "  make ci              Run everything exactly as GitLab CI does"
 	@echo ""
 	@echo "Other:"
 	@echo "  make clean           Remove caches and build artifacts"
+	@echo "  make clean-venv      Remove .venv/ (re-run 'make venv' to recreate)"
 	@echo "  make clean-fixtures  Remove fixture parquet files (forces re-download)"
-	@echo "  make clean-all       clean + clean-fixtures"
+	@echo "  make clean-all       clean + clean-venv + clean-fixtures"
 	@echo ""
 	@echo "Options:"
 	@echo "  CI_SKIP_ZENODO=1 make test-datasets    Skip Zenodo, use local fixtures only"
@@ -56,10 +62,22 @@ help:
 # -----------------------------------------------------------------------------
 # Setup
 # -----------------------------------------------------------------------------
-install:
+
+# Real file target — Make skips creation if .venv/ already exists
+$(VENV):
+	@echo "→ Creating virtual environment in $(VENV)/..."
+	python3 -m venv $(VENV)
+	$(VENV)/bin/pip install --upgrade pip --quiet
+	@echo "✓ Virtual environment ready — activate with: source $(VENV)/bin/activate"
+
+venv: $(VENV)
+
+install: $(VENV)
+	poetry config virtualenvs.in-project true
 	poetry install --with dev
 
-install-ci:
+install-ci: $(VENV)
+	poetry config virtualenvs.in-project true
 	poetry install --with dev,ci
 
 # -----------------------------------------------------------------------------
@@ -143,6 +161,21 @@ check-secrets:
 	@./ci/check_secrets.sh .
 
 # -----------------------------------------------------------------------------
+# Pre-push gate — fast checks that must pass before git push
+# -----------------------------------------------------------------------------
+
+# Installs a git hook so 'git push' runs pre-push automatically
+install-hooks:
+	@echo "→ Installing git pre-push hook..."
+	@printf '#!/bin/sh\nexec make pre-push\n' > .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Hook installed — 'make pre-push' will run automatically on every git push"
+
+pre-push: check-secrets lint test
+	@echo ""
+	@echo "✓ Pre-push checks passed — safe to push"
+
+# -----------------------------------------------------------------------------
 # CI simulation — mirrors GitLab pipeline exactly
 # -----------------------------------------------------------------------------
 ci:
@@ -178,9 +211,13 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "✓ Cleaned caches and build artifacts"
 
+clean-venv:
+	rm -rf $(VENV)
+	@echo "✓ Removed $(VENV)/ — run 'make venv' or 'make install' to recreate"
+
 clean-fixtures:
 	rm -rf tests/fixtures/sample_data/
 	@echo "✓ Cleared fixture files (run 'make sample-data' to recreate)"
 
-clean-all: clean clean-fixtures
+clean-all: clean clean-venv clean-fixtures
 	@echo "✓ Cleaned everything"

@@ -1,5 +1,4 @@
-import os
-from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, Iterable
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
 from pathlib import Path
 import time
 
@@ -8,8 +7,6 @@ import torch
 from pydantic import Field, model_validator
 
 from seanergys_modelzoo.datasets.common.seanergys_parquet_dataset import SeanergysParquetDataset
-from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger
-
 
 class FDataDataset(SeanergysParquetDataset):
     """

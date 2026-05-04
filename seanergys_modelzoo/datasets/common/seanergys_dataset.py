@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union, List, Callable
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from torch.utils.data import Dataset
 
 from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger 

@@ -1,8 +1,7 @@
 from datetime import datetime
 import os
 from pathlib import Path
-import time
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from pydantic import Field, model_validator
@@ -16,7 +15,8 @@ from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataload
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
+from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams, SeanergysModelParams
+from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
 
@@ -104,17 +104,17 @@ class JPCP(SeanergysSklearnModel):
         return arr
                             
     @classmethod
-    def get_train_config(cls) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysModelParams, SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for JPCP.
 
         """     
-        # Dictionary containing the configurations
-        if dataset_name == "f-data":       
-        
+        config_dict: Dict = {}
+        if dataset_name == "f-data":
+
             model_fdata = cls(embedding_type = Embedding.NONE, model_hyperparameters={"n_jobs": -1})
-            
-            model_fdata.logger.info(f"Training on FData")
+
+            model_fdata.logger.info("Training on FData")
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,
@@ -132,12 +132,9 @@ class JPCP(SeanergysSklearnModel):
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return model_fdata, data_loader_fdata
-        
-        # Load the fdata config
-        config_dict["fdata"] = (model_fdata, FDataDataset, (fdata_config, data_loader_fdata))
-        
+
         model_pm100 = cls(embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1})
-        model_pm100.logger.info(f"Training on PM100")
+        model_pm100.logger.info("Training on PM100")
 
         # FIXED by Mohsen (2026-03-23) — original used model_pm100.transform_embeddings as
         # preprocessing_functions, but transform_embeddings expects a numpy array while the
@@ -194,14 +191,14 @@ class JPCP(SeanergysSklearnModel):
         return config_dict
     
     @classmethod
-    def get_test_config(cls, saved_model_path: dict) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_test_config(cls, model: "JPCP", dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple[SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get testing configuration for JPCP. It requires the model and the dataset_name
 
         """     
         if dataset_name == "f-data":
         
-            model.logger.info(f"Testing on FData")       
+            model.logger.info("Testing on FData")       
                     
             fdata = FDataDataset(
                 use_zenodo_url=True,
@@ -221,7 +218,7 @@ class JPCP(SeanergysSklearnModel):
             return SeanergysDataloader(dataset=fdata, batch_size=1)
         elif dataset_name == "pm100":
             # Load the fdata config
-            model.logger.info(f"Testing on PM100")
+            model.logger.info("Testing on PM100")
             
             pm100 = PM100Dataset(
                 use_zenodo_url=True,

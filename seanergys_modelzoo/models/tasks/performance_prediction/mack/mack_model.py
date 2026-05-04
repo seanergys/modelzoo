@@ -2,9 +2,8 @@ from datetime import datetime
 from enum import Enum
 import os
 from pathlib import Path
-import pickle
 import joblib
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
@@ -140,21 +139,6 @@ class MACK(SeanergysSklearnModel):
             out += e[:idx].replace("\n", "")
         return out
 
-    def transform_embeddings(self, features: np.ndarray, encoder_weights:str = "google/embeddinggemma-300m") -> np.ndarray:
-        """
-        Concatenate feature values into strings and encode with SentenceTransformer.
-
-        Args:
-            features: 2D array of shape (n_samples, n_features)
-            encoder_weights: str containing the name of the encoder's weights, defaults to google/embeddinggemma-300m
-
-        Returns:
-            Embedding array of shape (n_samples, embedding_dim)
-        """
-        encoder = SentenceTransformer(encoder_weights)
-        sentences = [" ".join(str(val) for val in row) for row in features]
-        return encoder.encode(sentences)        
-    
     @classmethod
     def run_dummy_validation(cls):
         """
@@ -162,7 +146,7 @@ class MACK(SeanergysSklearnModel):
         """                
         
         model_fdata = cls(embedding_type = Embedding.SB, k_flops = 2, k_memory_bw = 2, model_hyperparameters={"n_jobs": -1})
-        model_fdata.logger.info(f"Validation on FData")
+        model_fdata.logger.info("Validation on FData")
         
         # Define pclass creation
         def preprocess_fdata(df):
@@ -181,7 +165,7 @@ class MACK(SeanergysSklearnModel):
         
     
     @classmethod
-    def get_train_config(cls) -> Dict[str, Tuple["MACK", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple["MACK", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MACK on FDATA.
 
@@ -212,13 +196,13 @@ class MACK(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
             
     @classmethod
-    def get_test_config(cls, saved_model_path:dict ) -> Dict[str, Tuple[SeanergysModel, SeanergysDataloader]]:
+    def get_test_config(cls, model: "MACK", dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple[SeanergysModel, SeanergysDataloader]]:
         """
         Get testing configuration for MACK on FDATA. It requires the model and the dataset_name
 
         """     
         if dataset_name == "f-data":
-            model.logger.info(f"Validation on FData")
+            model.logger.info("Validation on FData")
             
             # Define pclass creation
             def preprocess_fdata(df):

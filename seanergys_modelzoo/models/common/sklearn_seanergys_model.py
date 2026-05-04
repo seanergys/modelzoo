@@ -127,17 +127,10 @@ class SeanergysSklearnModel(SeanergysModel):
             # Update state
             self.is_trained = True
             training_time = time.time() - start_time
-<<<<<<< HEAD
             self.metadata.set_field("last_trained", datetime.now().isoformat())
             self.metadata.set_field("training_time", training_time)
             if train_loss_value is not None:
                 self.metadata.set_field("training_loss", train_loss_value)
-=======
-            self._set_metadata("last_trained", datetime.now().isoformat())
-            self._set_metadata("training_time", training_time)
-            if train_loss_value is not None:
-                self._set_metadata("training_loss", train_loss_value)
->>>>>>> 99ac65d (Implement integration testing framework and sample data generation)
 
             self.logger.info(f"Training completed in {training_time:.2f}s")
 
@@ -157,13 +150,8 @@ class SeanergysSklearnModel(SeanergysModel):
                         for metric in validation_metrics
                     }
                     val_time = time.time() - t0_val
-<<<<<<< HEAD
                     self.metadata.set_field("validation_metrics", val_metrics_values)
                     self.metadata.set_field("validation_time", val_time)
-=======
-                    self._set_metadata("validation_metrics", val_metrics_values)
-                    self._set_metadata("validation_time", val_time)
->>>>>>> 99ac65d (Implement integration testing framework and sample data generation)
                     self.logger.info(f"Validation metrics: {val_metrics_values}")
 
             # Persist in training_history

@@ -9,13 +9,12 @@ from sklearn.preprocessing import LabelEncoder
 from seanergys_modelzoo.models.common.seanergys_configurator import SeanergysDataloaderParams, SeanergysDatasetParams
 from sentence_transformers import SentenceTransformer
 import joblib
-from enum import Enum
 import numpy as np
 
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
-from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel, SeanergysModelTask
+from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
 from seanergys_modelzoo.models.common.seanergys_model_metadata import SeanergysModelMetadata
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import SeanergysSklearnModel
 
@@ -102,7 +101,7 @@ class MCBound(SeanergysSklearnModel):
     
         
     @classmethod
-    def get_train_config(cls) -> Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_train_config(cls, dataset_name: str = "f-data", get_dummy_data: bool = False) -> Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get training configuration for MCBound on FDATA.
 
@@ -129,14 +128,14 @@ class MCBound(SeanergysSklearnModel):
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
     
     @classmethod
-    def get_test_config(cls, saved_model_path:dict) ->Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
+    def get_test_config(cls, model: "MCBound", dataset_name: str = "f-data", get_dummy_data: bool = False) ->Dict[str, Tuple["MCBound", SeanergysDataset,Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]]]:
         """
         Get testing configuration for MCBound on FDATA. 
 
         """     
         if dataset_name == "f-data":
             
-            model.logger.info(f"Testing on FData")
+            model.logger.info("Testing on FData")
             fdata = FDataDataset(
                 use_zenodo_url=True,
                 is_dummy = get_dummy_data,

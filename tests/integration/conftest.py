@@ -8,7 +8,6 @@ with any model that implements get_train_config().
 """
 
 from pathlib import Path
-from typing import Optional, Tuple
 
 import pytest
 
