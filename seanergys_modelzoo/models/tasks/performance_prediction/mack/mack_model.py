@@ -1,9 +1,8 @@
-from datetime import datetime
 from enum import Enum
 import os
 from pathlib import Path
 import joblib
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 from seanergys_modelzoo.datasets.f_data import FDataDataset
@@ -54,7 +53,7 @@ class MACK(SeanergysSklearnModel):
     k_memory_bw: Optional[int] = Field(
         default=3, description="The k value for the kmeans_memory_bw"
     )
-    embedder: Optional[List] = Field(
+    embedder: Optional[Any] = Field(
         default=None,
         description="The list containing the embedder instances to encode the input labels.",
     )
@@ -142,6 +141,7 @@ class MACK(SeanergysSklearnModel):
         """
 
         assert self.kmeans_flops is not None, "kmeans_flops not initialised"
+        assert self.k_flops is not None
         flops_labels = (
             self.kmeans_flops.fit_predict(flops.reshape(-1, 1))
             if fit
@@ -155,6 +155,7 @@ class MACK(SeanergysSklearnModel):
         flops_labels = label_mapping_flops[flops_labels]
 
         assert self.kmeans_memory_bw is not None, "kmeans_memory_bw not initialised"
+        assert self.k_memory_bw is not None
         memory_bw_labels = (
             self.kmeans_memory_bw.fit_predict(memory_bw.reshape(-1, 1))
             if fit
@@ -271,14 +272,15 @@ class MACK(SeanergysSklearnModel):
     @classmethod
     def get_test_config(
         cls,
-        model: "MACK",
+        model: SeanergysModel,
         dataset_name: str = "f-data",
         get_dummy_data: bool = False,
-    ) -> Dict[str, Tuple[SeanergysModel, SeanergysDataloader]]:
+    ) -> Dict[str, Tuple["MACK", SeanergysDataloader]]:
         """
         Get testing configuration for MACK on FDATA. It requires the model and the dataset_name
 
         """
+        assert isinstance(model, MACK)
         if dataset_name == "f-data":
             model.logger.info("Validation on FData")
 
@@ -363,7 +365,9 @@ class MACK(SeanergysSklearnModel):
 
         try:
             obj = super().load(path=path, **kwargs)
-            assert isinstance(obj, cls), f"Expected {cls.__name__}, got {type(obj).__name__}"
+            assert isinstance(obj, cls), (
+                f"Expected {cls.__name__}, got {type(obj).__name__}"
+            )
             obj.kmeans_flops = joblib.load(
                 f"{os.path.join(str(path), 'kmeans_flops.joblib')}"
             )

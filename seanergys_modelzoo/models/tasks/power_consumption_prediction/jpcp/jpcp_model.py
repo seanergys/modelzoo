@@ -1,7 +1,6 @@
-from datetime import datetime
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from pydantic import Field, model_validator
@@ -53,7 +52,7 @@ class JPCP(SeanergysSklearnModel):
         model.save("models/jpcp.joblib")
     """
 
-    embedder: Optional[List] = Field(
+    embedder: Optional[Any] = Field(
         default=None,
         description="The list containing the embedder instances to encode the input labels.",
     )
@@ -77,11 +76,7 @@ class JPCP(SeanergysSklearnModel):
         values.setdefault("supported_datasets", [PM100Dataset, FDataDataset])
         values.setdefault(
             "metadata",
-            SeanergysModelMetadata(
-                name="JPCP",
-                created_at=datetime.now().isoformat(),
-                task_type=SeanergysModelTask.REGRESSION,
-            ),
+            SeanergysModelMetadata(name="JPCP"),
         )
 
         return values
@@ -117,7 +112,7 @@ class JPCP(SeanergysSklearnModel):
             return np.column_stack(
                 [
                     le.fit_transform(features[:, i])
-                    if bool
+                    if fit
                     else le.transform(features[:, i])
                     for i, le in enumerate(self.embedder)
                 ]
@@ -149,7 +144,7 @@ class JPCP(SeanergysSklearnModel):
         """
         config_dict: Dict = {}
         if dataset_name == "f-data":
-            model_fdata = cls(
+            model_fdata = cls(  # type: ignore[call-arg]
                 embedding_type=Embedding.NONE, model_hyperparameters={"n_jobs": -1}
             )
 
@@ -177,7 +172,7 @@ class JPCP(SeanergysSklearnModel):
                 )
             }
 
-        model_pm100 = cls(
+        model_pm100 = cls(  # type: ignore[call-arg]
             embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1}
         )
         model_pm100.logger.info("Training on PM100")
@@ -254,16 +249,12 @@ class JPCP(SeanergysSklearnModel):
         model: SeanergysModel,
         dataset_name: str = "f-data",
         get_dummy_data: bool = False,
-    ) -> Dict[
-        str,
-        Tuple[
-            SeanergysDataset, Tuple[SeanergysDatasetParams, SeanergysDataloaderParams]
-        ],
-    ]:
+    ) -> Dict[str, Tuple["JPCP", SeanergysDataloader]]:
         """
         Get testing configuration for JPCP. It requires the model and the dataset_name
 
         """
+        assert isinstance(model, JPCP)
         if dataset_name == "f-data":
             model.logger.info("Testing on FData")
 
@@ -282,7 +273,7 @@ class JPCP(SeanergysSklearnModel):
                 input_features=["embedding"],
                 output_features=["avgpcon", "nnuma"],
             )
-            return SeanergysDataloader(dataset=fdata, batch_size=1)
+            return {"f-data": (model, SeanergysDataloader(dataset=fdata, batch_size=1))}
         elif dataset_name == "pm100":
             # Load the fdata config
             model.logger.info("Testing on PM100")
@@ -308,7 +299,7 @@ class JPCP(SeanergysSklearnModel):
                 input_features=["num_nodes_req_cat", "user_id_cat"],
                 output_features=["node_power_consumption", "num_nodes_alloc"],
             )
-            return SeanergysDataloader(dataset=pm100, batch_size=1)
+            return {"pm100": (model, SeanergysDataloader(dataset=pm100, batch_size=1))}
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
 
@@ -360,6 +351,7 @@ class JPCP(SeanergysSklearnModel):
 
         try:
             obj = super().load(path=path, **kwargs)
+            assert isinstance(obj, cls)
             obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
             return obj
 

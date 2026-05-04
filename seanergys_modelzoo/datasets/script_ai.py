@@ -54,6 +54,7 @@ class SCRIPTAIDataset(SeanergysDataset):
                 "data_path must be provided or use_github_url must be True."
             )
 
+        assert self.metadata is not None
         self.metadata.update(
             {
                 "dataset_name": "SCRIPT-AI",
@@ -82,6 +83,7 @@ class SCRIPTAIDataset(SeanergysDataset):
         self._load_features()
         self._load_job_scripts()
 
+        assert self._df is not None
         self.stats.update(
             {
                 "load_time": time.time() - start_time,
@@ -173,7 +175,8 @@ class SCRIPTAIDataset(SeanergysDataset):
         valid_scripts = int(self._df["script"].notna().sum())
 
         self.logger.info(f"Found {valid_scripts} valid script files.")
-        self.metadata["valid_scripts"] = valid_scripts
+        if self.metadata is not None:
+            self.metadata["valid_scripts"] = valid_scripts
 
     def __len__(self) -> int:
         """Return the number of samples in the dataset."""
@@ -222,7 +225,7 @@ class SCRIPTAIDataset(SeanergysDataset):
                 "std": numeric_cols.std().to_dict(),
             }
 
-        stats["valid_scripts"] = self.metadata.get("valid_scripts", 0)
+        stats["valid_scripts"] = (self.metadata or {}).get("valid_scripts", 0)
         return stats
 
     def summary(self) -> str:
@@ -235,6 +238,6 @@ class SCRIPTAIDataset(SeanergysDataset):
             f"Total Samples:  {n_samples}",
             f"Output Features:{self.output_features}",
             f"Load Time:      {self.stats.get('load_time', 0):.2f}s",
-            f"Valid Scripts:  {self.metadata.get('valid_scripts', 'N/A')}",
+            f"Valid Scripts:  {(self.metadata or {}).get('valid_scripts', 'N/A')}",
         ]
         return "\n".join(lines)

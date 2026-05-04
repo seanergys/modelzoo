@@ -14,7 +14,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 
 EXCLUDE_DIRS = {

@@ -1,7 +1,6 @@
-from datetime import datetime
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 from sklearn.ensemble import RandomForestClassifier
 from pydantic import model_validator, Field
 from enum import Enum
@@ -52,7 +51,7 @@ class MCBound(SeanergysSklearnModel):
         model.save("models/mcbound.joblib")
     """
 
-    embedder: Optional[List] = Field(
+    embedder: Optional[Any] = Field(
         default=None,
         description="The list containing the embedder instances to encode the input labels.",
     )
@@ -75,11 +74,7 @@ class MCBound(SeanergysSklearnModel):
         values.setdefault("task_type", SeanergysModelTask.CLASSIFICATION)
         values.setdefault(
             "metadata",
-            SeanergysModelMetadata(
-                name="MCBound",
-                created_at=datetime.now().isoformat(),
-                task_type=SeanergysModelTask.CLASSIFICATION,
-            ),
+            SeanergysModelMetadata(name="MCBound"),
         )
         return values
 
@@ -114,7 +109,7 @@ class MCBound(SeanergysSklearnModel):
             return np.column_stack(
                 [
                     le.fit_transform(features[:, i])
-                    if bool
+                    if fit
                     else le.transform(features[:, i])
                     for i, le in enumerate(self.embedder)
                 ]
@@ -145,7 +140,7 @@ class MCBound(SeanergysSklearnModel):
 
         """
         if dataset_name == "f-data":
-            model_fdata = cls(
+            model_fdata = cls(  # type: ignore[call-arg]
                 embedding_type=Embedding.NONE, model_hyperparameters={"n_jobs": -1}
             )
 
@@ -177,18 +172,12 @@ class MCBound(SeanergysSklearnModel):
         model: SeanergysModel,
         dataset_name: str = "f-data",
         get_dummy_data: bool = False,
-    ) -> Dict[
-        str,
-        Tuple[
-            "MCBound",
-            Type[SeanergysDataset],
-            Tuple[SeanergysDatasetParams, SeanergysDataloaderParams],
-        ],
-    ]:
+    ) -> Dict[str, Tuple["MCBound", SeanergysDataloader]]:
         """
         Get testing configuration for MCBound on FDATA.
 
         """
+        assert isinstance(model, MCBound)
         if dataset_name == "f-data":
             model.logger.info("Testing on FData")
             fdata = FDataDataset(
@@ -204,7 +193,7 @@ class MCBound(SeanergysSklearnModel):
                 output_features=["mem_compute_bound"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
-            return data_loader_fdata
+            return {"f-data": (model, data_loader_fdata)}
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
@@ -256,6 +245,7 @@ class MCBound(SeanergysSklearnModel):
 
         try:
             obj = super().load(path=path, **kwargs)
+            assert isinstance(obj, cls)
             obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
             return obj
 

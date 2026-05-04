@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Optional, Tuple, TypeVar, Union
+from typing import Optional, Tuple, Union
 
 import pandas as pd
 import torch
@@ -70,6 +70,7 @@ class PM100Dataset(SeanergysParquetDataset):
             self.columns = self.input_features + self.output_features
 
         # Enrich metadata with PM100-specific info
+        assert self.metadata is not None
         self.metadata.update(
             {
                 "dataset_name": "PM100",
@@ -86,7 +87,7 @@ class PM100Dataset(SeanergysParquetDataset):
             if not (self.filters):
                 self.filters = []
             self.filters += [
-                [("submit_time", "<=", pd.Timestamp("2020-05-01", tz="UTC"))]
+                [("submit_time", "<=", pd.Timestamp("2020-05-01", tz="UTC"))]  # type: ignore
             ]
 
         self.load_data()
@@ -118,7 +119,7 @@ class PM100Dataset(SeanergysParquetDataset):
             )
 
             # Apply preprocessing: each entry is (columns, function, output_feature_name)
-            for fn in self.preprocessing_functions:
+            for fn in (self.preprocessing_functions or []):
                 self._df = fn(self._df)
 
             # Optionally persist to disk
@@ -152,7 +153,7 @@ class PM100Dataset(SeanergysParquetDataset):
             raise
 
     def __getitem__(
-        self, idx: int, return_tensor: bool = False, dtype: Union[str, TypeVar] = None
+        self, idx: int, return_tensor: bool = False, dtype: Optional[torch.dtype] = None
     ) -> Tuple:
         """
         Retrieve a single sample from the dataset.

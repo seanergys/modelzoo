@@ -102,7 +102,7 @@ class SeanergysSklearnModel(SeanergysModel):
             if supports_partial_fit:
                 self.logger.info(
                     f"Training on {len(train_data_loader)} batches via partial_fit "
-                    f"({len(train_data_loader.dataset)} total samples)"
+                    f"({len(train_data_loader.dataset)} total samples)"  # type: ignore[arg-type]
                 )
                 all_y_true: list = []
                 all_y_pred: list = []

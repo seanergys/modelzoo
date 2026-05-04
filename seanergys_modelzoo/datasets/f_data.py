@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Dict, List, Optional, Tuple, Union
 from pathlib import Path
 import time
 
@@ -119,6 +119,7 @@ class FDataDataset(SeanergysParquetDataset):
             self.columns = self.input_features + self.output_features
 
         # Enrich metadata with F-DATA specific info
+        assert self.metadata is not None
         self.metadata.update(
             {
                 "dataset_name": "F-DATA",
@@ -234,12 +235,13 @@ class FDataDataset(SeanergysParquetDataset):
                 self.logger.info(f"Merged F-DATA with shape: {self._df.shape}")
 
             else:
+                assert self.data_path is not None
                 data_path = Path(self.data_path)
 
                 if data_path.is_dir():
                     self.logger.info(f"Loading F-DATA from directory: {data_path}")
                     parquet_files = sorted(data_path.glob("*.parquet"))
-                    parquet_files = [f for f in parquet_files if f in self._file_list]
+                    parquet_files = [f for f in parquet_files if self._file_list is None or f.stem in self._file_list]
                     if not parquet_files:
                         raise ValueError(f"No parquet files found in {data_path}")
 
@@ -264,7 +266,7 @@ class FDataDataset(SeanergysParquetDataset):
                     self.logger.info(f"Loaded F-DATA with shape: {self._df.shape}")
 
             # Apply preprocessing: each entry is (columns, function, output_feature_name)
-            for fn in self.preprocessing_functions:
+            for fn in (self.preprocessing_functions or []):
                 self._df = fn(self._df)
 
             # Optionally persist merged data to disk
@@ -299,7 +301,7 @@ class FDataDataset(SeanergysParquetDataset):
             raise
 
     def __getitem__(
-        self, idx: int, return_tensor: bool = False, dtype: Union[str, TypeVar] = None
+        self, idx: int, return_tensor: bool = False, dtype: Optional[torch.dtype] = None
     ) -> Tuple:
         """
         Retrieve a single sample from the dataset.
@@ -317,6 +319,7 @@ class FDataDataset(SeanergysParquetDataset):
                 f"Index {idx} out of range for dataset of size {len(self)}"
             )
 
+        assert self._df is not None
         input_data = self._df[self.input_features].iloc[idx].values
         output_data = self._df[self.output_features].iloc[idx].values
 
@@ -347,7 +350,7 @@ class FDataDataset(SeanergysParquetDataset):
         partition_stats = {}
         for partition in self._df["partition"].unique():
             partition_jobs = self._df[self._df["partition"] == partition]
-            partition_stats[partition] = {"n_jobs": len(partition_jobs)}
+            partition_stats[str(partition)] = {"n_jobs": float(len(partition_jobs))}
 
             for col, key in [("duration", "avg_duration"), ("n_nodes", "avg_nodes")]:
                 if col in partition_jobs.columns:

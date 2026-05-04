@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple, Union, List, Callable
+from typing import Any, Dict, Optional, Tuple, Union, List
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from torch.utils.data import Dataset
@@ -31,7 +31,7 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional metadata about the dataset"
     )
-    preprocessing_functions: Optional[List[Callable]] = Field(
+    preprocessing_functions: Optional[List[Any]] = Field(
         default_factory=list, description="Preprocessing functions to apply"
     )
     is_dummy: Optional[bool] = Field(
@@ -100,6 +100,6 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
     def get_metadata(self) -> Dict[str, Any]:
         """Return dataset metadata."""
         return {
-            **self.metadata,
+            **(self.metadata or {}),
             "stats": self.stats,
         }

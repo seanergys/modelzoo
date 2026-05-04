@@ -39,7 +39,7 @@ def test_dataset_get_stats():
 
     class MinimalDataset(SeanergysDataset):
         def _load_data_impl(self) -> None:
-            self._samples = []
+            self._samples: list = []
 
         def __getitem__(self, idx: int):
             return self._samples[idx]
