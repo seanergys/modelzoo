@@ -136,7 +136,7 @@ lint:mypy:
 # STAGE 4: TEST
 # -----------------------------------------------------------------------------
 
-# Unit tests — fast gate, no ML deps. Coverage collected by test:integration.
+# Unit tests — fast gate, no ML deps.
 test:unit:
   extends: .install_dev
   stage: test
@@ -144,22 +144,22 @@ test:unit:
     - poetry run pytest tests/unit/ -v --tb=short
   allow_failure: false
 
-# Model contract tests — discovery, instantiation, train-config structure (no data loading)
-test:model-contracts:
+# Model smoke tests — discovery, instantiation, train-config structure (no data loading)
+test:smoke-models:
   extends: .install_ci
   stage: test
   script:
-    - poetry run pytest tests/smoke/test_model_contracts.py -v
+    - poetry run pytest tests/smoke/test_smoke_models.py -v
   allow_failure: false
 
-# Data loading tests — fixture loading and dataset instantiation (no Zenodo)
-test:data-loading:
+# Data smoke tests — fixture loading and dataset instantiation (no Zenodo)
+test:smoke-data:
   extends: .install_ci
   stage: test
   variables:
     CI_SKIP_ZENODO: "1"
   script:
-    - poetry run pytest tests/smoke/test_data_loading.py -v -m "not zenodo"
+    - poetry run pytest tests/smoke/test_smoke_data.py -v -m "not zenodo"
   allow_failure: false
 
 # Full integration tests with sample fixture data (no Zenodo)
@@ -179,7 +179,7 @@ test:integration:
     - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
   script:
     - mkdir -p coverage
-    - CI_SKIP_ZENODO=1 poetry run pytest tests/unit/ tests/smoke/test_model_contracts.py tests/smoke/test_data_loading.py tests/integration/
+    - CI_SKIP_ZENODO=1 poetry run pytest tests/unit/ tests/smoke/test_smoke_models.py tests/smoke/test_smoke_data.py tests/integration/
         -v -m "not zenodo"
         --cov=seanergys_modelzoo
         --cov-report=xml:coverage/cobertura-coverage.xml

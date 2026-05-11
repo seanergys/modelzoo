@@ -2,7 +2,7 @@
 # Run `make help` for usage
 
 .PHONY: help venv install install-ci install-hooks sample-data \
-        test test-unit test-model-contracts test-data-loading test-integration test-pipeline test-all \
+        test test-unit test-smoke-models test-smoke-data test-integration test-pipeline test-all \
         lint format format-check typecheck audit check-secrets pre-push ci \
         coverage clean clean-venv clean-fixtures clean-all
 
@@ -42,12 +42,12 @@ help:
 	@echo "  make pre-push        Full pre-push gate: format-check + lint + secrets + tests"
 	@echo ""
 	@echo "Tests:"
-	@echo "  make test                  Unit + model contracts (fast, no data loading)"
-	@echo "  make test-unit             Unit tests + terminal coverage — tests/unit/"
-	@echo "  make test-model-contracts  Model discovery, instantiation, contracts (no data)"
-	@echo "  make test-data-loading     Dataset loading, fixtures (no Zenodo download)"
-	@echo "  make test-integration      All integration tests — tests/integration/"
-	@echo "  make test-all              Everything — unit + model + data + integration"
+	@echo "  make test                Unit + smoke tests (fast, no data loading)"
+	@echo "  make test-unit           Unit tests + terminal coverage — tests/unit/"
+	@echo "  make test-smoke-models   Model smoke tests (discovery, instantiation, no data)"
+	@echo "  make test-smoke-data     Data smoke tests (fixture loading, no Zenodo)"
+	@echo "  make test-integration    Full integration tests — tests/integration/"
+	@echo "  make test-all            Everything — unit + smoke + integration"
 	@echo ""
 	@echo "Code quality:"
 	@echo "  make lint            Ruff lint check"
@@ -104,8 +104,8 @@ sample-data:
 # Tests
 # -----------------------------------------------------------------------------
 
-# Fast: unit + model contracts (no network, no data loading — run before every push)
-test: test-unit test-model-contracts
+# Fast: unit + smoke tests (no network, no data loading — run before every push)
+test: test-unit test-smoke-models test-smoke-data
 	@echo ""
 	@echo "✓ All fast tests passed"
 
@@ -117,14 +117,14 @@ test-unit:
 	    --cov-report=xml:coverage/cobertura-coverage.xml \
 	    --cov-report=term-missing
 
-test-model-contracts:
-	@echo "→ Running model contract tests (discovery, instantiation, no data loading)..."
-	$(PYTEST) tests/smoke/test_model_contracts.py -v
+test-smoke-models:
+	@echo "→ Running model smoke tests (discovery, instantiation, no data loading)..."
+	$(PYTEST) tests/smoke/test_smoke_models.py -v
 
-test-data-loading:
-	@echo "→ Running data loading tests (fixtures, no Zenodo download)..."
+test-smoke-data:
+	@echo "→ Running data smoke tests (fixtures, no Zenodo download)..."
 	@echo "  (Run 'make sample-data' first for local fixtures)"
-	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_data_loading.py -v -m "not zenodo"
+	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_smoke_data.py -v -m "not zenodo"
 
 # Full pipeline: train → predict → save → load for each discovered model
 test-pipeline:
@@ -139,7 +139,7 @@ test-integration:
 	$(PYTEST) tests/integration/ -v -s
 
 # Everything
-test-all: test-unit test-model-contracts test-data-loading test-integration
+test-all: test-unit test-smoke-models test-smoke-data test-integration
 	@echo ""
 	@echo "✓ All tests passed"
 
@@ -225,8 +225,8 @@ ci:
 	    --cov=seanergys_modelzoo \
 	    --cov-report=xml:coverage/cobertura-coverage.xml \
 	    --cov-report=term-missing
-	$(PYTEST) tests/smoke/test_model_contracts.py -v
-	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_data_loading.py -v -m "not zenodo"
+	$(PYTEST) tests/smoke/test_smoke_models.py -v
+	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_smoke_data.py -v -m "not zenodo"
 	CI_SKIP_ZENODO=1 $(PYTEST) tests/integration/ -v
 	@echo ""
 	@echo "✓ CI simulation complete"
