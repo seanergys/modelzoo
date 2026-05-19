@@ -74,6 +74,7 @@ class MACK(SeanergysSklearnModel):
         """
         values.setdefault("model_class", XGBClassifier)
         values.setdefault("task_type", SeanergysModelTask.CLASSIFICATION)
+        values.setdefault("supported_datasets", [FDataDataset])
         values.setdefault(
             "metadata",
             SeanergysModelMetadata(name="MACK"),

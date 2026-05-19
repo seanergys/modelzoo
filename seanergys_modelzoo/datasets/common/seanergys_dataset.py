@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple, Union, List
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from torch.utils.data import Dataset
@@ -17,6 +17,10 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
 
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+    # Every concrete dataset must set this to the key used in get_train_config().
+    # Example: DATASET_ID = "f-data" or DATASET_ID = "pm100"
+    DATASET_ID: ClassVar[str] = ""
 
     # Define fields with proper Pydantic syntax
     data_path: Optional[Union[str, Path]] = Field(

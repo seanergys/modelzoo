@@ -91,6 +91,31 @@ MODEL_CLASSES = _collect_model_classes()
 DATASET_CLASSES = _collect_dataset_classes()
 
 
+def _collect_model_dataset_pairs() -> list:
+    """
+    Build (model_cls, dataset_id) pairs by reading each model's supported_datasets.
+    Uses a lightweight instantiation (no heavy hyperparams) — same pattern as
+    test_model_instantiation in the smoke suite.
+
+    Each pair becomes one parametrized test case in integration tests, so a failure
+    is reported as e.g. test_full_pipeline[MACK-f-data] instead of test_full_pipeline[MACK].
+    """
+    pairs = []
+    for model_cls in MODEL_CLASSES.values():
+        try:
+            instance = model_cls(model_hyperparameters={"n_jobs": 1})
+            for dataset_cls in instance.supported_datasets or []:
+                dataset_id = dataset_cls.DATASET_ID
+                if dataset_id:
+                    pairs.append((model_cls, dataset_id))
+        except Exception:
+            continue
+    return pairs
+
+
+MODEL_DATASET_PAIRS = _collect_model_dataset_pairs()
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import ClassVar, Optional, Tuple, Union
 
 import pandas as pd
 import torch
@@ -40,6 +40,8 @@ class PM100Dataset(SeanergysParquetDataset):
     - power_consumption: List of power consumption values (watts) at 20s intervals
     - And more...
     """
+
+    DATASET_ID: ClassVar[str] = "pm100"
 
     # Direct download URL for the PM100 dataset
     ZENODO_URL: str = "https://zenodo.org/records/10127767/files/job_table.parquet"

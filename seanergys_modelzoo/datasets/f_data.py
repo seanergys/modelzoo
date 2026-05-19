@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple, Union
+from typing import ClassVar, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 import time
 
@@ -40,6 +40,8 @@ class FDataDataset(SeanergysParquetDataset):
     - mem_compute_bound: Memory/compute bound classification
     - And more...
     """
+
+    DATASET_ID: ClassVar[str] = "f-data"
 
     # Base URL for F-DATA files on Zenodo
     ZENODO_BASE_URL: str = r"https://zenodo.org/records/11467483/files"
