@@ -15,6 +15,45 @@ variables:
   PYTHONPATH: "${CI_PROJECT_DIR}"
 
 # -----------------------------------------------------------------------------
+# RULE ANCHORS
+# <<: *rules_code  — any Python source, test, script, or dep change
+# <<: *rules_deps  — only pyproject.toml / poetry.lock changed
+# <<: *rules_wheel — wheel build/test: source or pyproject.toml changed
+# No anchor on sanity/validate — always run (cheap, < 10 s)
+# -----------------------------------------------------------------------------
+
+.rules_code: &rules_code
+  rules:
+    - changes:
+        - seanergys_modelzoo/**/*
+        - tests/**/*
+        - ci/**/*
+        - scripts/**/*
+        - pyproject.toml
+        - poetry.lock
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+.rules_deps: &rules_deps
+  rules:
+    - changes:
+        - pyproject.toml
+        - poetry.lock
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+.rules_wheel: &rules_wheel
+  rules:
+    - changes:
+        - seanergys_modelzoo/**/*
+        - pyproject.toml
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+# -----------------------------------------------------------------------------
 # CACHE
 # -----------------------------------------------------------------------------
 .pip_cache: &pip_cache
@@ -109,6 +148,7 @@ validate:yaml-json:
 # -----------------------------------------------------------------------------
 
 lint:python:
+  <<: *rules_code
   stage: lint
   image: python:3.13-slim
   script:
@@ -117,6 +157,7 @@ lint:python:
   allow_failure: true
 
 lint:format:
+  <<: *rules_code
   stage: lint
   image: python:3.13-slim
   script:
@@ -125,6 +166,7 @@ lint:format:
   allow_failure: true
 
 lint:mypy:
+  <<: *rules_code
   stage: lint
   image: python:3.13-slim
   script:
@@ -138,6 +180,7 @@ lint:mypy:
 
 # Unit tests — fast gate, no ML deps.
 test:unit:
+  <<: *rules_code
   extends: .install_dev
   stage: test
   script:
@@ -146,6 +189,7 @@ test:unit:
 
 # Model smoke tests — discovery, instantiation, train-config structure (no data loading)
 test:smoke-models:
+  <<: *rules_code
   extends: .install_ci
   stage: test
   script:
@@ -154,6 +198,7 @@ test:smoke-models:
 
 # Data smoke tests — fixture loading and dataset instantiation (no Zenodo)
 test:smoke-data:
+  <<: *rules_code
   extends: .install_ci
   stage: test
   variables:
@@ -164,6 +209,7 @@ test:smoke-data:
 
 # Full integration tests with sample fixture data (no Zenodo)
 test:integration:
+  <<: *rules_code
   stage: test
   image: python:3.13-slim
   cache:
@@ -196,6 +242,7 @@ test:integration:
 
 # Dependency vulnerability scan
 test:audit:
+  <<: *rules_deps
   stage: test
   image: python:3.13-slim
   cache:
@@ -217,6 +264,7 @@ test:audit:
 # -----------------------------------------------------------------------------
 
 build:wheel:
+  <<: *rules_wheel
   stage: build
   image: python:3.13-slim
   before_script:
@@ -239,6 +287,7 @@ build:wheel:
 # -----------------------------------------------------------------------------
 
 test:wheel:
+  <<: *rules_wheel
   stage: test-wheel
   image: python:3.13-slim
   needs:
