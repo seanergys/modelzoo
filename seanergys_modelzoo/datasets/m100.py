@@ -1,9 +1,8 @@
 import tarfile
 from pathlib import Path
-from typing import Optional, Union, List, Tuple, Any, Dict, cast
+from typing import Optional, Union, List, Tuple, Any, Dict
 import requests
 import pyarrow.parquet as pq
-import torch
 import numpy as np
 import bisect
 from cachetools import LRUCache
@@ -105,11 +104,11 @@ class M100Dataset(SeanergysDataset):
             ValueError: If required parameters are missing or invalid.
         """
 
+        self._dataset_path = Path(self.dataset_path or "./data")
+        self._metadata = dict(getattr(self, "metadata", {}) or {})
+        
         if self.is_dummy:
             self.logger.warning("M100 running in dummy mode")
-
-            self._metadata = {}
-            self._dataset_path = Path(self.dataset_path or "./data")
 
             self.aggregated = True
             self.yy_mm = None
@@ -117,21 +116,11 @@ class M100Dataset(SeanergysDataset):
             self.metrics = None
 
             self._nodes = list(range(20))
-
             self._file_list = self._build_file_list(None, aggregated=True)
 
-            self._metadata.update({
-                "dataset_name": "M100",
-                "dataset_version": "0",
-                "mode": "dummy"
-            })
-
             self.build_index()
+
             return self
-
-        self._metadata = dict(getattr(self, "metadata", {}) or {})
-
-        self._dataset_path = Path(self.dataset_path or "./data")
 
         # normalize nodes
         parsed_nodes = self._parse_nodes() or []
@@ -145,7 +134,7 @@ class M100Dataset(SeanergysDataset):
             
             if len(self._nodes) == 0:
                 raise ValueError("Aggregated data requires `nodes`, range, or 'all'")
-        
+
             if self.yy_mm or self.plugins or self.metrics:
                 self.logger.info("Filters (yy_mm/plugins/metrics) are ignored for aggregated data")
             
@@ -159,13 +148,6 @@ class M100Dataset(SeanergysDataset):
                 raise ValueError("Raw data requires `yy_mm` and `plugins`")
             if self._nodes:
                 self.logger.info("Node filters are ignored for raw data")
-        
-        if self.is_dummy:
-            self.logger.warning("M100 running in dummy mode")
-
-            # Force safe minimal configuration
-            self.aggregated = True
-            self._nodes = list(range(20))
 
         self._file_list = self._build_file_list(self.yy_mm, aggregated=self.aggregated)
         self._metadata.update({
@@ -431,7 +413,7 @@ class M100Dataset(SeanergysDataset):
 
         files = []
 
-        base_root = self._dataset_path
+        base_root = Path(self._dataset_path)
         for rid, fname in self._file_list:
             base_path = base_root / rid / fname
 
@@ -505,12 +487,7 @@ class M100Dataset(SeanergysDataset):
         for c in self._chunks[:5]:
             self.logger.debug(c)
 
-    def __getitem__(
-            self,
-            idx: int,
-            return_tensor: bool = False,
-            dtype: Optional[str] = None
-        ) -> Union[np.ndarray, torch.Tensor]:
+    def __getitem__(self, idx: int) -> np.ndarray:
         """
         Retrieve a single row from the dataset by global index.
 
@@ -548,16 +525,6 @@ class M100Dataset(SeanergysDataset):
 
         values = [arrays[c][local_idx] for c in self._col_names]
         input_data = np.asarray(values, dtype=np.float64)
-
-        if return_tensor:
-            if dtype:
-                try:
-                    dtype_torch = getattr(torch, dtype)
-                except AttributeError:
-                    raise ValueError(f"Invalid torch dtype: {dtype}")
-            else:
-                dtype_torch = torch.float32
-            input_data = torch.tensor(input_data, dtype=dtype_torch)
             
         return input_data
     
@@ -591,6 +558,6 @@ if __name__ == "__main__":
     print(f"Dataset loaded with {len(dataset)} rows.")
 
     for i in range(min(5, len(dataset))):
-        x = dataset.__getitem__(i, return_tensor=False)
+        x = dataset[i]
         print(f"Row {i}: Item shape = {x.shape}, Item Type = {type(x)}, Item = {x}")
 
