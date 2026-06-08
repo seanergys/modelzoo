@@ -567,8 +567,8 @@ if __name__ == "__main__":
         dataset_path="./data",
         plugins=["ipmi_pub"],
         metrics=["total_power"],
-        aggregated = True,
-        nodes = "0:19"
+        aggregated=True,
+        nodes="0:19",
     )
 
     # dataset = M100Dataset(
@@ -582,5 +582,3 @@ if __name__ == "__main__":
     for i in range(min(5, len(dataset))):
         x = dataset[i]
         print(f"Row {i}: Item shape = {x.shape}, Item Type = {type(x)}, Item = {x}")
-
-
