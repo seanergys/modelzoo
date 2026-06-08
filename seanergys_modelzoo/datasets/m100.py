@@ -69,7 +69,7 @@ class M100Dataset(SeanergysDataset):
     _dataset_path: Path = PrivateAttr()
     _file_list: List[Tuple[str, str]] = PrivateAttr(default_factory=list)
 
-    _chunks: List[Tuple[str, int, int, int]] = PrivateAttr(default_factory=list)
+    _chunks: List[Tuple[Path, int, int, int]] = PrivateAttr(default_factory=list)
     _chunk_starts: List[int] = PrivateAttr(default_factory=list)
 
     _col_names: List[str] = PrivateAttr(default_factory=list)
@@ -104,7 +104,7 @@ class M100Dataset(SeanergysDataset):
             ValueError: If required parameters are missing or invalid.
         """
 
-        self._dataset_path = Path(self.dataset_path or "./data")
+        self._dataset_path = Path(self.dataset_path) if self.dataset_path else Path("./data")
         self._metadata = dict(getattr(self, "metadata", {}) or {})
         
         if self.is_dummy:
@@ -355,7 +355,7 @@ class M100Dataset(SeanergysDataset):
         tarball_path.unlink()
         self.logger.info(f"Deleted tarball {tarball_path}")
 
-    def _get_file(self, path: Union[str, Path]) -> pq.ParquetFile:
+    def _get_file(self, path: Path) -> pq.ParquetFile:
         path_str = str(path)
 
         if path_str in self._file_cache:
@@ -411,7 +411,7 @@ class M100Dataset(SeanergysDataset):
         """
         self.logger.debug("Scanning parquet files...")
 
-        files = []
+        files: List[Path] = []
 
         base_root = Path(self._dataset_path)
         for rid, fname in self._file_list:
@@ -428,7 +428,7 @@ class M100Dataset(SeanergysDataset):
 
                     if self._nodes and node not in self._nodes:
                         continue
-                    files.append(str(f.resolve()))
+                    files.append(f.resolve())
             else:
                 parquet_files = base_path.glob("year_month=*/plugin=*/metric=*/*.parquet")
 
@@ -442,7 +442,7 @@ class M100Dataset(SeanergysDataset):
                     if self.metrics and metric not in self.metrics:
                         continue
 
-                    files.append(str(f.resolve()))
+                    files.append(f.resolve())
         self.logger.debug(f"Found {len(files)} parquet files")
 
         if not files:
@@ -476,7 +476,7 @@ class M100Dataset(SeanergysDataset):
             for rg in range(pf.num_row_groups):
                 n = pf.metadata.row_group(rg).num_rows
 
-                self._chunks.append((str(f), rg, total, total + n))
+                self._chunks.append((f.resolve(), rg, total, total + n))
                 self._chunk_starts.append(total)
 
                 total += n
