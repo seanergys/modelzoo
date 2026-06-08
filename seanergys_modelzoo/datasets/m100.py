@@ -10,6 +10,7 @@ from pydantic import Field, model_validator, PrivateAttr
 
 from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
 
+
 class M100Dataset(SeanergysDataset):
     """
     Dataset class for the Marconi 100 (M100) supercomputer at Cineca, Italy.
@@ -33,7 +34,20 @@ class M100Dataset(SeanergysDataset):
     ZENODO_BASE_URL: str = r"https://zenodo.org/records/"
 
     AVAILABLE_FILES_PER_RECORD: List[dict] = [
-        {"7588815": ["20-03", "20-04", "20-05", "20-06", "20-07", "20-08", "20-09", "20-10", "20-11", "20-12"]},
+        {
+            "7588815": [
+                "20-03",
+                "20-04",
+                "20-05",
+                "20-06",
+                "20-07",
+                "20-08",
+                "20-09",
+                "20-10",
+                "20-11",
+                "20-12",
+            ]
+        },
         {"7589131": ["21-01", "21-02", "21-03", "21-04", "21-05", "21-06"]},
         {"7589320": ["21-07", "21-08", "21-09"]},
         {"7589630": ["21-10", "21-11", "21-12"]},
@@ -45,14 +59,17 @@ class M100Dataset(SeanergysDataset):
         {"7590565": ["22-07"]},
         {"7590574": ["22-08"]},
         {"7590583": ["22-09"]},
-        {"7541722": [str(i) for i in range(50)]}  # 15-min aggregated
+        {"7541722": [str(i) for i in range(50)]},  # 15-min aggregated
     ]
 
     # User input (Pydantic Fields)
     yy_mm: Optional[Union[str, List[str]]] = Field(
-        default=None, description="YY-MM for raw data; ignored for aggregated. Can be single (e.g., '20-03'), list, range, or 'all' for all files."
+        default=None,
+        description="YY-MM for raw data; ignored for aggregated. Can be single (e.g., '20-03'), list, range, or 'all' for all files.",
     )
-    aggregated: bool = Field(default=False, description="Use 15-min aggregated data if True")
+    aggregated: bool = Field(
+        default=False, description="Use 15-min aggregated data if True"
+    )
     nodes: Optional[Union[int, List[int], str]] = None
     plugins: Optional[List[str]] = None
     metrics: Optional[List[str]] = None
@@ -60,7 +77,7 @@ class M100Dataset(SeanergysDataset):
 
     is_dummy: bool = Field(
         default=False,
-        description="If True, loads a minimal subset of data for testing/debugging."
+        description="If True, loads a minimal subset of data for testing/debugging.",
     )
 
     # Internal states
@@ -73,7 +90,7 @@ class M100Dataset(SeanergysDataset):
     _chunk_starts: List[int] = PrivateAttr(default_factory=list)
 
     _col_names: List[str] = PrivateAttr(default_factory=list)
-    
+
     _total_rows: int = PrivateAttr(default=0)
 
     # LRU Cache for files
@@ -84,7 +101,7 @@ class M100Dataset(SeanergysDataset):
     _rg_cache: LRUCache[Tuple[str, int], Dict[str, np.ndarray]] = PrivateAttr(
         default_factory=lambda: LRUCache(maxsize=16)
     )
-   
+
     @model_validator(mode="after")
     def validate_model(self) -> "M100Dataset":
         """
@@ -104,9 +121,11 @@ class M100Dataset(SeanergysDataset):
             ValueError: If required parameters are missing or invalid.
         """
 
-        self._dataset_path = Path(self.dataset_path) if self.dataset_path else Path("./data")
+        self._dataset_path = (
+            Path(self.dataset_path) if self.dataset_path else Path("./data")
+        )
         self._metadata = dict(getattr(self, "metadata", {}) or {})
-        
+
         if self.is_dummy:
             self.logger.warning("M100 running in dummy mode")
 
@@ -131,13 +150,15 @@ class M100Dataset(SeanergysDataset):
             self.yy_mm = None
             self.plugins = None
             self.metrics = None
-            
+
             if len(self._nodes) == 0:
                 raise ValueError("Aggregated data requires `nodes`, range, or 'all'")
 
             if self.yy_mm or self.plugins or self.metrics:
-                self.logger.info("Filters (yy_mm/plugins/metrics) are ignored for aggregated data")
-            
+                self.logger.info(
+                    "Filters (yy_mm/plugins/metrics) are ignored for aggregated data"
+                )
+
             max_node = self._get_total_nodes() - 1
 
             invalid = [n for n in self._nodes if n < 0 or n > max_node]
@@ -150,20 +171,20 @@ class M100Dataset(SeanergysDataset):
                 self.logger.info("Node filters are ignored for raw data")
 
         self._file_list = self._build_file_list(self.yy_mm, aggregated=self.aggregated)
-        self._metadata.update({
-            "dataset_name": "M100",
-            "dataset_version": "1.0",
-            "source": "Marconi 100 - Cineca, Italy",
-            "records_loaded": [rid for rid, _ in self._file_list],
-            "files_loaded": [fname for _, fname in self._file_list],
-        })
+        self._metadata.update(
+            {
+                "dataset_name": "M100",
+                "dataset_version": "1.0",
+                "source": "Marconi 100 - Cineca, Italy",
+                "records_loaded": [rid for rid, _ in self._file_list],
+                "files_loaded": [fname for _, fname in self._file_list],
+            }
+        )
         self.build_index()
         return self
 
     def _build_file_list(
-        self,
-        yy_mm: Optional[Union[str, List[str]]],
-        aggregated: bool
+        self, yy_mm: Optional[Union[str, List[str]]], aggregated: bool
     ) -> List[Tuple[str, str]]:
         """
         Convert user input into a list of dataset files to load.
@@ -224,14 +245,14 @@ class M100Dataset(SeanergysDataset):
                 ]
                 start_idx = next(i for i, (_, f) in enumerate(ordered) if f == start)
                 end_idx = next(i for i, (_, f) in enumerate(ordered) if f == end)
-                return ordered[start_idx:end_idx + 1]
+                return ordered[start_idx : end_idx + 1]
             else:
                 return [(file_mapping[yy_mm], yy_mm)]
         if isinstance(yy_mm, list):
             return [(file_mapping[f], f) for f in yy_mm]
 
         raise TypeError("yy_mm must be str, list, or None")
-        
+
     def _parse_nodes(self) -> Optional[List[int]]:
         """
         Normalize the `nodes` parameter into a list of node indices.
@@ -269,7 +290,7 @@ class M100Dataset(SeanergysDataset):
             else:
                 return [int(self.nodes)]
 
-        # list 
+        # list
         if isinstance(self.nodes, list):
             result = []
             for item in self.nodes:
@@ -284,7 +305,7 @@ class M100Dataset(SeanergysDataset):
             return sorted(set(result))
 
         raise TypeError("nodes must be int, list, range string, or 'all'")
-    
+
     def _get_total_nodes(self) -> int:
         """
         Returns the total number of nodes in the aggregated dataset.
@@ -293,7 +314,7 @@ class M100Dataset(SeanergysDataset):
         total_racks = len(self.AVAILABLE_FILES_PER_RECORD[-1][record_id])
         nodes_per_rack = 20
         return total_racks * nodes_per_rack
-    
+
     def _safe_extract(self, tar: tarfile.TarFile, path: Path) -> None:
         """
         Safely extract a tar archive to a destination directory.
@@ -365,12 +386,8 @@ class M100Dataset(SeanergysDataset):
         self._file_cache[path_str] = pf
         return pf
 
-    def _get_row_group_data(
-            self,
-            path: Path,
-            rg: int
-        ) -> Dict[str, np.ndarray]:
-        
+    def _get_row_group_data(self, path: Path, rg: int) -> Dict[str, np.ndarray]:
+
         key: Tuple[str, int] = (str(path.resolve()), rg)
 
         if key in self._rg_cache:
@@ -391,7 +408,7 @@ class M100Dataset(SeanergysDataset):
 
         self._rg_cache[key] = arrays
         return arrays
-    
+
     def build_index(self) -> None:
         """
         Scan dataset files and build an index for lazy access.
@@ -430,12 +447,18 @@ class M100Dataset(SeanergysDataset):
                         continue
                     files.append(f.resolve())
             else:
-                parquet_files = base_path.glob("year_month=*/plugin=*/metric=*/*.parquet")
+                parquet_files = base_path.glob(
+                    "year_month=*/plugin=*/metric=*/*.parquet"
+                )
 
                 for f in parquet_files:
                     parts = f.parts
-                    plugin = next(p.split("=")[1] for p in parts if p.startswith("plugin="))
-                    metric = next(p.split("=")[1] for p in parts if p.startswith("metric="))
+                    plugin = next(
+                        p.split("=")[1] for p in parts if p.startswith("plugin=")
+                    )
+                    metric = next(
+                        p.split("=")[1] for p in parts if p.startswith("metric=")
+                    )
 
                     if self.plugins and plugin not in self.plugins:
                         continue
@@ -447,7 +470,7 @@ class M100Dataset(SeanergysDataset):
 
         if not files:
             raise ValueError("No parquet files found with given filters")
-        
+
         self.logger.debug("Building global schema...")
         all_columns = set()
 
@@ -456,10 +479,7 @@ class M100Dataset(SeanergysDataset):
             all_columns.update(pf.schema_arrow.names)
         all_columns.discard("timestamp")
 
-        all_columns = {
-            c for c in all_columns
-            if not c.startswith("__index_level_")
-        }
+        all_columns = {c for c in all_columns if not c.startswith("__index_level_")}
 
         self._col_names = sorted(all_columns)
 
@@ -512,11 +532,13 @@ class M100Dataset(SeanergysDataset):
             raise RuntimeError("Dataset is empty. Call build_index() first.")
 
         if idx < 0 or idx >= len(self):
-            raise IndexError(f"Index {idx} out of range for dataset of size {len(self)}")
+            raise IndexError(
+                f"Index {idx} out of range for dataset of size {len(self)}"
+            )
 
         if not self._chunk_starts:
             raise RuntimeError("Index not built. Call build_index() first.")
-        
+
         pos = bisect.bisect_right(self._chunk_starts, idx) - 1
         path, rg, start, end = self._chunks[pos]
 
@@ -525,9 +547,9 @@ class M100Dataset(SeanergysDataset):
 
         values = [arrays[c][local_idx] for c in self._col_names]
         input_data = np.asarray(values, dtype=np.float64)
-            
+
         return input_data
-    
+
     def __len__(self) -> int:
         """
         Return the total number of rows in the dataset.
@@ -560,4 +582,5 @@ if __name__ == "__main__":
     for i in range(min(5, len(dataset))):
         x = dataset[i]
         print(f"Row {i}: Item shape = {x.shape}, Item Type = {type(x)}, Item = {x}")
+
 
