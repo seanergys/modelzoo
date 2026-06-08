@@ -1,6 +1,6 @@
 import tarfile
 from pathlib import Path
-from typing import Optional, Union, List, Tuple, Any, Dict
+from typing import Optional, Union, List, Tuple, Any, Dict, cast
 import requests
 import pyarrow.parquet as pq
 import torch
@@ -59,7 +59,15 @@ class M100Dataset(SeanergysDataset):
     metrics: Optional[List[str]] = None
     dataset_path: Optional[Union[str, Path]] = Field(default="./data")
 
+    is_dummy: bool = Field(
+        default=False,
+        description="If True, loads a minimal subset of data for testing/debugging."
+    )
+
     # Internal states
+    _metadata: Dict[str, Any] = PrivateAttr(default_factory=dict)
+    _nodes: List[int] = PrivateAttr(default_factory=list)
+    _dataset_path: Path = PrivateAttr()
     _file_list: List[Tuple[str, str]] = PrivateAttr(default_factory=list)
 
     _chunks: List[Tuple[str, int, int, int]] = PrivateAttr(default_factory=list)
@@ -70,12 +78,11 @@ class M100Dataset(SeanergysDataset):
     _total_rows: int = PrivateAttr(default=0)
 
     # LRU Cache for files
-    _file_cache: LRUCache = PrivateAttr(
+    _file_cache: LRUCache[str, pq.ParquetFile] = PrivateAttr(
         default_factory=lambda: LRUCache(maxsize=4)
     )
 
-    # LRU Cache for Row-Groups
-    _rg_cache: LRUCache = PrivateAttr(
+    _rg_cache: LRUCache[Tuple[str, int], Dict[str, np.ndarray]] = PrivateAttr(
         default_factory=lambda: LRUCache(maxsize=16)
     )
    
@@ -97,29 +104,71 @@ class M100Dataset(SeanergysDataset):
         Raises:
             ValueError: If required parameters are missing or invalid.
         """
+
+        if self.is_dummy:
+            self.logger.warning("M100 running in dummy mode")
+
+            self._metadata = {}
+            self._dataset_path = Path(self.dataset_path or "./data")
+
+            self.aggregated = True
+            self.yy_mm = None
+            self.plugins = None
+            self.metrics = None
+
+            self._nodes = list(range(20))
+
+            self._file_list = self._build_file_list(None, aggregated=True)
+
+            self._metadata.update({
+                "dataset_name": "M100",
+                "dataset_version": "0",
+                "mode": "dummy"
+            })
+
+            self.build_index()
+            return self
+
+        self._metadata = dict(getattr(self, "metadata", {}) or {})
+
+        self._dataset_path = Path(self.dataset_path or "./data")
+
+        # normalize nodes
+        parsed_nodes = self._parse_nodes() or []
+        self._nodes = sorted(set(parsed_nodes))
+
         # Check for aggregated data
         if self.aggregated:
-            if self.nodes is None:
+            self.yy_mm = None
+            self.plugins = None
+            self.metrics = None
+            
+            if len(self._nodes) == 0:
                 raise ValueError("Aggregated data requires `nodes`, range, or 'all'")
-            # normalize nodes
-            self.nodes = sorted(set(self._parse_nodes()))
         
             if self.yy_mm or self.plugins or self.metrics:
                 self.logger.info("Filters (yy_mm/plugins/metrics) are ignored for aggregated data")
             
             max_node = self._get_total_nodes() - 1
 
-            invalid = [n for n in self.nodes if n < 0 or n > max_node]
+            invalid = [n for n in self._nodes if n < 0 or n > max_node]
             if invalid:
                 raise ValueError(f"Invalid node IDs: {invalid}")
         else:
             if not self.yy_mm or not self.plugins:
                 raise ValueError("Raw data requires `yy_mm` and `plugins`")
-            if self.nodes:
+            if self._nodes:
                 self.logger.info("Node filters are ignored for raw data")
         
+        if self.is_dummy:
+            self.logger.warning("M100 running in dummy mode")
+
+            # Force safe minimal configuration
+            self.aggregated = True
+            self._nodes = list(range(20))
+
         self._file_list = self._build_file_list(self.yy_mm, aggregated=self.aggregated)
-        self.metadata.update({
+        self._metadata.update({
             "dataset_name": "M100",
             "dataset_version": "1.0",
             "source": "Marconi 100 - Cineca, Italy",
@@ -158,9 +207,9 @@ class M100Dataset(SeanergysDataset):
         """
         if aggregated:
             record_id = "7541722"
-            if self.nodes:
+            if self._nodes:
                 # Map nodes → racks
-                racks = sorted(set(n // 20 for n in self.nodes))
+                racks = sorted(set(n // 20 for n in self._nodes))
                 files = [str(r) for r in racks]
             else:
                 # fallback: all racks
@@ -298,7 +347,7 @@ class M100Dataset(SeanergysDataset):
             requests.HTTPError: If the download fails.
             Exception: If extraction fails or is unsafe.
         """
-        dest_dir = Path(self.dataset_path) / rid / fname
+        dest_dir = self._dataset_path / rid / fname
         dest_dir.mkdir(parents=True, exist_ok=True)
 
         tarball_url = f"{self.ZENODO_BASE_URL}{rid}/files/{fname}.tar"
@@ -324,12 +373,14 @@ class M100Dataset(SeanergysDataset):
         tarball_path.unlink()
         self.logger.info(f"Deleted tarball {tarball_path}")
 
-    def _get_file(self, path: str) -> pq.ParquetFile:
-        if path in self._file_cache:
-            return self._file_cache[path]
+    def _get_file(self, path: Union[str, Path]) -> pq.ParquetFile:
+        path_str = str(path)
 
-        pf = pq.ParquetFile(path)
-        self._file_cache[path] = pf
+        if path_str in self._file_cache:
+            return self._file_cache.get(path_str)
+
+        pf = pq.ParquetFile(path_str)
+        self._file_cache[path_str] = pf
         return pf
 
     def _get_row_group_data(
@@ -337,7 +388,8 @@ class M100Dataset(SeanergysDataset):
             path: str,
             rg: int
         ) -> Dict[str, np.ndarray]:
-        key = (path, rg)
+        
+        key: Tuple[str, int] = (str(path), rg)
 
         if key in self._rg_cache:
             return self._rg_cache[key]
@@ -347,7 +399,7 @@ class M100Dataset(SeanergysDataset):
         table = pf.read_row_group(rg)
         available_cols = set(table.schema.names)
 
-        arrays = {}
+        arrays: Dict[str, np.ndarray] = {}
 
         for col in self._col_names:
             if col in available_cols:
@@ -379,7 +431,7 @@ class M100Dataset(SeanergysDataset):
 
         files = []
 
-        base_root = Path(self.dataset_path)
+        base_root = self._dataset_path
         for rid, fname in self._file_list:
             base_path = base_root / rid / fname
 
@@ -392,9 +444,9 @@ class M100Dataset(SeanergysDataset):
                 for f in parquet_files:
                     node = int(f.stem)
 
-                    if self.nodes and node not in self.nodes:
+                    if self._nodes and node not in self._nodes:
                         continue
-                    files.append(str(f))
+                    files.append(str(f.resolve()))
             else:
                 parquet_files = base_path.glob("year_month=*/plugin=*/metric=*/*.parquet")
 
@@ -408,7 +460,7 @@ class M100Dataset(SeanergysDataset):
                     if self.metrics and metric not in self.metrics:
                         continue
 
-                    files.append(str(f))
+                    files.append(str(f.resolve()))
         self.logger.debug(f"Found {len(files)} parquet files")
 
         if not files:
@@ -442,7 +494,7 @@ class M100Dataset(SeanergysDataset):
             for rg in range(pf.num_row_groups):
                 n = pf.metadata.row_group(rg).num_rows
 
-                self._chunks.append((f, rg, total, total + n))
+                self._chunks.append((str(f), rg, total, total + n))
                 self._chunk_starts.append(total)
 
                 total += n
@@ -485,6 +537,9 @@ class M100Dataset(SeanergysDataset):
         if idx < 0 or idx >= len(self):
             raise IndexError(f"Index {idx} out of range for dataset of size {len(self)}")
 
+        if not self._chunk_starts:
+            raise RuntimeError("Index not built. Call build_index() first.")
+        
         pos = bisect.bisect_right(self._chunk_starts, idx) - 1
         path, rg, start, end = self._chunks[pos]
 
@@ -517,15 +572,19 @@ class M100Dataset(SeanergysDataset):
 
 
 if __name__ == "__main__":
-    # python -m seanergys_modelzoo.datasets.m100_lazy
+    # python -m seanergys_modelzoo.datasets.m100
     dataset = M100Dataset(
         yy_mm="22-02",
         dataset_path="./data",
         plugins=["ipmi_pub"],
-        #metrics=["total_power"],
+        metrics=["total_power"],
         aggregated = True,
         nodes = "0:19"
     )
+
+    # dataset = M100Dataset(
+    #     is_dummy = True
+    # )
 
     print(f"Number of chunks: {len(dataset._chunks)}")
 
