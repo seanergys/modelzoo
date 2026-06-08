@@ -356,7 +356,7 @@ class M100Dataset(SeanergysDataset):
         self.logger.info(f"Deleted tarball {tarball_path}")
 
     def _get_file(self, path: Path) -> pq.ParquetFile:
-        path_str = str(path)
+        path_str = str(path.resolve())
 
         if path_str in self._file_cache:
             return self._file_cache.get(path_str)
@@ -367,11 +367,11 @@ class M100Dataset(SeanergysDataset):
 
     def _get_row_group_data(
             self,
-            path: str,
+            path: Path,
             rg: int
         ) -> Dict[str, np.ndarray]:
         
-        key: Tuple[str, int] = (str(path), rg)
+        key: Tuple[str, int] = (str(path.resolve()), rg)
 
         if key in self._rg_cache:
             return self._rg_cache[key]
