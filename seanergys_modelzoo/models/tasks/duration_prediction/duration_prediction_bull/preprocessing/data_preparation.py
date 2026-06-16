@@ -13,7 +13,9 @@ import pandas as pd
 import numpy as np
 
 
-def expand_embeddings(df: pd.DataFrame, embedding_column: str = "embedding") -> pd.DataFrame:
+def expand_embeddings(
+    df: pd.DataFrame, embedding_column: str = "embedding"
+) -> pd.DataFrame:
     """
     Expand an embedding column into individual emb_* feature columns.
 
@@ -76,6 +78,7 @@ def create_duration_target(
     df[target_column] = df[source_column].astype(float)
 
     return df
+
 
 def prepare_duration_dataframe(
     df: pd.DataFrame,

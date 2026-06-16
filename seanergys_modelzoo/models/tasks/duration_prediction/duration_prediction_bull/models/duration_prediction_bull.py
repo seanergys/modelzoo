@@ -62,9 +62,9 @@ class DurationPredictionBull(SeanergysModel):
 
     @classmethod
     def get_train_config(
-            cls,
-            dataset_name: str = "f-data",
-            get_dummy_data: bool = False,
+        cls,
+        dataset_name: str = "f-data",
+        get_dummy_data: bool = False,
     ) -> Dict[str, Any]:
         """
         Build the training configuration used by the Seanergys pipeline.
@@ -112,8 +112,8 @@ class DurationPredictionBull(SeanergysModel):
     @model_validator(mode="before")
     @classmethod
     def _inject_defaults(
-            cls,
-            values: Dict[str, Any],
+        cls,
+        values: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Inject default Seanergys configuration.
@@ -155,9 +155,8 @@ class DurationPredictionBull(SeanergysModel):
         return self
 
     def evaluate(
-            self,
-            data_loader,
-
+        self,
+        data_loader,
     ):
         """
         Evaluate the duration prediction model.
@@ -188,9 +187,9 @@ class DurationPredictionBull(SeanergysModel):
         )
 
     def train(
-            self,
-            train_data_loader,
-            val_data_loader=None,
+        self,
+        train_data_loader,
+        val_data_loader=None,
     ) -> None:
         """
         Train the duration prediction model from a Seanergys dataloader.
@@ -237,10 +236,10 @@ class DurationPredictionBull(SeanergysModel):
 
     @classmethod
     def get_test_config(
-            cls,
-            model,
-            dataset_name: str = "f-data",
-            get_dummy_data: bool = False,
+        cls,
+        model,
+        dataset_name: str = "f-data",
+        get_dummy_data: bool = False,
     ) -> Dict[str, Any]:
         """
         Build the evaluation configuration used by the Seanergys pipeline.
@@ -316,8 +315,8 @@ class DurationPredictionBull(SeanergysModel):
         self.preprocessor = DurationPreprocessor()
 
     def predict(
-            self,
-            data_loader,
+        self,
+        data_loader,
     ):
         """
         Generate duration predictions from a Seanergys dataloader.
@@ -370,8 +369,8 @@ class DurationPredictionBull(SeanergysModel):
 
     @classmethod
     def load(
-            cls,
-            path: str,
+        cls,
+        path: str,
     ) -> "DurationPredictionBull":
         """
         Load a saved DurationPredictionBull model from disk.

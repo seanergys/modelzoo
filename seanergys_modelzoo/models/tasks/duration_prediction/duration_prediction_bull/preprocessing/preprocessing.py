@@ -16,10 +16,10 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 def split_data(
-        X: np.ndarray,
-        y: np.ndarray,
-        test_size: float = 0.2,
-        random_state: int = 42,
+    X: np.ndarray,
+    y: np.ndarray,
+    test_size: float = 0.2,
+    random_state: int = 42,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Splits the Iris dataset into training and testing sets.
@@ -50,11 +50,11 @@ class SBERTEncoder(BaseEstimator, TransformerMixin):
     def __init__(
         self,
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        device: str | None = None,             # "cuda" | "cpu" | None(auto)
-        env_var_path: str = "SBERT_MODEL_DIR", # if set, load from this local folder
-        batch_size: int = 512,                 # batching for memory safety
-        normalize: bool = False,               # L2-normalize embeddings
-        dtype: str = "float32",                # keep as string to pass sklearn clone check
+        device: str | None = None,  # "cuda" | "cpu" | None(auto)
+        env_var_path: str = "SBERT_MODEL_DIR",  # if set, load from this local folder
+        batch_size: int = 512,  # batching for memory safety
+        normalize: bool = False,  # L2-normalize embeddings
+        dtype: str = "float32",  # keep as string to pass sklearn clone check
     ):
         self.model_name = model_name
         self.device = device
@@ -102,9 +102,9 @@ class SBERTEncoder(BaseEstimator, TransformerMixin):
         return emb
 
 
-def build_preprocessor(categorical, numeric,
-                       mode: str = "full",
-                       cat_strategy: str = "onehot") -> ColumnTransformer:
+def build_preprocessor(
+    categorical, numeric, mode: str = "full", cat_strategy: str = "onehot"
+) -> ColumnTransformer:
     """
     Create a preprocessing pipeline for categorical and numerical features.
 
@@ -124,9 +124,19 @@ def build_preprocessor(categorical, numeric,
         # Handle categorical features
         if categorical:
             if cat_strategy == "onehot":
-                transformers.append(("cat", OneHotEncoder(handle_unknown="ignore"), categorical))
+                transformers.append(
+                    ("cat", OneHotEncoder(handle_unknown="ignore"), categorical)
+                )
             elif cat_strategy == "ordinal":
-                transformers.append(("cat", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), categorical))
+                transformers.append(
+                    (
+                        "cat",
+                        OrdinalEncoder(
+                            handle_unknown="use_encoded_value", unknown_value=-1
+                        ),
+                        categorical,
+                    )
+                )
             elif cat_strategy == "sbert":
                 for col in categorical:  # SBERT must be applied per text column
                     transformers.append((f"sbert_{col}", SBERTEncoder(), [col]))
@@ -142,10 +152,14 @@ def build_preprocessor(categorical, numeric,
         transformers.append(("num", StandardScaler(), numeric))
 
     elif mode == "none":
-        transformers.append(("all", "passthrough", (categorical or []) + (numeric or [])))
+        transformers.append(
+            ("all", "passthrough", (categorical or []) + (numeric or []))
+        )
 
     else:
-        raise ValueError(f"Unknown mode: {mode}. Use 'full', 'numeric_only', or 'none'.")
+        raise ValueError(
+            f"Unknown mode: {mode}. Use 'full', 'numeric_only', or 'none'."
+        )
 
     return ColumnTransformer(transformers)
 

@@ -4,6 +4,7 @@ Abstract base class for machine learning models.
 Defines the interface for all models in the Model Zoo, ensuring
 consistent training, prediction, and serialization methods.
 """
+
 from abc import ABC, abstractmethod
 import numpy as np
 

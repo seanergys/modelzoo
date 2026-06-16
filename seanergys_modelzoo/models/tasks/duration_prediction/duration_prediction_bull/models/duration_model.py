@@ -18,6 +18,7 @@ from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bul
     build_preprocessor,
 )
 
+
 def _train_candidate(args):
     """
     Train a single candidate model.
@@ -47,28 +48,22 @@ def _train_candidate(args):
     (i, params, X_train, y_train, X_val, y_val) = args
 
     import torch
+
     torch.set_num_threads(1)
 
-    print(f"[Training] Model {i+1}")
+    print(f"[Training] Model {i + 1}")
 
     model = NNTorch(**params)
 
-    model.fit(
-        X_train,
-        y_train,
-        validation_data=(X_val, y_val)
-    )
+    model.fit(X_train, y_train, validation_data=(X_val, y_val))
 
-    # validation prediction 
+    # validation prediction
     y_pred = model.predict(X_val)
 
     rmse = np.sqrt(np.mean((y_pred - y_val) ** 2))
 
-    return {
-        "model": model,   
-        "rmse": rmse,
-        "params": params
-    }
+    return {"model": model, "rmse": rmse, "params": params}
+
 
 class DurationModel(BaseModel):
     """
@@ -83,7 +78,7 @@ class DurationModel(BaseModel):
     Key features:
         - Parallel training (CPU) or sequential (GPU)
         - RMSE-based model selection
-        - Weighted ensemble 
+        - Weighted ensemble
         - Uncertainty estimation via ensemble variance
 
     Attributes:
@@ -100,12 +95,12 @@ class DurationModel(BaseModel):
 
     def __init__(self, config: dict = None):
         self.config = config or {}
-        self.models: List[NNTorch] = [] 
+        self.models: List[NNTorch] = []
         self.metadata: Dict = {}
-        self.preprocessor = None#DurationPreprocessor()
+        self.preprocessor = None  # DurationPreprocessor()
 
         # TODO: remove for seanergys
-        self.is_experiment = self.config.get("is_experiment", False) 
+        self.is_experiment = self.config.get("is_experiment", False)
 
     # ----------------------------------------------------------
     # ---------------------- TRAINING
@@ -129,7 +124,6 @@ class DurationModel(BaseModel):
                 - params
         """
         n_jobs = min(len(param_grid), self.config.get("n_jobs", 2))
-        
 
         tasks = [
             (i, params, X_train, y_train, X_val, y_val)
@@ -196,7 +190,7 @@ class DurationModel(BaseModel):
             7. Store training metadata for reproducibility
 
         Args:
-            X (pd.DataFrame or np.ndarray): Input features. 
+            X (pd.DataFrame or np.ndarray): Input features.
             y (np.ndarray): Target values.
             validation_data (Tuple[np.ndarray, np.ndarray], optional): Tuple (X_val, y_val).
 
@@ -208,7 +202,9 @@ class DurationModel(BaseModel):
 
         if self.preprocessor is not None:
             if not hasattr(X, "columns"):
-                raise ValueError("X must be a pandas DataFrame (required for preprocessing)")
+                raise ValueError(
+                    "X must be a pandas DataFrame (required for preprocessing)"
+                )
 
             categorical = self.config.get("categorical_features", [])
             numeric = self.config.get("numeric_features", [])
@@ -245,6 +241,7 @@ class DurationModel(BaseModel):
         use_gpu = False
         try:
             import torch
+
             use_gpu = torch.cuda.is_available()
         except:
             pass
@@ -252,14 +249,18 @@ class DurationModel(BaseModel):
         if self.is_experiment:
             results = self._parallel_train(param_grid, X_train, y_train, X_val, y_val)
 
-        else: 
+        else:
             # auto mode
             if use_gpu:
                 print("[INFO] GPU detected: sequential mode")
-                results = self._sequential_train(param_grid, X_train, y_train, X_val, y_val)
+                results = self._sequential_train(
+                    param_grid, X_train, y_train, X_val, y_val
+                )
             else:
                 print("[INFO] CPU detected: parallel mode")
-                results = self._sequential_train(param_grid, X_train, y_train, X_val, y_val)
+                results = self._sequential_train(
+                    param_grid, X_train, y_train, X_val, y_val
+                )
 
         # -----------------------------------------
         # 2. Select best models (ensemble)
@@ -290,10 +291,7 @@ class DurationModel(BaseModel):
         for r in top_results:
             new_model = NNTorch(**r["params"])
 
-            new_model.fit(
-                X_trval,
-                y_trval
-            )
+            new_model.fit(X_trval, y_trval)
 
             fresh_models.append(new_model)
 
@@ -311,7 +309,7 @@ class DurationModel(BaseModel):
             "config": self.config,
             "model_name": self.name,
             "version": self.version,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         print(f"[Training Done] Best RMSE: {self.metadata['best_rmse']:.4f}")
@@ -337,7 +335,7 @@ class DurationModel(BaseModel):
 
         if not self.models:
             raise RuntimeError("Model not trained")
-        
+
         if self.preprocessor is not None:
             X = self.preprocessor.transform(X)
 
@@ -353,7 +351,7 @@ class DurationModel(BaseModel):
 
         preds = np.asarray(preds, dtype=np.float32)
         return np.sum(preds * weights[:, None], axis=0)
-    
+
     def predict_full(self, X):
         """
         Generate full ensemble prediction output.
@@ -407,7 +405,7 @@ class DurationModel(BaseModel):
         }
 
     # -----------------------------------------
-    # Confidence 
+    # Confidence
     # -----------------------------------------
     def predict_with_confidence(self, X):
         """
@@ -462,7 +460,6 @@ class DurationModel(BaseModel):
 
         return True
 
-
     @classmethod
     def load(cls, path: str):
         """
@@ -480,7 +477,7 @@ class DurationModel(BaseModel):
         return joblib.load(os.path.join(path, "model.joblib"))
 
     # -----------------------------------------
-    # Param grid 
+    # Param grid
     # -----------------------------------------
     def _get_param_grid(self, input_dim: int) -> List[Dict]:
         """
@@ -510,36 +507,78 @@ class DurationModel(BaseModel):
         # Manual configs
         # -----------------------------------------
         manual_configs = [
-            dict(layers=[100,200,100], act=["tanh","tanh","relu"], epochs=50, loss=nn.MSELoss()),
-            dict(layers=[120,240,120], act=["tanh","tanh","relu"], epochs=50, loss=nn.MSELoss()),
-            dict(layers=[80,160,80], act=["tanh","tanh","relu"], epochs=50, loss=nn.MSELoss()),
-            dict(layers=[100,300,100], act=["tanh","relu","relu"], epochs=50, loss=nn.MSELoss()),
-            dict(layers=[150,200,150], act=["tanh","tanh","relu"], epochs=50, loss=nn.MSELoss()),
+            dict(
+                layers=[100, 200, 100],
+                act=["tanh", "tanh", "relu"],
+                epochs=50,
+                loss=nn.MSELoss(),
+            ),
+            dict(
+                layers=[120, 240, 120],
+                act=["tanh", "tanh", "relu"],
+                epochs=50,
+                loss=nn.MSELoss(),
+            ),
+            dict(
+                layers=[80, 160, 80],
+                act=["tanh", "tanh", "relu"],
+                epochs=50,
+                loss=nn.MSELoss(),
+            ),
+            dict(
+                layers=[100, 300, 100],
+                act=["tanh", "relu", "relu"],
+                epochs=50,
+                loss=nn.MSELoss(),
+            ),
+            dict(
+                layers=[150, 200, 150],
+                act=["tanh", "tanh", "relu"],
+                epochs=50,
+                loss=nn.MSELoss(),
+            ),
             # dict(layers=[100,200,100], act=["tanh","tanh","relu"], epochs=50, loss=nn.HuberLoss(delta=5.0)),
             # dict(layers=[120,240,120], act=["tanh","tanh","relu"], epochs=50, loss=nn.HuberLoss(delta=5.0)),
-            dict(layers=[80,160,80], act=["tanh","tanh","relu"], epochs=20, loss=nn.HuberLoss(delta=5.0)),
-            dict(layers=[128, 128, 64], act=["relu", "relu", "relu"], epochs=50, loss=nn.HuberLoss(delta=1.0)),
-            dict(layers=[256, 128, 64], act=["relu", "relu", "relu"], epochs=50, loss=nn.HuberLoss(delta=1.0))
+            dict(
+                layers=[80, 160, 80],
+                act=["tanh", "tanh", "relu"],
+                epochs=20,
+                loss=nn.HuberLoss(delta=5.0),
+            ),
+            dict(
+                layers=[128, 128, 64],
+                act=["relu", "relu", "relu"],
+                epochs=50,
+                loss=nn.HuberLoss(delta=1.0),
+            ),
+            dict(
+                layers=[256, 128, 64],
+                act=["relu", "relu", "relu"],
+                epochs=50,
+                loss=nn.HuberLoss(delta=1.0),
+            ),
         ]
 
         configs = []
 
         for cfg in manual_configs:
-            configs.append({
-                **base,
-                "nn_key": "MLP",
-                "n_epochs": cfg["epochs"],
-                "cost_function": cfg["loss"],
-                "nn_params": {
-                    "in_nn": cfg["layers"],
-                    "activations": cfg["act"],
-                    "input_shape": input_dim,
-                    "output_shape": 1,
-                },
-            })
+            configs.append(
+                {
+                    **base,
+                    "nn_key": "MLP",
+                    "n_epochs": cfg["epochs"],
+                    "cost_function": cfg["loss"],
+                    "nn_params": {
+                        "in_nn": cfg["layers"],
+                        "activations": cfg["act"],
+                        "input_shape": input_dim,
+                        "output_shape": 1,
+                    },
+                }
+            )
 
         # -----------------------------------------
-        # Deduplicate 
+        # Deduplicate
         # -----------------------------------------
         def _freeze(c):
             nn = c["nn_params"]

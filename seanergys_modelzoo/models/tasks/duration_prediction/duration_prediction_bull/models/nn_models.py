@@ -36,11 +36,11 @@ class LinearActivation(torch.nn.Module):
 
 
 ACTIVATION_FUNCTIONS = {
-    'relu': torch.nn.ReLU(),
-    'tanh': torch.nn.Tanh(),
-    'sigmoid': torch.nn.Sigmoid(),
-    'identity': torch.nn.Identity(),
-    'linear': LinearActivation()
+    "relu": torch.nn.ReLU(),
+    "tanh": torch.nn.Tanh(),
+    "sigmoid": torch.nn.Sigmoid(),
+    "identity": torch.nn.Identity(),
+    "linear": LinearActivation(),
 }
 
 
@@ -67,7 +67,14 @@ class MLPTorchModel(torch.nn.Module):
     Returns:
         torch.Tensor: Output tensor of shape (batch_size, output_shape).
     """
-    def __init__(self, input_shape: int, output_shape: int, in_nn: List[int] = [40, 150], activations: List[str] = ['tanh', 'relu']):
+
+    def __init__(
+        self,
+        input_shape: int,
+        output_shape: int,
+        in_nn: List[int] = [40, 150],
+        activations: List[str] = ["tanh", "relu"],
+    ):
         super().__init__()
 
         layers = []
@@ -75,9 +82,9 @@ class MLPTorchModel(torch.nn.Module):
         for i in range(len(in_nn)):
             layers.append(torch.nn.Linear(previous_shape, in_nn[i]))
 
-            if activations[i] == 'relu':
+            if activations[i] == "relu":
                 layers.append(torch.nn.ReLU())
-            elif activations[i] == 'tanh':
+            elif activations[i] == "tanh":
                 layers.append(torch.nn.Tanh())
 
             previous_shape = in_nn[i]
@@ -86,7 +93,7 @@ class MLPTorchModel(torch.nn.Module):
         self.layers = torch.nn.Sequential(*layers)
 
     @staticmethod
-    def weights_init(m: torch.nn.Module) -> None:        
+    def weights_init(m: torch.nn.Module) -> None:
         """
         Initialize Linear layer weights using Xavier uniform initialization.
         """
@@ -143,26 +150,36 @@ class CNNTorch(torch.nn.Module):
         in_nn (List[int]): Sizes of hidden layers.
         activations (List[str]): Activation functions for each hidden layer.
     """
-    def __init__(self, input_shape: int, output_shape: int,
-                 filters: int, in_nn: List[int], activations: List[str]):
+
+    def __init__(
+        self,
+        input_shape: int,
+        output_shape: int,
+        filters: int,
+        in_nn: List[int],
+        activations: List[str],
+    ):
         super(CNNTorch, self).__init__()
 
-        assert len(activations) == len(
-            in_nn), "Mismatch in number of activations and in_nn layers"
+        assert len(activations) == len(in_nn), (
+            "Mismatch in number of activations and in_nn layers"
+        )
 
         self.input_shape = input_shape
         self.output_shape = output_shape
 
         # Convolutional Layer
         self.conv1 = torch.nn.Conv1d(1, filters, kernel_size=1)
-        flattened_size = self.conv1(torch.zeros(1, 1, self.input_shape)).view(1, -1).shape[1]
+        flattened_size = (
+            self.conv1(torch.zeros(1, 1, self.input_shape)).view(1, -1).shape[1]
+        )
 
         # Dynamic creation of linear layers followed by activation layers
         layers = []
         in_features = flattened_size
         for i, (out_features, activation) in enumerate(zip(in_nn, activations)):
             layers.append(torch.nn.Linear(in_features, out_features))
-            if activation not in ['identity', 'linear']:
+            if activation not in ["identity", "linear"]:
                 layers.append(ACTIVATION_FUNCTIONS[activation])
             # layers.append(torch.nn.Dropout(p=0.1))  # adding dropout here
 
@@ -173,7 +190,6 @@ class CNNTorch(torch.nn.Module):
         self.d2 = torch.nn.Dropout(p=0.6)
         # Output Layer
         self.out = torch.nn.Linear(in_nn[-1], self.output_shape)
-
 
     def forward(self, x: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
         """
@@ -225,7 +241,7 @@ class MLPTorchModelWithDropout(torch.nn.Module):
         input_shape: int,
         output_shape: int,
         in_nn: List[int] = [40, 150],
-        activations: List[str] = ['tanh', 'relu'],
+        activations: List[str] = ["tanh", "relu"],
         dropout: float = 0.1,
     ):
         super().__init__()
@@ -235,9 +251,9 @@ class MLPTorchModelWithDropout(torch.nn.Module):
         for i in range(len(in_nn)):
             layers.append(torch.nn.Linear(previous_shape, in_nn[i]))
 
-            if activations[i] == 'relu':
+            if activations[i] == "relu":
                 layers.append(torch.nn.ReLU())
-            elif activations[i] == 'tanh':
+            elif activations[i] == "tanh":
                 layers.append(torch.nn.Tanh())
 
             # Add dropout after each activation
@@ -290,8 +306,6 @@ class MLPTorchModelWithDropout(torch.nn.Module):
         return self.layers(x)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     nn_model = MLPTorchModel(input_shape=10, output_shape=5)
     print(nn_model)
-
-

@@ -76,13 +76,9 @@ class DurationPreprocessor:
             np.expm1(df["cnumr"]) / (np.expm1(df["nnumr"]) + eps)
         )
 
-        df["total_compute"] = np.log1p(
-            np.expm1(df["cnumr"]) * np.expm1(df["elpl"])
-        )
+        df["total_compute"] = np.log1p(np.expm1(df["cnumr"]) * np.expm1(df["elpl"]))
 
-        df["node_compute"] = np.log1p(
-            np.expm1(df["nnumr"]) * np.expm1(df["elpl"])
-        )
+        df["node_compute"] = np.log1p(np.expm1(df["nnumr"]) * np.expm1(df["elpl"]))
 
         # --- build arrays ---
         X_emb = df[self.emb_cols].values.astype(np.float32)

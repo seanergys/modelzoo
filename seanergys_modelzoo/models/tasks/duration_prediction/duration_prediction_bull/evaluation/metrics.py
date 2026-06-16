@@ -51,5 +51,3 @@ def create_metrics(y_true: np.ndarray, preds: np.ndarray) -> Dict[str, float]:
     upp = np.mean(preds < y_true) * 100
 
     return {"MAE": mae, "MSE": mse, "RMSE": rmse, "R2": r2, "MAPE": mape, "UPP": upp}
-
-

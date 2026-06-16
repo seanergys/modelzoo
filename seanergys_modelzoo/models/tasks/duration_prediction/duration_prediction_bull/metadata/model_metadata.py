@@ -5,7 +5,9 @@ Provides a structured and serializable representation of model
 configuration, validation performance, and feature schema for
 reproducibility and inference consistency.
 """
+
 from typing import Dict, List, Any
+
 
 class DurationModelMetadata:
     """
@@ -19,13 +21,14 @@ class DurationModelMetadata:
     Args:
         config (Dict[str, Any]): Model configuration used during training
         val_rmse (List[float]): Validation RMSE scores for ensemble members
-        feature_schema (Any): Description of input features 
+        feature_schema (Any): Description of input features
         emb_cols (List[str]): Names of embedding feature columns
         num_cols (List[str]): Names of structured (non-embedding) feature columns
 
     Notes:
         - Intended for serialization (e.g., JSON) alongside trained models.
     """
+
     def __init__(
         self,
         config: Dict[str, Any],

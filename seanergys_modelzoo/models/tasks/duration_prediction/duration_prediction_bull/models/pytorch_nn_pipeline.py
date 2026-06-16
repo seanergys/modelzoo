@@ -8,6 +8,7 @@ support for both regression and classification tasks.
 Ensures compatibility with scikit-learn interfaces and Model Zoo
 integration.
 """
+
 import logging
 
 log = logging.getLogger(__name__)  # noqa: E402
@@ -28,6 +29,7 @@ gc.collect()  # Explicit garbage collection
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import torch.optim as optim
+
 # import torchvision
 from torch.utils.data import TensorDataset, DataLoader
 from datasets import Dataset
@@ -78,6 +80,7 @@ from sklearn.metrics import mean_squared_error
 
 from sklearn.base import BaseEstimator, RegressorMixin
 
+
 class NNTorch(BaseEstimator, RegressorMixin):
     """
     Wrapper class for building, training, validating, and saving/loading
@@ -85,17 +88,17 @@ class NNTorch(BaseEstimator, RegressorMixin):
     """
 
     def __init__(
-            self,
-            task_type: str = "classification",
-            nn_key: str = "MLP",
-            nn_params: dict = None,
-            n_epochs: int = 10,
-            batch_size: int = 100,
-            learning_rate: float = 0.001,
-            cost_function: torch.nn.Module = torch.nn.MSELoss(),
-            metrics: list = ["accuracy"],
-            verbose: bool = True,
-            is_log_target: bool = False,
+        self,
+        task_type: str = "classification",
+        nn_key: str = "MLP",
+        nn_params: dict = None,
+        n_epochs: int = 10,
+        batch_size: int = 100,
+        learning_rate: float = 0.001,
+        cost_function: torch.nn.Module = torch.nn.MSELoss(),
+        metrics: list = ["accuracy"],
+        verbose: bool = True,
+        is_log_target: bool = False,
     ):
         """
         Initialize the neural network wrapper.
@@ -127,10 +130,10 @@ class NNTorch(BaseEstimator, RegressorMixin):
         self.is_log_target = is_log_target
         # Add history dictionary to track training metrics
         self.history = {
-            'train_loss': [],
-            'train_acc': [],
-            'val_loss': [],
-            'val_acc': []
+            "train_loss": [],
+            "train_acc": [],
+            "val_loss": [],
+            "val_acc": [],
         }
 
     def create_model(self) -> torch.nn.Module:
@@ -171,13 +174,13 @@ class NNTorch(BaseEstimator, RegressorMixin):
             raise ValueError(f"Unsupported nn_key: {self.nn_key}")
 
     def fit(
-            self,
-            X: np.ndarray,
-            y: np.ndarray,
-            validation_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-            continue_training: bool = True,
-            dataset: Optional[Dataset] = None,
-            model_path: Optional[str] = None,
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        validation_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
+        continue_training: bool = True,
+        dataset: Optional[Dataset] = None,
+        model_path: Optional[str] = None,
     ) -> "NNTorch":
         """
         Train the neural network model.
@@ -226,14 +229,14 @@ class NNTorch(BaseEstimator, RegressorMixin):
         optimizer_choice = AdamW(
             self.nn_model.parameters(),
             lr=self.learning_rate,
-            weight_decay=1e-4  # L2 regularization
+            weight_decay=1e-4,  # L2 regularization
         )
 
         scheduler = ReduceLROnPlateau(
             optimizer_choice,
             mode="min",
-            factor=0.5,     # reduce LR by 50%
-            patience=3,     # wait 5 epochs without improvement
+            factor=0.5,  # reduce LR by 50%
+            patience=3,  # wait 5 epochs without improvement
             threshold=0.001,
             min_lr=1e-5,
         )
@@ -259,8 +262,12 @@ class NNTorch(BaseEstimator, RegressorMixin):
             y_val = torch.tensor(validation_data[1], dtype=torch.float32, device=device)
             if self.task_type == "regression" and y_val.ndim == 1:
                 y_val = y_val.unsqueeze(1)
-            val_dataloader = DataLoader(TensorDataset(x_val, y_val), batch_size=self.batch_size, shuffle=False,
-                                        num_workers=0)
+            val_dataloader = DataLoader(
+                TensorDataset(x_val, y_val),
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=0,
+            )
             self.val_accuracies = []
 
         best_val_loss = float("inf")
@@ -302,7 +309,9 @@ class NNTorch(BaseEstimator, RegressorMixin):
                     else:
                         outputs_real = outputs
                         targets_real = targets
-                    squared_error_sum += ((outputs_real - targets_real) ** 2).sum().item()
+                    squared_error_sum += (
+                        ((outputs_real - targets_real) ** 2).sum().item()
+                    )
 
             train_loss /= num_samples
             if self.task_type == "classification":
@@ -362,11 +371,11 @@ class NNTorch(BaseEstimator, RegressorMixin):
         return self
 
     def validate_model(
-            self,
-            nn_model: torch.nn.Module,
-            val_dataloader: DataLoader,
-            cost_function: torch.nn.Module,
-            device: torch.device,
+        self,
+        nn_model: torch.nn.Module,
+        val_dataloader: DataLoader,
+        cost_function: torch.nn.Module,
+        device: torch.device,
     ) -> Tuple[float, float]:
         """
         Evaluate the model on a validation dataset.
@@ -411,7 +420,9 @@ class NNTorch(BaseEstimator, RegressorMixin):
                         outputs_real = outputs
                         targets_real = targets
 
-                    squared_error_sum += ((outputs_real - targets_real) ** 2).sum().item()
+                    squared_error_sum += (
+                        ((outputs_real - targets_real) ** 2).sum().item()
+                    )
 
         val_loss /= num_samples
         if self.task_type == "classification":
