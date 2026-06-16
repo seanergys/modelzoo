@@ -66,7 +66,7 @@ class NNTorch(BaseEstimator, RegressorMixin):
         self,
         task_type: str = "classification",
         nn_key: str = "MLP",
-        nn_params: dict = None,
+        nn_params: Optional[dict] = None,
         n_epochs: int = 10,
         batch_size: int = 100,
         learning_rate: float = 0.001,
@@ -91,7 +91,7 @@ class NNTorch(BaseEstimator, RegressorMixin):
             is_log_target (bool): Whether the target is log-transformed
         """
         self.task_type = task_type  # either "classification" or "regression"
-        self.val_accuracies = None
+        self.val_accuracies: list[float] = []
         set_seed(42)
         self.nn_params = nn_params
         self.nn_key = nn_key
@@ -104,7 +104,7 @@ class NNTorch(BaseEstimator, RegressorMixin):
         self.nn_model = self.create_model()
         self.is_log_target = is_log_target
         # Add history dictionary to track training metrics
-        self.history = {
+        self.history: dict[str, list[float]] = {
             "train_loss": [],
             "train_acc": [],
             "val_loss": [],
@@ -118,6 +118,8 @@ class NNTorch(BaseEstimator, RegressorMixin):
         Returns:
             torch.nn.Module: Instantiated PyTorch model
         """
+        if self.nn_params is None:
+            raise ValueError("nn_params must not be None")
 
         nn_params = self.nn_params
 
@@ -243,7 +245,6 @@ class NNTorch(BaseEstimator, RegressorMixin):
                 shuffle=False,
                 num_workers=0,
             )
-            self.val_accuracies = []
 
         best_val_loss = float("inf")
         best_state_dict = None

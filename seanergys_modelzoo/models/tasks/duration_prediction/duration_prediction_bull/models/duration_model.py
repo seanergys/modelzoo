@@ -11,7 +11,8 @@ import numpy as np
 from typing import List, Dict
 from sklearn.metrics import r2_score
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
+from pathlib import Path
+import joblib
 from .base_model import BaseModel
 
 from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import (
@@ -95,7 +96,7 @@ class DurationModel(BaseModel):
     version: str = "v1"
     task_type: str = "regression"
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: dict | None = None):
         self.config = config or {}
         self.models: List[NNTorch] = []
         self.metadata: Dict = {}
@@ -442,7 +443,7 @@ class DurationModel(BaseModel):
     # -----------------------------------------
     # Save / Load
     # -----------------------------------------
-    def save(self, path: str) -> bool:
+    def save(self, path: str | Path, **kwargs) -> bool:
         """
         Save the model to disk.
 
@@ -452,16 +453,15 @@ class DurationModel(BaseModel):
         Returns:
             bool: True if the model was successfully saved.
         """
-        import os
-        import joblib
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
 
-        os.makedirs(path, exist_ok=True)
-        joblib.dump(self, os.path.join(path, "model.joblib"))
+        joblib.dump(self, path / "model.joblib")
 
         return True
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str | Path, **kwargs):
         """
         Load a saved model from disk.
 
@@ -471,10 +471,9 @@ class DurationModel(BaseModel):
         Returns:
             DurationModel: Loaded model instance.
         """
-        import os
-        import joblib
+        path = Path(path)
 
-        return joblib.load(os.path.join(path, "model.joblib"))
+        return joblib.load(path / "model.joblib")
 
     # -----------------------------------------
     # Param grid

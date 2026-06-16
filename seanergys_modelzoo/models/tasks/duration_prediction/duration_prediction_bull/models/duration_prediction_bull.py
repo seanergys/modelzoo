@@ -100,7 +100,7 @@ class DurationPredictionBull(SeanergysModel):
 
         return {
             dataset_name: (
-                cls(),
+                cls(task_type=SeanergysModelTask.REGRESSION),
                 FDataDataset,
                 (
                     ds_params,
@@ -187,10 +187,13 @@ class DurationPredictionBull(SeanergysModel):
         )
 
     def train(
-        self,
-        train_data_loader,
-        val_data_loader=None,
-    ) -> None:
+            self,
+            train_data_loader: SeanergysDataloader,
+            val_data_loader: SeanergysDataloader | None = None,
+            training_loss=None,
+            validation_metrics=None,
+            **kwargs,
+    ) -> dict[str, list[float]]:
         """
         Train the duration prediction model from a Seanergys dataloader.
         Args:
@@ -233,6 +236,8 @@ class DurationPredictionBull(SeanergysModel):
         )
 
         self.is_trained = True
+
+        return {}
 
     @classmethod
     def get_test_config(
@@ -340,7 +345,7 @@ class DurationPredictionBull(SeanergysModel):
 
         return self.model.predict(X)
 
-    def save(self, path: str) -> bool:
+    def save(self, path: str | Path, **kwargs) -> bool:
         """
         Save the trained duration prediction model to disk.
 
@@ -369,8 +374,9 @@ class DurationPredictionBull(SeanergysModel):
 
     @classmethod
     def load(
-        cls,
-        path: str,
+            cls,
+            path: str | Path,
+            **kwargs,
     ) -> "DurationPredictionBull":
         """
         Load a saved DurationPredictionBull model from disk.
@@ -387,7 +393,7 @@ class DurationPredictionBull(SeanergysModel):
 
         data = joblib.load(path / "duration_prediction_bull.joblib")
 
-        obj = cls()
+        obj = cls(task_type=SeanergysModelTask.REGRESSION)
 
         obj.model = data["model"]
         obj.preprocessor = data["preprocessor"]
