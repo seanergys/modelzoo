@@ -9,76 +9,51 @@ Ensures compatibility with scikit-learn interfaces and Model Zoo
 integration.
 """
 
-import logging
-
-log = logging.getLogger(__name__)  # noqa: E402
-
-logging.basicConfig(level=logging.INFO)
-
-from typing import Optional, Tuple
-import torch
-
-# torch.cuda.empty_cache()  # Clear memory cache if needed
-from copy import deepcopy
-
-# torch.autograd.set_detect_anomaly(True)
 import gc
-
-gc.collect()  # Explicit garbage collection
-
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-
-import torch.optim as optim
-
-# import torchvision
-from torch.utils.data import TensorDataset, DataLoader
-from datasets import Dataset
-
 import json
-from sklearn.metrics import accuracy_score
+import logging
 import os
-import numpy as np
 import random
+from typing import Optional, Tuple
 
+import numpy as np
+import torch
+from datasets import Dataset
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.metrics import accuracy_score
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import DataLoader, TensorDataset
+
+from ..set_seed import set_seed
 from .nn_models import (
-    MLPTorchModel,
     CNNTorch,
+    MLPTorchModel,
     MLPTorchModelWithDropout,
 )
 
-from ..set_seed import set_seed
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-from torch.optim import AdamW
-
+gc.collect()
 
 os.environ["PYTHONHASHSEED"] = "0"
-np.random.seed(123)
-random.seed(123)
-
-# When using a GPU
 os.environ["TF_DETERMINISTIC_OPS"] = "1"
 os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
 
-torch.manual_seed(0)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(0)
+np.random.seed(123)
+random.seed(123)
 
-set_seed(42)
-
-# For PyTorch
 torch.manual_seed(42)
 
-# Also set the seed for the CUDA RNG if you're using a GPU
 if torch.cuda.is_available():
     torch.cuda.manual_seed(42)
     torch.cuda.manual_seed_all(42)
 
-# Additional options for deterministic operations
+set_seed(42)
+
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-from sklearn.metrics import mean_squared_error
-
-from sklearn.base import BaseEstimator, RegressorMixin
 
 
 class NNTorch(BaseEstimator, RegressorMixin):

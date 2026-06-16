@@ -8,7 +8,7 @@ selected by validation performance.
 
 import time
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from sklearn.metrics import r2_score
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -17,6 +17,8 @@ from .base_model import BaseModel
 from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import (
     build_preprocessor,
 )
+from .pytorch_nn_pipeline import NNTorch
+import torch
 
 
 def _train_candidate(args):
@@ -240,11 +242,9 @@ class DurationModel(BaseModel):
 
         use_gpu = False
         try:
-            import torch
-
             use_gpu = torch.cuda.is_available()
-        except:
-            pass
+        except Exception:
+            use_gpu = False
 
         if self.is_experiment:
             results = self._parallel_train(param_grid, X_train, y_train, X_val, y_val)
