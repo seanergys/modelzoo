@@ -18,12 +18,11 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-from datasets import Dataset
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.metrics import accuracy_score
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, Dataset
 
 from ..set_seed import set_seed
 from .nn_models import (
