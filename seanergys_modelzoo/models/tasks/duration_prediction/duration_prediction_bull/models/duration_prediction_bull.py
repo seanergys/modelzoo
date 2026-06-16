@@ -187,12 +187,12 @@ class DurationPredictionBull(SeanergysModel):
         )
 
     def train(
-            self,
-            train_data_loader: SeanergysDataloader,
-            val_data_loader: SeanergysDataloader | None = None,
-            training_loss=None,
-            validation_metrics=None,
-            **kwargs,
+        self,
+        train_data_loader: SeanergysDataloader,
+        val_data_loader: SeanergysDataloader | None = None,
+        training_loss=None,
+        validation_metrics=None,
+        **kwargs,
     ) -> dict[str, list[float]]:
         """
         Train the duration prediction model from a Seanergys dataloader.
@@ -374,9 +374,9 @@ class DurationPredictionBull(SeanergysModel):
 
     @classmethod
     def load(
-            cls,
-            path: str | Path,
-            **kwargs,
+        cls,
+        path: str | Path,
+        **kwargs,
     ) -> "DurationPredictionBull":
         """
         Load a saved DurationPredictionBull model from disk.
