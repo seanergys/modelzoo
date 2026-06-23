@@ -380,7 +380,7 @@ class M100Dataset(SeanergysDataset):
         path_str = str(path.resolve())
 
         if path_str in self._file_cache:
-            return self._file_cache.get(path_str)
+            return self._file_cache[path_str]
 
         pf = pq.ParquetFile(path_str)
         self._file_cache[path_str] = pf

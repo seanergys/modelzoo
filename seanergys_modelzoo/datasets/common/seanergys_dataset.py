@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Union
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from torch.utils.data import Dataset
@@ -80,15 +80,20 @@ class SeanergysDataset(BaseModel, Dataset, ABC):
         return self
 
     @abstractmethod
-    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
+    def __getitem__(self, idx: int) -> Any:
         """
         Retrieve a single item from the dataset.
+
+        Subclasses may return either a ``(data, target)`` tuple for supervised
+        datasets or a bare feature vector for unsupervised ones, so the return
+        type is intentionally ``Any``.
 
         Args:
             idx: Index of the item to retrieve
 
         Returns:
-            Tuple of (data, target)
+            The sample for the given index (e.g. a ``(data, target)`` tuple or a
+            feature vector).
         """
         pass
 
