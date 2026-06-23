@@ -10,6 +10,16 @@ CLAUDE.md
 .vscode/*
 
 DS_Store
+
+# Generated build / test artifacts (regenerated on every run, never committed)
+coverage/
+.coverage
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
 __pycache__
 **/__pycache__/
 .claude
