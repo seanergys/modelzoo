@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import joblib
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
@@ -104,6 +105,7 @@ class DurationModel(BaseModel):
         self.metadata: Dict = {}
         self.preprocessor = None  # DurationPreprocessor()
         self.is_experiment = self.config.get("is_experiment", False)
+        self.logger = logging.getLogger("DurationModel")
 
     # ----------------------------------------------------------
     # ---------------------- TRAINING

@@ -7,8 +7,6 @@ from sentence_transformers import SentenceTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 import os
 
-from sklearn.model_selection import train_test_split
-from typing import Tuple
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
