@@ -51,6 +51,8 @@ class DurationPreprocessor:
         df = df.copy()
 
         # --- base transforms ---
+        df["elpl"] = df["elpl"] / 60.0
+
         eps = 1e-6
 
         df["elpl"] = np.log1p(df["elpl"])

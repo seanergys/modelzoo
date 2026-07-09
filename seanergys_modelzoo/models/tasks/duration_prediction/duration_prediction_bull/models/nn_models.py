@@ -9,9 +9,10 @@ Includes:
 All models are designed to be lightweight and compatible with sklearn-style wrappers.
 """
 
-import torch
-import numpy as np
 from typing import List, Union
+
+import numpy as np
+import torch
 
 
 class LinearActivation(torch.nn.Module):

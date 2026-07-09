@@ -6,6 +6,7 @@ consistent training, prediction, and serialization methods.
 """
 
 from abc import ABC, abstractmethod
+
 import numpy as np
 
 

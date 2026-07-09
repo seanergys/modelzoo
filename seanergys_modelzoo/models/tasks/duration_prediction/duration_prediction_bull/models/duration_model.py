@@ -7,19 +7,22 @@ selected by validation performance.
 """
 
 import time
-import numpy as np
-from typing import List, Dict
-from sklearn.metrics import r2_score
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-import joblib
-from .base_model import BaseModel
+from typing import Dict, List
 
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import (
-    build_preprocessor,
-)
-from .pytorch_nn_pipeline import NNTorch
+import joblib
+import numpy as np
 import torch
+import torch.nn as nn
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
+
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import \
+    build_preprocessor
+
+from .base_model import BaseModel
+from .pytorch_nn_pipeline import NNTorch
 
 
 def _train_candidate(args):
@@ -49,8 +52,6 @@ def _train_candidate(args):
             }
     """
     (i, params, X_train, y_train, X_val, y_val) = args
-
-    import torch
 
     torch.set_num_threads(1)
 
@@ -101,8 +102,6 @@ class DurationModel(BaseModel):
         self.models: List[NNTorch] = []
         self.metadata: Dict = {}
         self.preprocessor = None  # DurationPreprocessor()
-
-        # TODO: remove for seanergys
         self.is_experiment = self.config.get("is_experiment", False)
 
     # ----------------------------------------------------------
@@ -179,6 +178,38 @@ class DurationModel(BaseModel):
 
         return results
 
+    def _get_member_predictions(self, X):
+        """
+        Compute predictions from all ensemble members.
+
+        Returns:
+            np.ndarray of shape (n_models, n_samples)
+        """
+        if self.preprocessor is not None:
+            X = self.preprocessor.transform(X)
+
+        preds = np.asarray(
+            [model.predict(X) for model in self.models],
+            dtype=np.float32,
+        )
+
+        return preds
+
+
+    def _get_weights(self):
+        """
+        Compute ensemble weights from validation RMSE.
+
+        Returns:
+            np.ndarray of shape (n_models,)
+        """
+        rmse = np.asarray(self.val_rmse, dtype=np.float32)
+
+        weights = 1.0 / (rmse + 1e-8)
+        weights /= weights.sum()
+
+        return weights
+
     def fit(self, X, y, validation_data=None):
         """
         Train the duration prediction ensemble.
@@ -202,6 +233,8 @@ class DurationModel(BaseModel):
         """
 
         start_time = time.time()
+        y = np.asarray(y, dtype=np.float32)
+        y = y / 60.0  # Convert to minutes
 
         if self.preprocessor is not None:
             if not hasattr(X, "columns"):
@@ -224,10 +257,12 @@ class DurationModel(BaseModel):
         if validation_data is not None:
             X_train, y_train = X, y
             X_val, y_val = validation_data
+
+            y_val = np.asarray(y_val, dtype=np.float32)
+            y_val = y_val / 60.0
             if self.preprocessor is not None:
                 X_val = self.preprocessor.transform(X_val)
         else:
-            from sklearn.model_selection import train_test_split
 
             X_train, X_val, y_train, y_val = train_test_split(
                 X,
@@ -241,11 +276,7 @@ class DurationModel(BaseModel):
         # -----------------------------------------
         param_grid = self._get_param_grid(X_train.shape[1])
 
-        use_gpu = False
-        try:
-            use_gpu = torch.cuda.is_available()
-        except Exception:
-            use_gpu = False
+        use_gpu = torch.cuda.is_available()
 
         if self.is_experiment:
             results = self._parallel_train(param_grid, X_train, y_train, X_val, y_val)
@@ -253,12 +284,12 @@ class DurationModel(BaseModel):
         else:
             # auto mode
             if use_gpu:
-                print("[INFO] GPU detected: sequential mode")
+                self.logger.info("GPU detected: using sequential GPU mode")
                 results = self._sequential_train(
                     param_grid, X_train, y_train, X_val, y_val
                 )
             else:
-                print("[INFO] CPU detected: parallel mode")
+                self.logger.info("No GPU detected: using CPU mode")
                 results = self._sequential_train(
                     param_grid, X_train, y_train, X_val, y_val
                 )
@@ -283,7 +314,7 @@ class DurationModel(BaseModel):
             y_val_pred = r["model"].predict(X_val)
             self.val_r2.append(r2_score(y_val, y_val_pred))
 
-        # Rrecreate models from scratch
+        # Recreate models from scratch
         X_trval = np.vstack([X_train, X_val])
         y_trval = np.concatenate([y_train, y_val])
 
@@ -311,6 +342,8 @@ class DurationModel(BaseModel):
             "model_name": self.name,
             "version": self.version,
             "timestamp": time.time(),
+            "target_unit": "minutes",
+            "walltime_unit": "minutes",
         }
 
         print(f"[Training Done] Best RMSE: {self.metadata['best_rmse']:.4f}")
@@ -331,26 +364,15 @@ class DurationModel(BaseModel):
             X (np.ndarray): Input features.
 
         Returns:
-            np.ndarray: Weighted ensemble prediction.
+            np.ndarray: Weighted ensemble prediction. Predicted job durations in minutes.
+
         """
 
         if not self.models:
             raise RuntimeError("Model not trained")
 
-        if self.preprocessor is not None:
-            X = self.preprocessor.transform(X)
-
-        preds = []
-
-        for model in self.models:
-            pred = model.predict(X)
-            preds.append(pred)
-
-        rmse = np.array(self.val_rmse)
-        weights = 1.0 / (rmse + 1e-8)
-        weights /= weights.sum()
-
-        preds = np.asarray(preds, dtype=np.float32)
+        preds = self._get_member_predictions(X)
+        weights = self._get_weights()
         return np.sum(preds * weights[:, None], axis=0)
 
     def predict_full(self, X):
@@ -377,19 +399,8 @@ class DurationModel(BaseModel):
                 }
         """
 
-        if self.preprocessor is not None:
-            X = self.preprocessor.transform(X)
-
-        preds = []
-
-        for model in self.models:
-            preds.append(model.predict(X))
-
-        preds = np.asarray(preds, dtype=np.float32)
-
-        rmse = np.array(self.val_rmse, dtype=np.float32)
-        weights = 1.0 / (rmse + 1e-8)
-        weights /= weights.sum()
+        preds = self._get_member_predictions(X)
+        weights = self._get_weights()
 
         mean_pred = np.sum(preds * weights[:, None], axis=0)
         std_pred = preds.std(axis=0)
@@ -421,19 +432,8 @@ class DurationModel(BaseModel):
                 - uncertainty (standard deviation across models)
         """
 
-        if self.preprocessor is not None:
-            X = self.preprocessor.transform(X)
-
-        preds = []
-
-        for model in self.models:
-            preds.append(model.predict(X))
-
-        preds = np.array(preds)
-
-        rmse = np.array(self.val_rmse, dtype=np.float32)
-        weights = 1.0 / (rmse + 1e-8)
-        weights /= weights.sum()
+        preds = self._get_member_predictions(X)
+        weights = self._get_weights()
 
         mean_pred = np.sum(preds * weights[:, None], axis=0)
         std_pred = preds.std(axis=0)
@@ -448,17 +448,22 @@ class DurationModel(BaseModel):
         Save the model to disk.
 
         Args:
-            path (str): Destination directory.
+            path (str | Path): Destination directory.
 
         Returns:
             bool: True if the model was successfully saved.
         """
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path = Path(path)
+            path.mkdir(parents=True, exist_ok=True)
 
-        joblib.dump(self, path / "model.joblib")
+            joblib.dump(self, path / "model.joblib")
 
-        return True
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to save model to '{path}': {e}")
+            return False
 
     @classmethod
     def load(cls, path: str | Path, **kwargs):
@@ -466,7 +471,7 @@ class DurationModel(BaseModel):
         Load a saved model from disk.
 
         Args:
-            path (str): Path to the saved model directory.
+            path (str | Path): Path to the saved model directory.
 
         Returns:
             DurationModel: Loaded model instance.
@@ -491,7 +496,6 @@ class DurationModel(BaseModel):
         Returns:
             List[Dict]: List of parameter dictionaries for NNTorch.
         """
-        import torch.nn as nn
 
         base = {
             "task_type": "regression",

@@ -15,35 +15,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-def split_data(
-    X: np.ndarray,
-    y: np.ndarray,
-    test_size: float = 0.2,
-    random_state: int = 42,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Splits the Iris dataset into training and testing sets.
-
-    Args:
-        - X (np.ndarray): Features.
-        - y (np.ndarray): Target.
-        - test_size (float, optional): The proportion of the dataset to include in the test split. Defaults to 0.2.
-        - random_state (int, optional): Controls the shuffling applied to the data before splitting. Defaults to 42.
-
-    Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            A tuple containing:
-                - X_train: Training features.
-                - X_test: Testing features.
-                - y_train: Training target.
-                - y_test: Testing target.
-    """
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
-    )
-    return X_train, X_test, y_train, y_test
-
-
 class SBERTEncoder(BaseEstimator, TransformerMixin):
     """Custom transformer to encode text columns with SBERT embeddings (sklearn-clone safe)."""
 

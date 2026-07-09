@@ -22,37 +22,16 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.metrics import accuracy_score
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, TensorDataset, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from ..set_seed import set_seed
-from .nn_models import (
-    CNNTorch,
-    MLPTorchModel,
-    MLPTorchModelWithDropout,
-)
+from .nn_models import CNNTorch, MLPTorchModel, MLPTorchModelWithDropout
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 gc.collect()
-
-os.environ["PYTHONHASHSEED"] = "0"
-os.environ["TF_DETERMINISTIC_OPS"] = "1"
-os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
-
-np.random.seed(123)
-random.seed(123)
-
-torch.manual_seed(42)
-
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(42)
-    torch.cuda.manual_seed_all(42)
-
 set_seed(42)
-
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 
 class NNTorch(BaseEstimator, RegressorMixin):
@@ -91,7 +70,6 @@ class NNTorch(BaseEstimator, RegressorMixin):
         """
         self.task_type = task_type  # either "classification" or "regression"
         self.val_accuracies: list[float] = []
-        set_seed(42)
         self.nn_params = nn_params
         self.nn_key = nn_key
         self.n_epochs = n_epochs
@@ -196,12 +174,6 @@ class NNTorch(BaseEstimator, RegressorMixin):
         dataset = TensorDataset(X, y)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
-        # optimizer_choice = optim.Adam(
-        #     self.nn_model.parameters(),
-        #     lr=self.learning_rate,
-        #     betas=(0.9, 0.999),
-        #     amsgrad=False,
-        # )
         optimizer_choice = AdamW(
             self.nn_model.parameters(),
             lr=self.learning_rate,
@@ -212,24 +184,11 @@ class NNTorch(BaseEstimator, RegressorMixin):
             optimizer_choice,
             mode="min",
             factor=0.5,  # reduce LR by 50%
-            patience=3,  # wait 5 epochs without improvement
+            patience=3,  # wait 3 epochs without improvement
             threshold=0.001,
             min_lr=1e-5,
         )
 
-        # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #     optimizer_choice,
-        #     T_0=5,  # restart every 20 epochs
-        #     T_mult=1,
-        #     eta_min=1e-5,
-        # )
-
-        # scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        #     optimizer_choice,
-        #     max_lr=self.learning_rate,
-        #     steps_per_epoch=len(dataloader),
-        #     epochs=self.n_epochs
-        # )
         log.info("Optimizer initialized.")
 
         val_dataloader = None
