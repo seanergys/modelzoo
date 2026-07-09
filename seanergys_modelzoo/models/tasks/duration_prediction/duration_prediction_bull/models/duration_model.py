@@ -18,8 +18,9 @@ import torch.nn as nn
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import \
-    build_preprocessor
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.preprocessing import (
+    build_preprocessor,
+)
 
 from .base_model import BaseModel
 from .pytorch_nn_pipeline import NNTorch
@@ -195,7 +196,6 @@ class DurationModel(BaseModel):
 
         return preds
 
-
     def _get_weights(self):
         """
         Compute ensemble weights from validation RMSE.
@@ -263,7 +263,6 @@ class DurationModel(BaseModel):
             if self.preprocessor is not None:
                 X_val = self.preprocessor.transform(X_val)
         else:
-
             X_train, X_val, y_train, y_val = train_test_split(
                 X,
                 y,

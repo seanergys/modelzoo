@@ -41,6 +41,7 @@ def test_predict_without_training_raises():
     with pytest.raises(RuntimeError):
         model.predict(np.zeros((1, 10)))
 
+
 class DummyModel:
     def __init__(self, value):
         self.value = value
@@ -63,10 +64,7 @@ def test_weighted_ensemble_prediction():
 
     pred = model.predict(X)
 
-    expected = (
-        (1.0 / 1.0) * 10.0
-        + (1.0 / 2.0) * 20.0
-    ) / ((1.0 / 1.0) + (1.0 / 2.0))
+    expected = ((1.0 / 1.0) * 10.0 + (1.0 / 2.0) * 20.0) / ((1.0 / 1.0) + (1.0 / 2.0))
 
     assert np.allclose(pred, expected)
 
@@ -96,4 +94,3 @@ def test_save_and_load(tmp_path):
     loaded = DurationModel.load(tmp_path)
 
     assert isinstance(loaded, DurationModel)
-

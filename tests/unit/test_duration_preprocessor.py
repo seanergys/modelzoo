@@ -60,6 +60,7 @@ def test_elpl_is_converted_to_minutes():
 
     assert np.isclose(X[0, elpl_idx], expected)
 
+
 def test_transform_before_fit_raises():
     prep = DurationPreprocessor()
 

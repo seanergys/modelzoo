@@ -21,23 +21,31 @@ from typing import Any, Dict
 import joblib
 from pydantic import model_validator
 
-from seanergys_modelzoo.dataloader.seanergys_dataloader import \
-    SeanergysDataloader
+from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 from seanergys_modelzoo.datasets.f_data import FDataDataset
 from seanergys_modelzoo.models.common.seanergys_configurator import (
-    SeanergysDataloaderParams, SeanergysDatasetParams)
+    SeanergysDataloaderParams,
+    SeanergysDatasetParams,
+)
 from seanergys_modelzoo.models.common.seanergys_model import (
-    SeanergysModel, SeanergysModelTask)
-from seanergys_modelzoo.models.common.seanergys_model_metadata import \
-    SeanergysModelMetadata
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.evaluation.metrics import \
-    create_metrics
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.models.duration_model import \
-    DurationModel
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.data_preparation import \
-    prepare_duration_dataframe
-from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.duration_preprocessor import \
-    DurationPreprocessor
+    SeanergysModel,
+    SeanergysModelTask,
+)
+from seanergys_modelzoo.models.common.seanergys_model_metadata import (
+    SeanergysModelMetadata,
+)
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.evaluation.metrics import (
+    create_metrics,
+)
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.models.duration_model import (
+    DurationModel,
+)
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.data_preparation import (
+    prepare_duration_dataframe,
+)
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.duration_preprocessor import (
+    DurationPreprocessor,
+)
 
 
 class DurationPredictionBull(SeanergysModel):
