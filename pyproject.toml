@@ -63,4 +63,10 @@ ci = [
     "sentence-transformers>=5.4.1,<6.0.0",
     "pyarrow>=24.0.0,<25.0.0",
     "cachetools>=7.1.4,<8.0.0",
+    # fsspec + aiohttp back the memory-safe remote read in FDataDataset._read_parquet:
+    # fsspec opens the Zenodo URL with HTTP range requests so the capped is_dummy read
+    # fetches only the selected columns' chunks (~136 MB), not the whole file. fsspec's
+    # HTTPFileSystem requires aiohttp; without it the read raises ImportError.
+    "fsspec>=2026.4.0",
+    "aiohttp>=3.14.1,<4.0.0",
 ]

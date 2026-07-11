@@ -63,7 +63,7 @@ jobs:
   test:integration:
     rationale: "End-to-end model×dataset pipeline must pass; the core correctness gate."
   test:zenodo:
-    rationale: "The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe columns+filters read, not a whole-file load) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate."
+    rationale: "The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe capped read — FDataDataset.max_rows via pyarrow.iter_batches over an fsspec HTTP range-request stream, ~136 MB not the ~2 GB whole row group) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate."
   test:audit:
     rationale: "Dependency CVEs are informational and often unfixable immediately; warn-only."
   coverage:report:
@@ -87,3 +87,24 @@ jobs:
 integration_xfail:
   MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA (see docs/COLLEAGUE_FEEDBACK.md §6.6). Pending a model-author fix to a real F-DATA column."
   MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA (see docs/COLLEAGUE_FEEDBACK.md §6.6). Pending a model-author fix to a real F-DATA column."
+
+# ---------------------------------------------------------------------------
+# Ignored dependency vulnerabilities (test:audit / pip-audit).
+# Each entry is "<VULN_ID>: <reason>". Listed advisories are passed to pip-audit
+# via --ignore-vuln so the audit stays green for CVEs we cannot act on yet (no
+# fixed release upstream). REMOVE an entry as soon as a patched version exists so
+# the audit flags the upgrade. Everything not listed here is still reported.
+# ---------------------------------------------------------------------------
+audit_ignore:
+  CVE-2025-3000: "torch 2.12.0 — no fixed version published by PyTorch yet (pip-audit 'Fix Versions' column is empty). Revisit when a patched torch releases; do not pin to a nonexistent fix."
+
+# ---------------------------------------------------------------------------
+# Implicit test skips that are NOT literal pytest.skip() calls (so the AST scan
+# can't see them) — e.g. a parametrize list that empties out. Surfaced in the
+# skip-inventory table alongside the auto-scanned skips.
+# ---------------------------------------------------------------------------
+skip_notes:
+  - file: tests/smoke/test_smoke_data.py
+    location: "`test_dataset_contract_via_model_config` + 2 more (empty parametrize)"
+    reason: "Under CI_SKIP_ZENODO=1, _collect_dataset_configs_from_models() returns {} because building the config instantiates datasets that connect to Zenodo at collection time — so these tests parametrize to zero cases and report 'empty parameter set'."
+    solution: "Exercised for real by the `test:zenodo` job. Full offline fix: make each model's get_train_config() assemble params WITHOUT instantiating its dataset."

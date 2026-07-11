@@ -362,9 +362,10 @@ test:integration:
 # This is the ONE job that actually reaches Zenodo. It runs the @pytest.mark.zenodo
 # tests WITHOUT CI_SKIP_ZENODO, so each model downloads a small is_dummy=True subset
 # of its real dataset from https://zenodo.org and runs the full train → predict →
-# save → load lifecycle on it. The download uses the dataset's memory-safe load path
-# (column projection + predicate pushdown via pd.read_parquet(url, columns=, filters=)),
-# NOT a whole-file read, so it does not OOM the runner.
+# save → load lifecycle on it. The download uses the dataset's memory-safe capped
+# read (FDataDataset.max_rows → pyarrow.iter_batches over an fsspec HTTP range-request
+# stream, decoding only the first N rows), NOT a whole-file read, so it does not OOM
+# the runner (measured ~136 MB vs ~2 GB uncapped).
 #
 # allow_failure: true — Zenodo is an external service; a network hiccup or Zenodo
 # downtime must NOT block merges. A failure here is a visible (non-blocking) warning
@@ -389,10 +390,12 @@ test:audit:
   before_script:
     - pip install --quiet --upgrade pip
     - pip install --quiet "poetry==${POETRY_VERSION}" poetry-plugin-export
-    - pip install --quiet pip-audit
+    - pip install --quiet pip-audit pyyaml
   script:
     - poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt
-    - pip-audit -r /tmp/poetry-audit-reqs.txt
+    # Advisories with no upstream fix yet are ignored via ci/policy.yml `audit_ignore`
+    # (single source of truth; documented in docs/ci-cd.md). Everything else is reported.
+    - pip-audit -r /tmp/poetry-audit-reqs.txt $(python ci/audit_ignore_flags.py)
   allow_failure: true
 
 # -----------------------------------------------------------------------------

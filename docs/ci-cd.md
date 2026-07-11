@@ -91,7 +91,7 @@ auto-derived from `.gitlab-ci.yml`; the *why* below is maintained in
 | `test:smoke-data` | Blocks | Dataset contract + fixtures must load; hard gate (runs without Zenodo). |
 | `test:smoke-models` | Blocks | Model discovery/instantiation must hold or nothing downstream works. |
 | `test:unit` | Blocks | Component correctness is a hard gate — the fastest signal of breakage. |
-| `test:zenodo` | Warns | The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe columns+filters read, not a whole-file load) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate. |
+| `test:zenodo` | Warns | The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe capped read — FDataDataset.max_rows via pyarrow.iter_batches over an fsspec HTTP range-request stream, ~136 MB not the ~2 GB whole row group) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate. |
 | `coverage:report` | Blocks | Combines per-job coverage into one report; fails only on tooling error. |
 | `docs:autogen` | Warns | Regenerates + commits docs on the default branch; warn-only so a token or push hiccup never breaks main. |
 | `docs:check` | Warns | Warns on merge requests when docs/ci-cd.md is stale; not blocking. |
@@ -150,3 +150,27 @@ Every test file grouped by layer, with the check it performs (from its docstring
 | smoke | `test_smoke_models.py` | Smoke tests: model discovery, instantiation, and train-config structure. |
 | integration | `test_model_pipeline.py` | Integration tests: the full pipeline for every (model, dataset) pair. |
 <!-- END:GENERATED test-inventory -->
+
+## Test-skip inventory
+
+A skipped test is the one place a **green** pipeline can silently hide an untested
+path, so every skip in the suite is inventoried below: where it is, why it skips, and
+exactly how to make it run for real. This table is regenerated from the source (the
+`pytest.skip(...)` calls and `@pytest.mark.zenodo` markers are scanned via AST; implicit
+skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the code.
+
+<!-- BEGIN:GENERATED test-skips -->
+| File | Test (line) | Reason | How to remove the skip |
+| --- | --- | --- | --- |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L191) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L196) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L209) | {…}/{…}: is_dummy=True returned 0 rows | Implement dummy support in {…}. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_contract_via_model_config` + 2 more (empty parametrize) | Under CI_SKIP_ZENODO=1, _collect_dataset_configs_from_models() returns {} because building the config instantiates datasets that connect to Zenodo at collection time — so these tests parametrize to zero cases and report 'empty parameter set'. | Exercised for real by the `test:zenodo` job. Full offline fix: make each model's get_train_config() assemble params WITHOUT instantiating its dataset. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_fixture_has_data` (L185) | fixture not found: {…} | Run `make sample-data` to create it. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L255) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L272) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L283) | use_zenodo_url=True not supported. | Add use_zenodo_url field to {…} to enable Zenodo testing. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L203) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L222) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L116) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
+<!-- END:GENERATED test-skips -->

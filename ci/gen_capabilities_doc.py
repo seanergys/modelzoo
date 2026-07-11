@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import logging
 import re
@@ -337,6 +338,123 @@ def _first_docstring_line(path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Test-skip inventory
+# A skip is the one place a green run can silently hide an untested path, so every
+# skip in the suite is inventoried here — where it is, why it skips, and how to
+# make it actually run. Scanned from the source (AST) so the table never goes stale.
+# ---------------------------------------------------------------------------
+
+
+def _is_pytest_skip(func: ast.expr) -> bool:
+    """True for a `pytest.skip` attribute access."""
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "skip"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "pytest"
+    )
+
+
+def _is_zenodo_marker(dec: ast.expr) -> bool:
+    """True for a `@pytest.mark.zenodo` decorator."""
+    return (
+        isinstance(dec, ast.Attribute)
+        and dec.attr == "zenodo"
+        and isinstance(dec.value, ast.Attribute)
+        and dec.value.attr == "mark"
+    )
+
+
+def _flatten_str(node: ast.expr) -> str:
+    """Best-effort reconstruction of a string/f-string/concatenation literal."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            str(v.value) if isinstance(v, ast.Constant) else "{…}" for v in node.values
+        )
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _flatten_str(node.left) + _flatten_str(node.right)
+    return ""
+
+
+def _skip_reason_solution(call: ast.Call) -> Tuple[str, str]:
+    """Split a skip message into (reason, how-to-remove).
+
+    Skip messages in this suite embed the fix after a `→` arrow; use that when
+    present. CI_SKIP_ZENODO gates get the standard "runs in test:zenodo" answer.
+    """
+    raw = _flatten_str(call.args[0]) if call.args else ""
+    text = " ".join(raw.split())  # collapse newlines/indentation
+    # Strip a leading "SKIP [X]" / "SKIP:" label so the reason reads cleanly.
+    text = re.sub(r"^SKIP\s*(\[[^\]]*\])?\s*:?\s*", "", text).strip()
+    if "→" in text:
+        reason, _, sol = text.partition("→")
+        return _clip(reason.strip(" -—"), 80), _clip(sol.strip(), 90)
+    if "CI_SKIP_ZENODO" in text:
+        return (
+            _clip(text, 80),
+            "Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); "
+            "locally run with network.",
+        )
+    # Some messages embed the fix after an em-dash ("… — implement dummy support").
+    if " — " in text:
+        reason, _, sol = text.partition(" — ")
+        return _clip(reason.strip(), 80), _clip(sol.strip().capitalize(), 90)
+    return _clip(text, 90), "—"
+
+
+def _scan_test_skips() -> List[dict]:
+    """Inventory every skip construct in tests/: `pytest.skip(...)` calls and
+    `@pytest.mark.zenodo` markers, plus curated `skip_notes` from policy.yml for
+    implicit skips (e.g. empty-parametrize) that are not literal skip() calls."""
+    rows: List[dict] = []
+    tests_dir = _REPO_ROOT / "tests"
+    for f in sorted(tests_dir.rglob("test_*.py")):
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        rel = f.relative_to(_REPO_ROOT).as_posix()
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for dec in fn.decorator_list:
+                if _is_zenodo_marker(dec):
+                    rows.append(
+                        {
+                            "file": rel,
+                            "loc": f"`{fn.name}` (L{dec.lineno})",
+                            "reason": "Needs a live Zenodo download; deselected by "
+                            '`-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1.',
+                            "solution": "Runs for real in the `test:zenodo` job.",
+                        }
+                    )
+            for node in ast.walk(fn):
+                if isinstance(node, ast.Call) and _is_pytest_skip(node.func):
+                    reason, solution = _skip_reason_solution(node)
+                    rows.append(
+                        {
+                            "file": rel,
+                            "loc": f"`{fn.name}` (L{node.lineno})",
+                            "reason": reason,
+                            "solution": solution,
+                        }
+                    )
+    for note in _load_policy().get("skip_notes") or []:
+        rows.append(
+            {
+                "file": note.get("file", "—"),
+                "loc": note.get("location", "—"),
+                "reason": note.get("reason", "—"),
+                "solution": note.get("solution", "—"),
+            }
+        )
+    rows.sort(key=lambda r: (r["file"], r["loc"]))
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # ci/policy.yml (rationale)
 # ---------------------------------------------------------------------------
 
@@ -423,6 +541,15 @@ def _build_blocks() -> Dict[str, str]:
     # Test inventory.
     inv_tbl = [[r["category"], f"`{r['file']}`", r["purpose"]] for r in inventory]
     blocks["test-inventory"] = _table(["Layer", "File", "Checks"], inv_tbl)
+
+    # Test-skip inventory (every place a test can be silently skipped).
+    skip_tbl = [
+        [f"`{r['file']}`", r["loc"], r["reason"], r["solution"]]
+        for r in _scan_test_skips()
+    ]
+    blocks["test-skips"] = _table(
+        ["File", "Test (line)", "Reason", "How to remove the skip"], skip_tbl
+    )
 
     return blocks
 
@@ -557,6 +684,13 @@ a model or dataset updates this table on the next regeneration.
 Every test file grouped by layer, with the check it performs (from its docstring).
 
 {test-inventory}
+
+## Test-skip inventory
+
+Every skip in the suite — where it is, why it skips, and how to make it run for real.
+A skipped test is the one place a green pipeline can hide an untested path.
+
+{test-skips}
 """
 
 
