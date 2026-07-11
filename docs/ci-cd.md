@@ -118,6 +118,23 @@ a model or dataset updates this table on the next regeneration.
 | MCBound | Classification | FDataDataset | `f-data` | xfail |
 <!-- END:GENERATED capabilities -->
 
+**Legend — the "Tested in CI" column:**
+
+- **`yes`** — the full train → predict → save → load pipeline runs for this pair and **must
+  pass** (a hard gate).
+- **`xfail`** — short for *expected failure*. The pair is **known-broken**, so its test is
+  marked `xfail(strict)`: it still runs, but is *allowed to fail* without turning the
+  pipeline red (you'll see it reported as `XFAIL`, not a failure). **"Strict"** adds a safety
+  net — if the pair ever unexpectedly *passes*, pytest converts that surprise into a real
+  failure (`XPASS`), which forces you to remove the entry from `ci/policy.yml` so the docs
+  and reality can't silently drift apart. In other words, `xfail` = "documented as broken on
+  purpose, and CI will tell us the moment it's fixed."
+
+Today `MACK` and `MCBound` on `f-data` are `xfail` because they request an `output_features`
+column, `mem_compute_bound`, that does not exist in raw F-DATA — see
+[Design decisions & known limitations](#design-decisions--known-limitations) for the full
+reason and the fix path.
+
 ## Datasets
 
 <!-- BEGIN:GENERATED datasets -->
