@@ -7,7 +7,9 @@
 > Regenerate with `make docs-ci`. On the default branch the `docs:autogen` job regenerates
 > and commits this file automatically, so the tables never go stale. The prose sections
 > (including the [Developer guide](#developer-guide) below) are hand-written and preserved
-> across regeneration.
+> across regeneration. For **how the auto-generation works** (sources of truth, the marker
+> system, the `docs:check` / `docs:autogen` jobs, how to add a table), see
+> [`ci-cd-autogeneration.md`](ci-cd-autogeneration.md).
 >
 > **See also:** [`future_pydantic_tests.md`](future_pydantic_tests.md) (planned Pydantic
 > validation tests) and [`MODELZOO_ARCHITECTURE_NOTES.md`](MODELZOO_ARCHITECTURE_NOTES.md)
