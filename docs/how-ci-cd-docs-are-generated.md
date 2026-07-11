@@ -29,6 +29,27 @@ Because the *what* comes from the YAML and the code, changing a job or adding a 
 updates the tables on the next regeneration with zero manual edits. The *why* is the one
 place a human writes prose, and it lives in `ci/policy.yml`.
 
+## The role of `ci/policy.yml`
+
+`ci/policy.yml` is the **human-written "why"** of the system — the one file you edit to
+change anything that cannot be read automatically from the pipeline or the code. The
+generator merges it into the tables, and the CI reads parts of it directly. It has five
+sections:
+
+| Section | What you put there | Where it shows up |
+|---|---|---|
+| `rules:` | One-line description of each trigger anchor (`rules_unit`, `rules_zenodo`, …) | Trigger legend table |
+| `jobs:` | Per-job reason it **blocks vs warns** | Pass/fail table's "Why" column |
+| `integration_xfail:` | Known-broken `(model, dataset)` pairs + reason | `xfail` in the capability matrix; the test code reads it as strict xfail |
+| `audit_ignore:` | CVEs with no upstream fix yet + reason | `test:audit` (`--ignore-vuln`, via `ci/audit_ignore_flags.py`) |
+| `skip_notes:` | Implicit skips the AST scan can't see (e.g. empty-parametrize) | Test-skip inventory |
+
+The split is deliberate: the **"what"** (jobs, rules, `allow_failure`) is read from
+`.gitlab-ci.yml` and the code so it can't drift, while the **"why"** and these curated lists
+live in `policy.yml` — the single place a human maintains. Two of the sections
+(`integration_xfail`, `audit_ignore`) are consumed by the CI **and** the docs, so editing
+one line changes both the behaviour and its documentation at once.
+
 ## How the generator protects hand-written prose
 
 Every generated table sits between a matched pair of HTML-comment markers:
@@ -57,6 +78,40 @@ Under the hood both call `python ci/gen_capabilities_doc.py` (the second with `-
 The generated regions contain **no timestamps**, so regenerating an unchanged repo is a
 no-op — this is what makes the auto-commit job loop-safe (see below).
 
+## Will my change show up in the doc?
+
+Yes — if you change a CI YAML file or the **structural** parts of your tests, the tables
+update to match. Two things to keep in mind:
+
+1. **It shows the new *state*, not a highlighted diff.** The generator rewrites the tables to
+   describe how things are *now*; it does not annotate "you changed X to Y". To *see* exactly
+   what your edit did to the doc, regenerate and then `git diff docs/ci-cd.md` — that shows
+   the precise lines that changed.
+2. **It updates only when the generator runs** — `make docs-ci` locally, or the `docs:autogen`
+   job automatically on `main` after merge. On a merge request, `docs:check` *warns* if you
+   changed the YAML/tests but forgot to regenerate.
+
+| If you change… | Reflected? | Which table |
+|---|---|---|
+| A job in `.gitlab-ci.yml` (rename, add/remove, its command, `allow_failure`, `changes:` paths) | **Yes** | Jobs / Triggers / Pass-fail |
+| A model or dataset class (add/remove, or its `supported_datasets`) | **Yes** (auto-discovered) | Capability matrix, Datasets |
+| Add/remove a **test file** | **Yes** | Test inventory (file + its first docstring line) |
+| Add/remove/change a `pytest.skip(...)` or `@pytest.mark.zenodo` | **Yes** (AST-scanned) | Test-skip inventory |
+| The *reason* a job blocks or warns | **Only if you edit `ci/policy.yml`** (not read from the YAML) | Pass/fail "Why" column |
+| The **logic inside a test** (an assertion, a value, a comment) | **No** — test bodies aren't read (except skip calls) | — |
+
+**Concrete example:** flip a job's `allow_failure: true` → `false` in `.gitlab-ci.yml`, run
+`make docs-ci`, and that job's row in the Pass/fail table flips from **"Warns"** to
+**"Blocks"** — and `git diff docs/ci-cd.md` shows just that one line changing.
+
+**The workflow:**
+
+```bash
+# 1. edit .gitlab-ci.yml, or add/remove a test / model / skip
+make docs-ci               # 2. regenerate the tables
+git diff docs/ci-cd.md     # 3. see exactly what changed in the doc
+```
+
 ## The two CI jobs that keep it fresh
 
 | Job | Runs on | Does | Blocks? |
@@ -83,16 +138,9 @@ Pick the source that owns the fact — never edit `ci-cd.md`'s tables directly:
   `make docs-ci`. The Jobs / Triggers / Pass-fail tables update themselves.
 - **A model or dataset was added/removed** → nothing to edit; discovery picks it up. Just
   `make docs-ci` and the capability matrix, dataset list, and test inventory refresh.
-- **The rationale (the "why") changed** → edit `ci/policy.yml`. Its sections:
-  - `rules:` — one-line description of each trigger anchor.
-  - `jobs:` — per-job "why it blocks or warns" (feeds the Pass/fail table).
-  - `integration_xfail:` — known-broken `(model, dataset)` pairs, shown as `xfail` in the
-    capability matrix (strict xfail; auto-alerts when fixed).
-  - `audit_ignore:` — CVEs with no upstream fix yet, fed to `pip-audit` via
-    `ci/audit_ignore_flags.py` (keeps `test:audit` green while still reporting everything
-    else).
-  - `skip_notes:` — implicit skips (e.g. empty-parametrize) that the AST scan can't see,
-    surfaced in the Test-skip inventory.
+- **The rationale (the "why"), an xfail pair, an ignored CVE, or a skip note changed** → edit
+  `ci/policy.yml` (see [The role of `ci/policy.yml`](#the-role-of-cipolicyyml) for its five
+  sections), then `make docs-ci`.
 - **A `pytest.skip(...)` or `@pytest.mark.zenodo` was added/removed** → nothing to edit; the
   generator re-scans the test source (AST) and updates the Test-skip inventory.
 

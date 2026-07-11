@@ -9,7 +9,7 @@
 > (including the [Developer guide](#developer-guide) below) are hand-written and preserved
 > across regeneration. For **how the auto-generation works** (sources of truth, the marker
 > system, the `docs:check` / `docs:autogen` jobs, how to add a table), see
-> [`ci-cd-autogeneration.md`](ci-cd-autogeneration.md).
+> [`how-ci-cd-docs-are-generated.md`](how-ci-cd-docs-are-generated.md).
 >
 > **See also:** [`future_pydantic_tests.md`](future_pydantic_tests.md) (planned Pydantic
 > validation tests) and [`MODELZOO_ARCHITECTURE_NOTES.md`](MODELZOO_ARCHITECTURE_NOTES.md)

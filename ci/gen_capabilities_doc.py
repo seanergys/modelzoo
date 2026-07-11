@@ -632,7 +632,7 @@ _DOC_TEMPLATE = """# CI/CD Capabilities & Rules Reference
 > Regenerate with `make docs-ci`. On the default branch the `docs:autogen` job regenerates
 > and commits this file automatically, so the tables never go stale. Prose sections are
 > hand-written and preserved across regeneration. For how the auto-generation works, see
-> [`ci-cd-autogeneration.md`](ci-cd-autogeneration.md).
+> [`how-ci-cd-docs-are-generated.md`](how-ci-cd-docs-are-generated.md).
 >
 > **See also:** [`future_pydantic_tests.md`](future_pydantic_tests.md) (planned Pydantic
 > validation tests) and [`MODELZOO_ARCHITECTURE_NOTES.md`](MODELZOO_ARCHITECTURE_NOTES.md)
