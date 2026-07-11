@@ -1,12 +1,69 @@
-# How the CI/CD docs are auto-generated
+# How the CI/CD docs are auto-generated — the human manual
 
-This explains the machinery that keeps [`ci-cd.md`](ci-cd.md) — the CI/CD reference we
-share with colleagues — in sync with the pipeline automatically, so it never goes stale.
-Read this if you need to **change what the tables show**, **add a new generated table**, or
-understand the `docs:check` / `docs:autogen` jobs.
+**This file is the human manual for the CI/CD documentation system.** It is written and
+maintained *entirely by hand*. It tells you, in plain terms:
 
-`ci-cd.md` is the only auto-generated doc in the repo. This file (and everything else in
-`docs/`) is ordinary hand-written Markdown.
+- **which document is written by a human and which is generated automatically** — so you
+  never waste time editing the wrong one ([Who owns what](#which-files-are-human-written-and-which-are-auto-generated));
+- **your role as a human** — what you are responsible for keeping correct
+  ([Your role](#your-role-as-a-human--what-you-must-do));
+- **when to update `ci/policy.yml`** and the other sources
+  ([When to update policy.yml](#when-should-i-update-cipolicyyml));
+- **how the auto-generation actually works** under the hood (the rest of this file).
+
+Its companion, [`ci-cd.md`](ci-cd.md), is the **reference**: its tables are *auto-generated*
+from the pipeline, and it also carries a hand-written *Developer guide* (how to run tests,
+add a model/dataset). Rule of thumb: **`ci-cd.md` = what the CI does; this file = how the
+system works and what the human must do.**
+
+> The sections below (Who owns what / Your role / When to update `policy.yml` / Will my
+> change show up?) are written as direct answers to real questions asked while building this
+> system — read them first if you just want to *use* the system rather than understand its
+> internals.
+
+## Which files are human-written and which are auto-generated?
+
+There is exactly **one** auto-generated artifact — the *tables* inside `docs/ci-cd.md`.
+Everything else is written by a human. Nothing is fully auto-generated end to end; a human
+always owns the inputs.
+
+| File / part | Written by | Do you edit it? |
+|---|---|---|
+| `docs/ci-cd.md` — the **tables** (between `<!-- BEGIN/END:GENERATED -->` markers) | **Automatic** (the generator) | **No** — never edit by hand; run `make docs-ci` |
+| `docs/ci-cd.md` — the **prose** (Purpose, Developer guide) | Human | Yes |
+| `docs/how-ci-cd-docs-are-generated.md` (this file) | Human | Yes |
+| `docs/future_pydantic_tests.md`, `docs/MODELZOO_ARCHITECTURE_NOTES.md` | Human | Yes |
+| `.gitlab-ci.yml` | Human | Yes — it is the pipeline; the tables read *from* it |
+| `ci/policy.yml` | Human | Yes — the "why" + policy lists (see below) |
+| `ci/gen_capabilities_doc.py` | Human | Only when adding/altering a table |
+| The model/dataset/test **code** | Human | Yes — discovery reads it to build the capability tables |
+
+So a human never edits the generated tables directly. Instead a human edits a **source**
+(the YAML, `policy.yml`, or the code) and the generator re-derives the tables from it.
+
+## Your role as a human — what you must do
+
+The generator handles the *what* (jobs, rules, capability matrix, skips). **You** are
+responsible for four things it cannot know on its own:
+
+1. **Edit the source, not the output.** Change `.gitlab-ci.yml` (the pipeline), the code
+   (models/datasets/tests), or `ci/policy.yml` (the rationale) — never the generated tables
+   in `ci-cd.md`.
+2. **Keep the "why" in `ci/policy.yml` truthful.** When you add/change a job or a known
+   limitation, write or update its rationale there (see [when](#when-should-i-update-cipolicyyml)).
+3. **Regenerate and commit** the doc after such a change: `make docs-ci`, then include the
+   updated `ci-cd.md` in the same commit. (If you forget, `docs:check` warns you on the MR,
+   and `docs:autogen` fixes it on `main` — but do it yourself so reviewers see the change.)
+4. **Keep the hand-written prose current** — the Developer guide in `ci-cd.md` and this
+   manual are yours to maintain; the generator will not touch them.
+
+**Pre-merge checklist** (also covered by `make pre-push` / `make docs-ci-check`):
+
+- [ ] Changed `.gitlab-ci.yml` or added/removed a model/dataset/test? → ran `make docs-ci`.
+- [ ] Changed *why* a job blocks/warns, an xfail pair, an ignored CVE, or a skip? → edited
+      the matching `ci/policy.yml` section.
+- [ ] `make docs-ci-check` passes (the doc is not stale).
+- [ ] The regenerated `ci-cd.md` is staged in the same commit.
 
 ## The idea in one line
 
@@ -49,6 +106,23 @@ The split is deliberate: the **"what"** (jobs, rules, `allow_failure`) is read f
 live in `policy.yml` — the single place a human maintains. Two of the sections
 (`integration_xfail`, `audit_ignore`) are consumed by the CI **and** the docs, so editing
 one line changes both the behaviour and its documentation at once.
+
+## When should I update `ci/policy.yml`?
+
+Update it whenever a change would otherwise leave the docs (or the CI behaviour) telling a
+half-truth. Concretely:
+
+| When this happens… | Edit this `policy.yml` section | Why |
+|---|---|---|
+| You **add a new job**, or change *why* a job blocks vs warns | `jobs:` | The Pass/fail "Why" column is blank / wrong until you do |
+| You **add a new trigger rule anchor** (`.rules_*`) in `.gitlab-ci.yml` | `rules:` | The Trigger legend needs its one-line description |
+| A **(model, dataset) pair is known-broken** (or gets fixed) | `integration_xfail:` | Marks it `xfail` in the matrix; the test uses it as strict xfail. Remove the entry when fixed |
+| `pip-audit` flags a **CVE that has no upstream fix yet** | `audit_ignore:` | Keeps `test:audit` green for it; remove once a patched version ships |
+| A test **skips implicitly** in a way the AST scan can't see (e.g. an empty parametrize) | `skip_notes:` | So it still appears in the Test-skip inventory |
+
+You do **not** touch `policy.yml` for: renaming a job, changing its command, adding a model
+or dataset, or adding/removing a `pytest.skip(...)` — those are read automatically from the
+YAML or the code. After any `policy.yml` edit, run `make docs-ci` and commit the result.
 
 ## How the generator protects hand-written prose
 
