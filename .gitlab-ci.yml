@@ -131,6 +131,21 @@ workflow:
       when: on_success
     - when: never
 
+# Zenodo connectivity + real-download test. Runs on the default branch (a live
+# monitor that Zenodo is reachable and the download→train→predict→save/load path
+# works end to end) and whenever the dataset loading code or integration tests
+# change (so a change to the download path is validated against real Zenodo).
+.rules_zenodo: &rules_zenodo
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - changes:
+        - seanergys_modelzoo/datasets/**/*
+        - tests/integration/**/*
+        - tests/conftest.py
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
 # -----------------------------------------------------------------------------
 # CACHE
 # Two caches, both keyed on poetry.lock so they invalidate when deps change:
@@ -342,6 +357,26 @@ test:integration:
       - coverage-data/
     expire_in: 1 day
   allow_failure: false
+
+# Zenodo connectivity + real download + train/inference.
+# This is the ONE job that actually reaches Zenodo. It runs the @pytest.mark.zenodo
+# tests WITHOUT CI_SKIP_ZENODO, so each model downloads a small is_dummy=True subset
+# of its real dataset from https://zenodo.org and runs the full train → predict →
+# save → load lifecycle on it. The download uses the dataset's memory-safe load path
+# (column projection + predicate pushdown via pd.read_parquet(url, columns=, filters=)),
+# NOT a whole-file read, so it does not OOM the runner.
+#
+# allow_failure: true — Zenodo is an external service; a network hiccup or Zenodo
+# downtime must NOT block merges. A failure here is a visible (non-blocking) warning
+# that connectivity or the real download/train path regressed. Flip to false to make
+# it a hard gate (see ci/policy.yml).
+test:zenodo:
+  <<: *rules_zenodo
+  extends: .install_ci
+  stage: test
+  script:
+    - poetry run pytest tests/integration/ -v -m zenodo
+  allow_failure: true
 
 # Dependency vulnerability scan (only when deps change).
 test:audit:

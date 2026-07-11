@@ -13,9 +13,9 @@ import tarfile
 import numpy as np
 import pytest
 
-pytest.importorskip("pyarrow")
-pytest.importorskip("cachetools")
-pd = pytest.importorskip("pandas")
+import pyarrow  # noqa: F401
+import cachetools  # noqa: F401
+import pandas as pd
 
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402
 

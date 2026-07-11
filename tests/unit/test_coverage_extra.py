@@ -10,12 +10,11 @@ import tarfile
 import numpy as np
 import pytest
 
-pytest.importorskip("torch")
-pytest.importorskip("pyarrow")
-pytest.importorskip("cachetools")
-pd = pytest.importorskip("pandas")
+import torch  # noqa: F401
+import pyarrow  # noqa: F401
+import cachetools  # noqa: F401
+import pandas as pd
 
-import torch  # noqa: E402
 
 from seanergys_modelzoo.datasets.common.seanergys_parquet_dataset import (  # noqa: E402
     SeanergysParquetDataset,
@@ -25,6 +24,9 @@ from seanergys_modelzoo.datasets.pm100 import PM100Dataset  # noqa: E402
 import seanergys_modelzoo.datasets.f_data as fdata_mod  # noqa: E402
 import seanergys_modelzoo.datasets.m100 as m100_mod  # noqa: E402
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402
+from tests.conftest import MODEL_DATASET_PAIRS  # noqa: E402
+
+_PAIR_IDS = [f"{m.__name__}-{d}" for m, d in MODEL_DATASET_PAIRS]
 
 
 def _basic_parquet(path, rows=3):
@@ -132,6 +134,38 @@ def test_fdata_download_path(tmp_path, parquet_file):
         download_path=str(out),
     )
     assert (out / "f_data.parquet").exists()
+
+
+def test_fdata_max_rows_caps_read(tmp_path):
+    """max_rows reads only the first N rows via iter_batches (the memory-safe path
+    is_dummy uses so a single-row-group file is never fully materialised)."""
+    p = tmp_path / "many.parquet"
+    _basic_parquet(p, rows=10)
+    ds = FDataDataset(
+        data_path=str(p),
+        input_features=["n_nodes", "duration"],
+        output_features=["power_consumption"],
+        max_rows=4,
+    )
+    assert len(ds) == 4
+    # Only the requested columns were materialised.
+    assert set(ds._df.columns) == {"n_nodes", "duration", "power_consumption"}
+
+
+def test_fdata_is_dummy_sets_row_cap(monkeypatch):
+    """is_dummy must configure the small row cap (not a non-pushable filter)."""
+    # Stub the load so this stays offline; we only assert the derived parameters.
+    monkeypatch.setattr(
+        FDataDataset, "load_data", lambda self: setattr(self, "_df", pd.DataFrame())
+    )
+    ds = FDataDataset(
+        use_zenodo_url=True,
+        is_dummy=True,
+        input_features=["n_nodes"],
+        output_features=["power_consumption"],
+    )
+    assert ds.max_rows == 200
+    assert ds.filters is None
 
 
 def test_fdata_zenodo_merge(monkeypatch):
@@ -259,40 +293,34 @@ def test_m100_download_and_extract(tmp_path, monkeypatch):
 
 @pytest.fixture
 def stub_dataset_loads(monkeypatch):
-    """Stub FDataDataset / PM100Dataset network loads with a tiny frame."""
+    """Stub the network load of every dataset a discovered model actually uses,
+    so the get_test_config valid branch is reachable offline for any (model,
+    dataset) pair — no per-dataset hardcoding.
+
+    NB: the stub targets are taken from each model's ``supported_datasets`` (the
+    canonical dataset classes the model imports and instantiates), NOT from the
+    discovery's DATASET_CLASSES — those are imported under mangled module names
+    and are DIFFERENT class objects, so patching them would miss and the real
+    network load would run.
+    """
 
     def _stub(self):
         self._df = pd.DataFrame({"x": [1, 2]})
 
-    monkeypatch.setattr(FDataDataset, "load_data", _stub)
-    monkeypatch.setattr(PM100Dataset, "load_data", _stub)
+    seen = set()
+    for model_cls, _ in MODEL_DATASET_PAIRS:
+        for ds_cls in model_cls().supported_datasets or []:
+            if ds_cls not in seen:
+                monkeypatch.setattr(ds_cls, "load_data", _stub, raising=False)
+                seen.add(ds_cls)
 
 
-def test_mcbound_get_test_config_fdata(stub_dataset_loads):
-    from seanergys_modelzoo.models.tasks.performance_prediction.mcbound.mcbound_model import (  # noqa: E501
-        MCBound,
-    )
-
-    cfg = MCBound.get_test_config(MCBound(), "f-data")
-    assert "f-data" in cfg
-
-
-def test_mack_get_test_config_fdata(stub_dataset_loads):
-    from seanergys_modelzoo.models.tasks.performance_prediction.mack.mack_model import (
-        MACK,
-    )
-
-    cfg = MACK.get_test_config(MACK(), "f-data")
-    assert "f-data" in cfg
-
-
-def test_jpcp_get_test_config_fdata_and_pm100(stub_dataset_loads):
-    from seanergys_modelzoo.models.tasks.power_consumption_prediction.jpcp.jpcp_model import (  # noqa: E501
-        JPCP,
-    )
-
-    assert "f-data" in JPCP.get_test_config(JPCP(), "f-data")
-    assert "pm100" in JPCP.get_test_config(JPCP(), "pm100")
+@pytest.mark.parametrize("model_cls,dataset_id", MODEL_DATASET_PAIRS, ids=_PAIR_IDS)
+def test_get_test_config_valid_branch(model_cls, dataset_id, stub_dataset_loads):
+    """get_test_config builds a config for every supported (model, dataset) pair
+    (dataset loads stubbed). Discovery-driven — new pairs are covered automatically."""
+    cfg = model_cls.get_test_config(model_cls(), dataset_id)
+    assert dataset_id in cfg
 
 
 # ---------------------------------------------------------------------------

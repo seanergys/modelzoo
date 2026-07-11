@@ -27,6 +27,8 @@ rules:
     description: "Only pyproject.toml / poetry.lock / .gitlab-ci.yml changed."
   rules_wheel:
     description: "Source or pyproject.toml changed (packaging-relevant)."
+  rules_zenodo:
+    description: "Default branch, or a change under seanergys_modelzoo/datasets/**, tests/integration/**, or conftest."
   default-branch:
     description: "Runs only on the default branch (post-merge)."
   merge-request:
@@ -60,6 +62,8 @@ jobs:
     rationale: "Dataset contract + fixtures must load; hard gate (runs without Zenodo)."
   test:integration:
     rationale: "End-to-end model×dataset pipeline must pass; the core correctness gate."
+  test:zenodo:
+    rationale: "The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe columns+filters read, not a whole-file load) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate."
   test:audit:
     rationale: "Dependency CVEs are informational and often unfixable immediately; warn-only."
   coverage:report:

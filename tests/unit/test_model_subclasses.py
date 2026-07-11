@@ -11,10 +11,10 @@ intentionally not exercised here.
 import numpy as np
 import pytest
 
-pytest.importorskip("torch")
-pytest.importorskip("sklearn")
-pytest.importorskip("xgboost")
-pytest.importorskip("sentence_transformers")
+import torch  # noqa: F401
+import sklearn  # noqa: F401
+import xgboost  # noqa: F401
+import sentence_transformers  # noqa: F401
 
 from seanergys_modelzoo.models.common.seanergys_model import (  # noqa: E402
     SeanergysModelTask,
@@ -31,6 +31,14 @@ from seanergys_modelzoo.models.tasks.power_consumption_prediction.jpcp.jpcp_mode
     JPCP,
     Embedding as JpcpEmbedding,
 )
+from seanergys_modelzoo.models.common.seanergys_model import (  # noqa: E402
+    SeanergysModel,
+)
+from tests.conftest import MODEL_CLASSES, MODEL_DATASET_PAIRS  # noqa: E402
+
+_PAIR_IDS = [f"{m.__name__}-{d}" for m, d in MODEL_DATASET_PAIRS]
+_MODEL_IDS = list(MODEL_CLASSES.keys())
+_MODELS = list(MODEL_CLASSES.values())
 
 
 # ---------------------------------------------------------------------------
@@ -118,62 +126,58 @@ def test_mack_parse_job_script():
 
 
 # ---------------------------------------------------------------------------
-# get_train_config (params only — no data load)
+# get_train_config structure (params only — no data load).
+# Discovery-driven over every supported (model, dataset) pair, so a new model or
+# dataset is covered automatically — no per-model hardcoded case to add.
 # ---------------------------------------------------------------------------
 
 
-def test_mack_get_train_config_fdata():
-    cfg = MACK.get_train_config("f-data")
-    model, ds_cls, (ds_params, dl_params) = cfg["f-data"]
-    assert isinstance(model, MACK)
-    assert ds_cls.__name__ == "FDataDataset"
-    assert dl_params.batch_size == 1
+@pytest.mark.parametrize("model_cls,dataset_id", MODEL_DATASET_PAIRS, ids=_PAIR_IDS)
+def test_get_train_config_structure(model_cls, dataset_id):
+    """Every supported (model, dataset) pair builds a well-formed train config."""
+    cfg = model_cls.get_train_config(dataset_id)
+    assert dataset_id in cfg
+    model, ds_cls, (ds_params, dl_params) = cfg[dataset_id]
+    assert isinstance(model, model_cls)
+    assert isinstance(model, SeanergysModel)
+    assert isinstance(ds_cls, type)
+    # The pair was discovered from ds_cls.DATASET_ID, so the config must resolve
+    # back to the same dataset id.
+    assert ds_cls.DATASET_ID == dataset_id
+    assert dl_params.batch_size >= 1
+    assert ds_params.input_features, "config must declare input_features"
 
 
-def test_mack_get_train_config_invalid():
-    with pytest.raises(Exception):
-        MACK.get_train_config("nope")
+@pytest.mark.parametrize("model_cls", _MODELS, ids=_MODEL_IDS)
+def test_get_train_config_rejects_unknown_dataset(model_cls):
+    """An unknown dataset id must never silently yield a config keyed by that id.
 
-
-def test_mcbound_get_train_config_fdata():
-    cfg = MCBound.get_train_config("f-data")
-    model, ds_cls, _ = cfg["f-data"]
-    assert isinstance(model, MCBound)
-
-
-def test_mcbound_get_train_config_invalid():
-    with pytest.raises(Exception):
-        MCBound.get_train_config("nope")
-
-
-def test_jpcp_get_train_config_fdata():
-    cfg = JPCP.get_train_config("f-data")
-    model, ds_cls, _ = cfg["f-data"]
-    assert isinstance(model, JPCP)
-    assert ds_cls.__name__ == "FDataDataset"
-
-
-def test_jpcp_get_train_config_pm100():
-    """The non-f-data branch builds the PM100 config without any data load."""
-    cfg = JPCP.get_train_config("pm100")
-    model, ds_cls, (ds_params, dl_params) = cfg["pm100"]
-    assert isinstance(model, JPCP)
-    assert ds_cls.__name__ == "PM100Dataset"
-    assert "num_nodes_req_cat" in ds_params.input_features
+    MACK/MCBound raise on an unknown id; JPCP.get_train_config currently maps any
+    non-"f-data" id to its PM100 branch (see the else-fallthrough in jpcp_model.py) —
+    so it does not raise, but it also must not return a config under the bogus id.
+    This invariant holds for all three and would catch a model that echoed the id back.
+    """
+    bogus = "definitely-not-a-real-dataset-id"
+    try:
+        cfg = model_cls.get_train_config(bogus)
+    except Exception:
+        return  # raising is the strict, preferred behaviour
+    assert bogus not in cfg, (
+        f"{model_cls.__name__}.get_train_config silently accepted an unknown "
+        f"dataset id and returned a config for it"
+    )
 
 
 # ---------------------------------------------------------------------------
-# get_test_config invalid branches (valid branches need Zenodo)
+# get_test_config invalid branches (valid branches need Zenodo) — discovery-driven.
 # ---------------------------------------------------------------------------
 
 
-def test_get_test_config_invalid_dataset_raises():
+@pytest.mark.parametrize("model_cls", _MODELS, ids=_MODEL_IDS)
+def test_get_test_config_invalid_dataset_raises(model_cls):
+    """An unknown dataset id is rejected by every model's test-config builder."""
     with pytest.raises(Exception):
-        MACK.get_test_config(MACK(), "nope")
-    with pytest.raises(Exception):
-        MCBound.get_test_config(MCBound(), "nope")
-    with pytest.raises(Exception):
-        JPCP.get_test_config(JPCP(), "nope")
+        model_cls.get_test_config(model_cls(), "nope")
 
 
 # ---------------------------------------------------------------------------

@@ -8,9 +8,9 @@ __repr__, get_stats, get_metadata).
 import numpy as np
 import pytest
 
-pytest.importorskip("torch")
-pytest.importorskip("pyarrow")
-pd = pytest.importorskip("pandas")
+import torch  # noqa: F401
+import pyarrow  # noqa: F401
+import pandas as pd
 
 from seanergys_modelzoo.datasets.f_data import FDataDataset  # noqa: E402
 from seanergys_modelzoo.datasets.pm100 import PM100Dataset  # noqa: E402
@@ -63,7 +63,6 @@ def test_pm100_getitem(parquet_file):
 
 
 def test_pm100_getitem_tensor(parquet_file):
-    import torch
 
     ds = _pm100(parquet_file)
     x, y = ds.__getitem__(0, return_tensor=True, dtype=torch.float32)

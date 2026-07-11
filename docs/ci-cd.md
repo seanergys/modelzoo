@@ -45,6 +45,7 @@ pipeline or only warns.
 | test | `test:smoke-data` | `rules_smoke` | Blocks | poetry run pytest tests/smoke/test_smoke_data.py -v -m "not zenodo" --cov=seanergys_model… |
 | test | `test:smoke-models` | `rules_smoke` | Blocks | poetry run pytest tests/smoke/test_smoke_models.py -v --cov=seanergys_modelzoo --cov-repo… |
 | test | `test:unit` | `rules_unit` | Blocks | poetry run pytest tests/unit/ -v --tb=short --cov=seanergys_modelzoo --cov-report= |
+| test | `test:zenodo` | `rules_zenodo` | Warns | poetry run pytest tests/integration/ -v -m zenodo |
 | coverage | `coverage:report` | `rules_code` | Blocks | if ls coverage-data/.coverage.* >/dev/null 2>&1; then coverage combine coverage-data cove… |
 | docs | `docs:autogen` | `default-branch` | Warns | poetry run python ci/gen_capabilities_doc.py |
 | docs | `docs:check` | `merge-request` | Warns | poetry run python ci/gen_capabilities_doc.py --check |
@@ -66,6 +67,7 @@ pipeline or only warns.
 | `rules_smoke` | Source, tests/smoke/**, conftest, or dependency change. |
 | `rules_unit` | Source, tests/unit/**, conftest, or dependency change. |
 | `rules_wheel` | Source or pyproject.toml changed (packaging-relevant). |
+| `rules_zenodo` | Default branch, or a change under seanergys_modelzoo/datasets/**, tests/integration/**, or conftest. |
 <!-- END:GENERATED triggers -->
 
 ## Pass / fail engineering decisions
@@ -89,6 +91,7 @@ auto-derived from `.gitlab-ci.yml`; the *why* below is maintained in
 | `test:smoke-data` | Blocks | Dataset contract + fixtures must load; hard gate (runs without Zenodo). |
 | `test:smoke-models` | Blocks | Model discovery/instantiation must hold or nothing downstream works. |
 | `test:unit` | Blocks | Component correctness is a hard gate — the fastest signal of breakage. |
+| `test:zenodo` | Warns | The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe columns+filters read, not a whole-file load) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate. |
 | `coverage:report` | Blocks | Combines per-job coverage into one report; fails only on tooling error. |
 | `docs:autogen` | Warns | Regenerates + commits docs on the default branch; warn-only so a token or push hiccup never breaks main. |
 | `docs:check` | Warns | Warns on merge requests when docs/ci-cd.md is stale; not blocking. |

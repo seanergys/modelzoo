@@ -109,6 +109,16 @@ class FDataDataset(SeanergysParquetDataset):
         default=None,
         description="If provided, save the merged dataset to this directory after loading.",
     )
+    max_rows: Optional[int] = Field(
+        default=None,
+        description=(
+            "If set, read at most this many rows PER FILE, decoding only what is "
+            "needed via pyarrow.iter_batches (memory-safe). F-DATA monthly files are a "
+            "single large row group, so `filters` cannot push down at read time — the "
+            "whole row group would be materialised (~GBs). max_rows stops decoding early, "
+            "bounding memory to a few hundred rows. is_dummy sets this automatically."
+        ),
+    )
 
     # Private — not a Pydantic field
     _file_list: Optional[List[str]] = None
@@ -135,10 +145,15 @@ class FDataDataset(SeanergysParquetDataset):
             }
         )
 
-        # If dummy swap parameters
+        # If dummy swap parameters. Use a small row cap (not a filter): F-DATA
+        # monthly files are a single row group, so filters can't push down and the
+        # whole group (~2 GB) would be read. max_rows stops decoding after a few
+        # hundred rows, keeping the dummy download tiny and OOM-safe.
         if self.is_dummy:
             self.files = "21_04"
-            self.filters = [("adt", "<", "2021-04-02")]
+            self.filters = None
+            if self.max_rows is None:
+                self.max_rows = 200
 
         # Resolve file list
         if self.data_path is None and self.use_zenodo_url:
@@ -203,6 +218,55 @@ class FDataDataset(SeanergysParquetDataset):
         else:
             raise TypeError(f"files must be str, list, or None, got {type(files)}")
 
+    def _read_parquet(self, source: Union[str, Path]) -> pd.DataFrame:
+        """
+        Read one Parquet source (local path or remote URL) honouring ``columns``,
+        ``filters`` and ``max_rows``.
+
+        When ``max_rows`` is set, only the first ``max_rows`` rows are decoded via
+        ``pyarrow.ParquetFile.iter_batches`` and the read stops early — so a single
+        large row group is never fully materialised. Remote URLs are opened through
+        fsspec (HTTP range requests), so only the needed byte ranges are fetched.
+        When ``max_rows`` is None, this is a plain ``pd.read_parquet`` with column
+        projection and predicate pushdown (unchanged behaviour).
+        """
+        if self.max_rows is None:
+            return pd.read_parquet(source, columns=self.columns, filters=self.filters)
+
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        source_str = str(source)
+        handle = None
+        try:
+            if source_str.startswith(("http://", "https://")):
+                import fsspec
+
+                handle = fsspec.open(source_str).open()
+                parquet_file = pq.ParquetFile(handle)
+            else:
+                parquet_file = pq.ParquetFile(source_str)
+
+            batches = []
+            collected = 0
+            batch_size = min(self.max_rows, 256)
+            for batch in parquet_file.iter_batches(
+                batch_size=batch_size, columns=self.columns
+            ):
+                batches.append(batch)
+                collected += batch.num_rows
+                if collected >= self.max_rows:
+                    break
+
+            if not batches:
+                return pd.DataFrame(columns=self.columns)
+
+            table = pa.Table.from_batches(batches).slice(0, self.max_rows)
+            return table.to_pandas()
+        finally:
+            if handle is not None:
+                handle.close()
+
     def load_data(self) -> None:
         """
         Load data from Parquet file(s) (local or remote) and merge them.
@@ -221,9 +285,7 @@ class FDataDataset(SeanergysParquetDataset):
                     file_url = f"{self.ZENODO_BASE_URL}/{file_name}.parquet"
                     self.logger.info(f"Downloading {file_name}.parquet...")
                     try:
-                        df_chunk = pd.read_parquet(
-                            file_url, columns=self.columns, filters=self.filters
-                        )
+                        df_chunk = self._read_parquet(file_url)
                         dfs.append(df_chunk)
                         self.logger.info(
                             f"  Loaded {file_name}.parquet: {len(df_chunk)} rows"
@@ -255,9 +317,7 @@ class FDataDataset(SeanergysParquetDataset):
                     dfs = []
                     for file_path in parquet_files:
                         self.logger.info(f"Loading {file_path.name}...")
-                        df_chunk = pd.read_parquet(
-                            file_path, columns=self.columns, filters=self.filters
-                        )
+                        df_chunk = self._read_parquet(file_path)
                         dfs.append(df_chunk)
                         self.logger.info(f"  Loaded: {len(df_chunk)} rows")
 
@@ -266,9 +326,7 @@ class FDataDataset(SeanergysParquetDataset):
 
                 else:
                     self.logger.info(f"Loading F-DATA from local file: {data_path}")
-                    self._df = pd.read_parquet(
-                        data_path, columns=self.columns, filters=self.filters
-                    )
+                    self._df = self._read_parquet(data_path)
                     self.logger.info(f"Loaded F-DATA with shape: {self._df.shape}")
 
             # Apply preprocessing: each entry is (columns, function, output_feature_name)

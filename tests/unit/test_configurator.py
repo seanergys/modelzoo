@@ -111,7 +111,7 @@ def test_dataloader_params_to_dict_keys_match_pytorch_dataloader():
     to_dict() keys must match PyTorch DataLoader's signature so that
     DataLoader(**params.to_dict()) works without extra filtering.
     """
-    pytest.importorskip("torch")
+    import torch  # noqa: F401
     from torch.utils.data import DataLoader
 
     pytorch_keys = set(inspect.signature(DataLoader.__init__).parameters) - {

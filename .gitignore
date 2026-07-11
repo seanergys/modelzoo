@@ -32,3 +32,4 @@ seanergys_modelzoo/models/tasks/application_characterization
 D5_4_Definition_and_first_release_of_Verification_Suite.pdf
 # Internal design docs / ADRs — kept local, not pushed to GitLab
 design/
+mohsen.note.txt
