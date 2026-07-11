@@ -85,8 +85,8 @@ jobs:
 # and forces the entry to be removed. Keep this list empty when all pairs pass.
 # ---------------------------------------------------------------------------
 integration_xfail:
-  MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA (see docs/COLLEAGUE_FEEDBACK.md §6.6). Pending a model-author fix to a real F-DATA column."
-  MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA (see docs/COLLEAGUE_FEEDBACK.md §6.6). Pending a model-author fix to a real F-DATA column."
+  MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
+  MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
 
 # ---------------------------------------------------------------------------
 # Ignored dependency vulnerabilities (test:audit / pip-audit).

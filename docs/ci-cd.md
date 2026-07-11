@@ -1,16 +1,18 @@
 # CI/CD Capabilities & Rules Reference
 
-> **Auto-generated tables — do not edit between the `GENERATED` markers.**
-> The tables below are produced by `ci/gen_capabilities_doc.py` from
-> `.gitlab-ci.yml` (jobs/rules), the model/dataset code (capability matrix), and
-> `ci/policy.yml` (rationale). Regenerate with `make docs-ci`. On the default
-> branch the `docs:autogen` job regenerates and commits this file automatically,
-> so it never goes stale. Prose outside the markers is preserved.
+> **This is the single source of truth for testing & CI in this repo.**
+> The tables between the `<!-- BEGIN/END:GENERATED -->` markers are **auto-generated**
+> by `ci/gen_capabilities_doc.py` from `.gitlab-ci.yml` (jobs/rules), the model/dataset
+> code (capability matrix), and `ci/policy.yml` (rationale) — **do not edit them by hand**.
+> Regenerate with `make docs-ci`. On the default branch the `docs:autogen` job regenerates
+> and commits this file automatically, so the tables never go stale. The prose sections
+> (including the [Developer guide](#developer-guide) below) are hand-written and preserved
+> across regeneration.
 >
-> **See also:** [`TESTING_AND_CI_GUIDE.md`](TESTING_AND_CI_GUIDE.md) (how to run
-> tests locally), [`TESTING_AND_CI_PLAN.md`](TESTING_AND_CI_PLAN.md) (roadmap),
-> [`DATASET_ID_AND_SUPPORTED_DATASETS.md`](DATASET_ID_AND_SUPPORTED_DATASETS.md)
-> (the model/dataset contract).
+> **See also:** [`future_pydantic_tests.md`](future_pydantic_tests.md) (planned Pydantic
+> validation tests) and [`MODELZOO_ARCHITECTURE_NOTES.md`](MODELZOO_ARCHITECTURE_NOTES.md)
+> (packaging / serving notes). The former developer guide and CI plans were merged into
+> this file.
 
 ## Purpose
 
@@ -174,3 +176,127 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L222) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L116) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
 <!-- END:GENERATED test-skips -->
+
+---
+
+# Developer guide
+
+Everything below is hand-written prose (preserved across regeneration). It is the
+merged, updated content of the former `TESTING_AND_CI_GUIDE.md` and the old CI plans.
+
+## Running the tests locally
+
+Run the tests before every push — it is faster than waiting for a red pipeline.
+
+```bash
+make install-ci     # install all deps (dev + ci: torch, sklearn, xgboost, pyarrow, …)
+make sample-data    # download the small fixture files from Zenodo once (for integration)
+```
+
+| Command | Runs | When |
+|---|---|---|
+| `make test` | unit + smoke (offline, fast) | **before every push** |
+| `make test-unit` | `tests/unit/` | changing base classes / utils |
+| `make test-smoke-models` | `tests/smoke/test_smoke_models.py` | model discovery / instantiation |
+| `make test-smoke-data` | `tests/smoke/test_smoke_data.py` | dataset contract / fixtures |
+| `make test-pipeline` | full train→predict→save→load per model | changing model code |
+| `make test-integration` | `tests/integration/` (offline, fixtures) | before opening an MR |
+| `make test-all` | unit + smoke + integration | final check before an MR |
+| `make test-wheel` | build the wheel and verify it imports | packaging changes |
+| `make lint` / `make format` / `make typecheck` | ruff check / ruff format / mypy | quality gates |
+| `make docs-ci` / `make docs-ci-check` | regenerate / drift-check this file | after CI or test changes |
+| `make pre-push` | format-check + check-secrets + lint + test | the full local gate |
+| `make ci` | mirrors the whole GitLab pipeline offline | simulate CI locally |
+
+**Skip Zenodo network locally** (uses committed fixtures only, no downloads):
+
+```bash
+CI_SKIP_ZENODO=1 make test-integration
+```
+
+**Run a single test file or test:**
+
+```bash
+.venv/bin/pytest tests/unit/test_configurator.py -v
+.venv/bin/pytest tests/smoke/test_smoke_models.py::test_model_discovery -v
+```
+
+## What each test layer checks
+
+- **unit** (`tests/unit/`) — component correctness in isolation: Pydantic params,
+  base-class contracts, dataset parsers, per-class dataset internals (parsing, node
+  ranges), the sklearn wrapper. Hard gate.
+- **smoke** (`tests/smoke/`) — cheap end-to-end sanity without training: every model and
+  dataset is **discovered** (`tests/conftest.py`), instantiates, and its `get_train_config`
+  has the right shape; fixtures load. Hard gate, runs offline.
+- **integration** (`tests/integration/test_model_pipeline.py`) — the full
+  train→predict→save→load lifecycle for **every discovered (model, dataset) pair**, offline
+  against committed fixtures. Any failure names the exact pair **and** stage. Hard gate.
+- **zenodo** (`test:zenodo`, `-m zenodo`) — the same lifecycle against a real `is_dummy=True`
+  download from Zenodo. The **only** job that touches the network; warn-only.
+
+## `is_dummy=True` and memory-safe Zenodo loading
+
+`is_dummy=True` gives each dataset a tiny **real** slice of its data for testing. For
+F-DATA it sets `files="21_04"` and a small **row cap** (`max_rows=200`): the read goes
+through `FDataDataset._read_parquet`, which uses `pyarrow.ParquetFile.iter_batches` over an
+`fsspec` HTTP **range-request** stream and stops after the first 200 rows. This matters
+because F-DATA's monthly files are a **single row group**, so a `filters=` predicate cannot
+push down — a plain `pd.read_parquet(url, columns=, filters=)` would still materialise the
+whole group (~2 GB). The capped read fetches only the selected columns' chunks (~136 MB) and
+never OOMs the runner. `max_rows=None` (the default) restores the plain read for local files.
+This needs `aiohttp` + `fsspec` (declared in the `ci` dependency group).
+
+## Adding a new model or dataset
+
+The suite is **auto-discovery driven**, so a new model or dataset enters CI by contract —
+no test or table to edit by hand.
+
+1. Create `seanergys_modelzoo/models/tasks/<task>/<model_name>/<model_name>_model.py`.
+2. Subclass `SeanergysSklearnModel` (or `SeanergysModel` for non-sklearn).
+3. Implement `get_train_config(dataset_id)` returning
+   `Dict[str, Tuple[model_instance, DatasetClass, (SeanergysDatasetParams, SeanergysDataloaderParams)]]`,
+   and raise on an unknown `dataset_id` (see `JPCP` for the pattern).
+4. Ensure each dataset it uses supports `is_dummy=True` (CI exercises this without real data).
+5. `tests/conftest.py` discovers the model, adds its `(model, dataset)` pairs to
+   `MODEL_DATASET_PAIRS`, and the smoke/integration/capability tables pick it up on the next
+   run. Regenerate this doc with `make docs-ci`.
+
+If a (model, dataset) pair is known-broken, add it to `integration_xfail` in `ci/policy.yml`
+(strict xfail — it auto-alerts when the fix lands) rather than skipping it in test code.
+
+## Common workflows
+
+- **Before every push:** `make pre-push` (format-check + secrets + lint + unit/smoke).
+- **Before opening an MR:** `make test-all` and `make docs-ci-check`.
+- **After changing `.gitlab-ci.yml`, `ci/policy.yml`, or test structure:** `make docs-ci`
+  to regenerate the tables above, and commit the result.
+- **To request a CI change (colleagues):** open an issue with the **CI Change Request**
+  template (`.gitlab/issue_templates/CI_Change_Request.md`).
+
+## Tooling
+
+`pytest` (+ `pytest-cov`) for tests; `ruff` for lint **and** formatting (Black is not used
+in CI); `mypy` for types; `pip-audit` for dependency CVEs (see `ci/policy.yml` `audit_ignore`);
+`py_compile` for the syntax gate; `PyYAML` for the doc generator and validators. Dependencies
+are managed with Poetry groups: `dev` (tooling) and `ci` (the full ML stack); CI installs
+`--with dev,ci`.
+
+## Design decisions & known limitations
+
+- **Datasets are testable only through a model's `get_train_config()`.** A dataset needs
+  `input_features` / `output_features` to be constructed, and those come from the model
+  config — there is no self-describing `get_dummy_params()` on datasets. So a dataset with
+  no model referencing it gets **discovered but not exercised**.
+- **`SCRIPTAIDataset` is currently orphaned:** no model lists it in `supported_datasets`, so
+  it appears in discovery (DATASET_ID `—`) but no pipeline/contract test runs on it. To cover
+  it, add it to a model's `get_train_config()` (then it inherits fixtures, contract, and
+  Zenodo tests for free). `M100Dataset` is likewise not wired to a model.
+- **`importorskip` is banned in tests.** Every job runs the full `.install_ci` venv, so an
+  `importorskip` could only fire on a broken environment — silently skipping and turning
+  "nothing tested" into a green run. Import test dependencies directly so a missing dep fails
+  loudly at collection.
+- **Known-broken pairs** (`MACK-f-data`, `MCBound-f-data`) are `xfail(strict)` via
+  `ci/policy.yml` `integration_xfail`: they use `output_features=['mem_compute_bound']`, a
+  column absent from raw F-DATA. When the model authors point them at a real column the test
+  xpasses and forces the entry to be removed.

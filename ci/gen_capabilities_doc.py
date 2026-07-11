@@ -625,17 +625,17 @@ def main() -> int:
 # After creation the prose is hand-editable; only marker regions are regenerated.
 _DOC_TEMPLATE = """# CI/CD Capabilities & Rules Reference
 
-> **Auto-generated tables — do not edit between the `GENERATED` markers.**
-> The tables below are produced by `ci/gen_capabilities_doc.py` from
-> `.gitlab-ci.yml` (jobs/rules), the model/dataset code (capability matrix), and
-> `ci/policy.yml` (rationale). Regenerate with `make docs-ci`. On the default
-> branch the `docs:autogen` job regenerates and commits this file automatically,
-> so it never goes stale. Prose outside the markers is preserved.
+> **This is the single source of truth for testing & CI in this repo.**
+> The tables between the `<!-- BEGIN/END:GENERATED -->` markers are **auto-generated**
+> by `ci/gen_capabilities_doc.py` from `.gitlab-ci.yml` (jobs/rules), the model/dataset
+> code (capability matrix), and `ci/policy.yml` (rationale) — **do not edit them by hand**.
+> Regenerate with `make docs-ci`. On the default branch the `docs:autogen` job regenerates
+> and commits this file automatically, so the tables never go stale. Prose sections are
+> hand-written and preserved across regeneration.
 >
-> **See also:** [`TESTING_AND_CI_GUIDE.md`](TESTING_AND_CI_GUIDE.md) (how to run
-> tests locally), [`TESTING_AND_CI_PLAN.md`](TESTING_AND_CI_PLAN.md) (roadmap),
-> [`DATASET_ID_AND_SUPPORTED_DATASETS.md`](DATASET_ID_AND_SUPPORTED_DATASETS.md)
-> (the model/dataset contract).
+> **See also:** [`future_pydantic_tests.md`](future_pydantic_tests.md) (planned Pydantic
+> validation tests) and [`MODELZOO_ARCHITECTURE_NOTES.md`](MODELZOO_ARCHITECTURE_NOTES.md)
+> (packaging / serving notes).
 
 ## Purpose
 
