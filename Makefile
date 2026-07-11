@@ -5,6 +5,7 @@
         lock deps-check \
         test test-unit test-smoke-models test-smoke-data test-integration test-pipeline test-all test-wheel \
         lint format format-check typecheck audit check-secrets pre-push ci \
+        docs-ci docs-ci-check \
         coverage clean clean-venv clean-fixtures clean-all
 
 VENV ?= .venv
@@ -64,6 +65,10 @@ help:
 	@echo "  make coverage        Unit tests + XML/HTML/terminal coverage report"
 	@echo "  make audit           Dependency vulnerability scan (pip-audit)"
 	@echo "  make check-secrets   Scan for secrets in code"
+	@echo ""
+	@echo "Docs (auto-generated CI capability tables):"
+	@echo "  make docs-ci         Regenerate docs/ci-cd.md from .gitlab-ci.yml + code + policy"
+	@echo "  make docs-ci-check   Fail if docs/ci-cd.md is stale (used by make ci)"
 	@echo ""
 	@echo "CI simulation:"
 	@echo "  make ci              Run everything exactly as GitLab CI does"
@@ -186,10 +191,7 @@ test-wheel:
 	@ls -lh dist/*.whl
 	@echo "→ Verifying the built wheel installs and imports (mirrors test:wheel)..."
 	$(PYTHON) -m pip install -q --force-reinstall --no-deps dist/*.whl
-	PYTHONPATH= $(PYTHON) -c "import seanergys_modelzoo; print('✓ seanergys_modelzoo')"
-	PYTHONPATH= $(PYTHON) -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('✓ SeanergysLogger')"
-	PYTHONPATH= $(PYTHON) -c "from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel; print('✓ SeanergysModel')"
-	PYTHONPATH= $(PYTHON) -c "from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset; print('✓ SeanergysDataset')"
+	PYTHONPATH= $(PYTHON) ci/verify_wheel.py
 	$(PYTHON) -m pip uninstall -y -q seanergys-modelzoo
 	@echo "✓ Wheel builds, installs, and imports cleanly"
 
@@ -234,6 +236,20 @@ check-secrets:
 	@./ci/check_secrets.sh .
 
 # -----------------------------------------------------------------------------
+# Docs — auto-generated CI capability & rules tables (docs/ci-cd.md)
+# The tables are regenerated from .gitlab-ci.yml + the code + ci/policy.yml, so
+# they never drift. On the default branch the docs:autogen CI job commits any
+# regenerated changes automatically.
+# -----------------------------------------------------------------------------
+docs-ci:
+	@echo "→ Regenerating docs/ci-cd.md from pipeline + code + policy..."
+	$(PYTHON) ci/gen_capabilities_doc.py
+
+docs-ci-check:
+	@echo "→ Checking docs/ci-cd.md is up to date..."
+	$(PYTHON) ci/gen_capabilities_doc.py --check
+
+# -----------------------------------------------------------------------------
 # Pre-push gate — fast checks that must pass before git push
 # -----------------------------------------------------------------------------
 
@@ -245,6 +261,9 @@ install-hooks:
 	@echo "✓ Hook installed — 'make pre-push' will run automatically on every git push"
 
 pre-push: format-check check-secrets lint test
+	@echo ""
+	@echo "→ Checking CI docs are current (non-blocking)..."
+	-$(PYTHON) ci/gen_capabilities_doc.py --check
 	@echo ""
 	@echo "✓ Pre-push checks passed — safe to push"
 
@@ -281,21 +300,30 @@ ci: deps-check
 	-$(PYTHON) -m ruff format --check seanergys_modelzoo ci tests
 	-$(PYTHON) -m mypy seanergys_modelzoo ci tests --ignore-missing-imports --explicit-package-bases
 	@echo ""
-	@echo "── Stage 4: test ──"
+	@echo "── Stage 4: test (each layer once; combined coverage) ──"
 	mkdir -p coverage
-	$(PYTEST) tests/unit/ -v \
-	    --cov=seanergys_modelzoo \
-	    --cov-report=xml:coverage/cobertura-coverage.xml \
-	    --cov-report=term-missing
-	$(PYTEST) tests/smoke/test_smoke_models.py -v
-	CI_SKIP_ZENODO=1 $(PYTEST) tests/smoke/test_smoke_data.py -v -m "not zenodo"
+	rm -f coverage/.coverage
+	COVERAGE_FILE=coverage/.coverage $(PYTEST) tests/unit/ -v \
+	    --cov=seanergys_modelzoo --cov-append --cov-report=
+	COVERAGE_FILE=coverage/.coverage $(PYTEST) tests/smoke/test_smoke_models.py -v \
+	    --cov=seanergys_modelzoo --cov-append --cov-report=
+	CI_SKIP_ZENODO=1 COVERAGE_FILE=coverage/.coverage $(PYTEST) tests/smoke/test_smoke_data.py -v -m "not zenodo" \
+	    --cov=seanergys_modelzoo --cov-append --cov-report=
 	@echo "  (integration needs fixtures — run 'make sample-data' if this fails)"
-	CI_SKIP_ZENODO=1 $(PYTEST) tests/integration/ -v -m "not zenodo"
+	CI_SKIP_ZENODO=1 COVERAGE_FILE=coverage/.coverage $(PYTEST) tests/integration/ -v -m "not zenodo" \
+	    --cov=seanergys_modelzoo --cov-append --cov-report=
+	@echo ""
+	@echo "── Stage 5: coverage (combined report) ──"
+	COVERAGE_FILE=coverage/.coverage $(PYTHON) -m coverage xml -o coverage/cobertura-coverage.xml
+	COVERAGE_FILE=coverage/.coverage $(PYTHON) -m coverage report
+	@echo ""
+	@echo "── Stage 6: docs (capability tables current?) ──"
+	$(PYTHON) ci/gen_capabilities_doc.py --check
 	@echo ""
 	@echo "── Stage 4b: audit (allow_failure) ──"
 	-$(MAKE) audit
 	@echo ""
-	@echo "── Stage 5 + 6: build wheel + test wheel ──"
+	@echo "── Stage 7 + 8: build wheel + test wheel ──"
 	$(MAKE) test-wheel
 	@echo ""
 	@echo "✓ CI simulation complete — safe to push"

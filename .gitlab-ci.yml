@@ -1,11 +1,19 @@
 # GitLab CI/CD pipeline for seanergys-modelzoo
-# Stages: sanity → validate → lint → test → build → test-wheel
+# Stages: sanity → validate → lint → test → coverage → docs → build → test-wheel
+#
+# Human-readable reference for every job, rule, and pass/fail decision lives in
+# docs/ci-cd.md and is AUTO-GENERATED from this file + the code by
+# ci/gen_capabilities_doc.py. If you change a job, rule, or allow_failure here,
+# run `make docs-ci` (or let the docs:autogen job regenerate it on the default
+# branch). The "why" behind each decision lives in ci/policy.yml.
 
 stages:
   - sanity
   - validate
   - lint
   - test
+  - coverage
+  - docs
   - build
   - test-wheel
 
@@ -13,13 +21,23 @@ variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   POETRY_VERSION: "2.4.0"
   PYTHONPATH: "${CI_PROJECT_DIR}"
+  # Where each test job writes its coverage data file (combined in the coverage stage).
+  COVERAGE_DATA_DIR: "$CI_PROJECT_DIR/coverage-data"
 
 # -----------------------------------------------------------------------------
 # RULE ANCHORS
-# <<: *rules_code  — any Python source, test, script, or dep change
-# <<: *rules_deps  — only pyproject.toml / poetry.lock changed
-# <<: *rules_wheel — wheel build/test: source or pyproject.toml changed
-# No anchor on sanity/validate — always run (cheap, < 10 s)
+# Fine-grained so a job only reruns when files it actually depends on change.
+# This is JOB-level skipping (as fine as GitLab rules:changes goes) — a change
+# under seanergys_modelzoo/** still reruns every test job, because the core code
+# is shared by all of them.
+#
+#   *rules_code        — any source/test/script/dep change (lint, coverage report)
+#   *rules_unit        — source, tests/unit, conftest, or deps changed
+#   *rules_smoke       — source, tests/smoke, conftest, or deps changed
+#   *rules_integration — source, tests/integration, conftest, sample-data, or deps
+#   *rules_deps        — only pyproject.toml / poetry.lock changed
+#   *rules_wheel       — source or pyproject.toml changed
+# No anchor on sanity/validate — always run (cheap, < 10 s).
 # -----------------------------------------------------------------------------
 
 .rules_code: &rules_code
@@ -29,6 +47,43 @@ variables:
         - tests/**/*
         - ci/**/*
         - scripts/**/*
+        - pyproject.toml
+        - poetry.lock
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+.rules_unit: &rules_unit
+  rules:
+    - changes:
+        - seanergys_modelzoo/**/*
+        - tests/unit/**/*
+        - tests/conftest.py
+        - pyproject.toml
+        - poetry.lock
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+.rules_smoke: &rules_smoke
+  rules:
+    - changes:
+        - seanergys_modelzoo/**/*
+        - tests/smoke/**/*
+        - tests/conftest.py
+        - pyproject.toml
+        - poetry.lock
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
+.rules_integration: &rules_integration
+  rules:
+    - changes:
+        - seanergys_modelzoo/**/*
+        - tests/integration/**/*
+        - tests/conftest.py
+        - scripts/create_sample_data.py
         - pyproject.toml
         - poetry.lock
         - .gitlab-ci.yml
@@ -55,6 +110,10 @@ variables:
 
 # -----------------------------------------------------------------------------
 # CACHE
+# Two caches, both keyed on poetry.lock so they invalidate when deps change:
+#   *pip_cache — pip download cache (fast wheel reuse)
+#   *venv_cache — the resolved .venv itself, so `poetry install` is a near no-op
+#                 on a cache hit (this is what removes the real per-job time cost)
 # -----------------------------------------------------------------------------
 .pip_cache: &pip_cache
   key:
@@ -64,48 +123,56 @@ variables:
   paths:
     - .cache/pip
 
-# -----------------------------------------------------------------------------
-# SHARED TEMPLATES
-# -----------------------------------------------------------------------------
+.venv_cache: &venv_cache
+  key:
+    prefix: "venv-${CI_JOB_IMAGE}"
+    files:
+      - poetry.lock
+  paths:
+    - .venv
 
-# Dev deps only (pytest, ruff, pydantic) — sufficient for unit tests
-.install_dev:
-  image: python:3.13-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet "poetry==${POETRY_VERSION}"
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev
-
-# Full ML stack (torch, sklearn, xgboost, sentence-transformers, pyarrow)
-# torch is reinstalled as CPU-only after poetry install; python:3.13-slim has no
-# CUDA/NCCL, so the default PyPI CUDA wheel fails with undefined symbol errors.
-# We pin the same version that poetry locked to avoid a mismatch.
+# -----------------------------------------------------------------------------
+# SHARED INSTALL TEMPLATE
+# One in-project .venv with the full ML stack (torch, sklearn, xgboost,
+# sentence-transformers, pyarrow). All test jobs share it via the cached .venv.
+# (The unit tests import torch/sklearn through the package, so a dev-only venv is
+# not sufficient — a single full venv is both correct and simpler to cache.)
+#
+# torch is reinstalled as CPU-only (python:3.13-slim has no CUDA/NCCL, so the
+# default PyPI CUDA wheel fails with undefined-symbol errors). We pin the version
+# poetry locked, and skip the reinstall when the cached venv already has +cpu.
+# -----------------------------------------------------------------------------
 .install_ci:
   image: python:3.13-slim
   cache:
     - <<: *pip_cache
       policy: pull-push
+    - <<: *venv_cache
+      policy: pull-push
   before_script:
     - pip install --quiet --upgrade pip
     - pip install --quiet "poetry==${POETRY_VERSION}"
-    - poetry config virtualenvs.create false
+    - poetry config virtualenvs.in-project true
     - poetry install --no-interaction --with dev,ci
-    - TORCH_VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
-    - pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
+    - |
+      if ! poetry run python -c "import torch,sys; sys.exit(0 if torch.__version__.endswith('+cpu') else 1)" 2>/dev/null; then
+        TORCH_VER=$(poetry run python -c "import importlib.metadata as m; print(m.version('torch'))")
+        echo "Reinstalling torch ${TORCH_VER} as CPU-only..."
+        poetry run pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
+      else
+        echo "Cached venv already has CPU torch — skipping reinstall."
+      fi
+    - mkdir -p "$COVERAGE_DATA_DIR"
 
 # -----------------------------------------------------------------------------
-# STAGE 1: SANITY
+# STAGE 1: SANITY  (always runs, cheap)
 # -----------------------------------------------------------------------------
 
 sanity:python-syntax:
   stage: sanity
   image: python:3.13-slim
   script:
-    - find seanergys_modelzoo ci tests -name "*.py" -print0 | xargs -0 -r python -m py_compile
+    - find seanergys_modelzoo ci tests scripts -name "*.py" -print0 | xargs -0 -r python -m py_compile
     - echo "✓ Syntax OK"
   allow_failure: false
 
@@ -131,7 +198,7 @@ sanity:check-secrets:
   allow_failure: true
 
 # -----------------------------------------------------------------------------
-# STAGE 2: VALIDATE
+# STAGE 2: VALIDATE  (always runs)
 # -----------------------------------------------------------------------------
 
 validate:yaml-json:
@@ -144,7 +211,7 @@ validate:yaml-json:
   allow_failure: false
 
 # -----------------------------------------------------------------------------
-# STAGE 3: LINT
+# STAGE 3: LINT  (non-blocking quality signal)
 # -----------------------------------------------------------------------------
 
 lint:python:
@@ -176,71 +243,80 @@ lint:mypy:
 
 # -----------------------------------------------------------------------------
 # STAGE 4: TEST
+# Each layer runs exactly ONCE and emits its own coverage data file
+# (coverage-data/.coverage.<job-slug>). The coverage stage combines them, so
+# there is no duplicated execution and a failure names its own job.
 # -----------------------------------------------------------------------------
 
-# Unit tests — fast gate, no ML deps.
+# Unit tests — fast, isolated component checks.
 test:unit:
-  <<: *rules_code
-  extends: .install_dev
-  stage: test
-  script:
-    - poetry run pytest tests/unit/ -v --tb=short
-  allow_failure: false
-
-# Model smoke tests — discovery, instantiation, train-config structure (no data loading)
-test:smoke-models:
-  <<: *rules_code
+  <<: *rules_unit
   extends: .install_ci
   stage: test
+  variables:
+    COVERAGE_FILE: "$CI_PROJECT_DIR/coverage-data/.coverage.$CI_JOB_NAME_SLUG"
   script:
-    - poetry run pytest tests/smoke/test_smoke_models.py -v
+    - poetry run pytest tests/unit/ -v --tb=short --cov=seanergys_modelzoo --cov-report=
+  artifacts:
+    when: always
+    paths:
+      - coverage-data/
+    expire_in: 1 day
   allow_failure: false
 
-# Data smoke tests — fixture loading and dataset instantiation (no Zenodo)
+# Model smoke tests — discovery, instantiation, train-config structure (no data).
+test:smoke-models:
+  <<: *rules_smoke
+  extends: .install_ci
+  stage: test
+  variables:
+    COVERAGE_FILE: "$CI_PROJECT_DIR/coverage-data/.coverage.$CI_JOB_NAME_SLUG"
+  script:
+    - poetry run pytest tests/smoke/test_smoke_models.py -v --cov=seanergys_modelzoo --cov-report=
+  artifacts:
+    when: always
+    paths:
+      - coverage-data/
+    expire_in: 1 day
+  allow_failure: false
+
+# Data smoke tests — fixture loading and dataset contract (no Zenodo).
 test:smoke-data:
-  <<: *rules_code
+  <<: *rules_smoke
   extends: .install_ci
   stage: test
   variables:
     CI_SKIP_ZENODO: "1"
+    COVERAGE_FILE: "$CI_PROJECT_DIR/coverage-data/.coverage.$CI_JOB_NAME_SLUG"
   script:
-    - poetry run pytest tests/smoke/test_smoke_data.py -v -m "not zenodo"
-  allow_failure: false
-
-# Full integration tests with sample fixture data (no Zenodo)
-test:integration:
-  <<: *rules_code
-  stage: test
-  image: python:3.13-slim
-  cache:
-    - <<: *pip_cache
-      policy: pull-push
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet "poetry==${POETRY_VERSION}"
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction --with dev,ci
-    - TORCH_VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
-    - pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
-    - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
-  script:
-    - mkdir -p coverage
-    - CI_SKIP_ZENODO=1 poetry run pytest tests/unit/ tests/smoke/test_smoke_models.py tests/smoke/test_smoke_data.py tests/integration/
-        -v -m "not zenodo"
-        --cov=seanergys_modelzoo
-        --cov-report=xml:coverage/cobertura-coverage.xml
-        --cov-report=term-missing
-  coverage: '/TOTAL.*\s+(\d+%)$/'
+    - poetry run pytest tests/smoke/test_smoke_data.py -v -m "not zenodo" --cov=seanergys_modelzoo --cov-report=
   artifacts:
     when: always
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura-coverage.xml
-    expire_in: 1 week
+    paths:
+      - coverage-data/
+    expire_in: 1 day
   allow_failure: false
 
-# Dependency vulnerability scan
+# Full model×dataset pipeline tests on sample fixture data (no Zenodo).
+# Builds fixtures first, then runs ONLY tests/integration/ (no re-run of unit/smoke).
+test:integration:
+  <<: *rules_integration
+  extends: .install_ci
+  stage: test
+  variables:
+    CI_SKIP_ZENODO: "1"
+    COVERAGE_FILE: "$CI_PROJECT_DIR/coverage-data/.coverage.$CI_JOB_NAME_SLUG"
+  script:
+    - CI_SKIP_ZENODO=1 poetry run python scripts/create_sample_data.py
+    - CI_SKIP_ZENODO=1 poetry run pytest tests/integration/ -v -m "not zenodo" --cov=seanergys_modelzoo --cov-report=
+  artifacts:
+    when: always
+    paths:
+      - coverage-data/
+    expire_in: 1 day
+  allow_failure: false
+
+# Dependency vulnerability scan (only when deps change).
 test:audit:
   <<: *rules_deps
   stage: test
@@ -251,8 +327,6 @@ test:audit:
   before_script:
     - pip install --quiet --upgrade pip
     - pip install --quiet "poetry==${POETRY_VERSION}" poetry-plugin-export
-    - poetry config virtualenvs.create false
-    - poetry install --no-interaction
     - pip install --quiet pip-audit
   script:
     - poetry export -f requirements.txt --without-hashes --with dev,ci -o /tmp/poetry-audit-reqs.txt
@@ -260,7 +334,112 @@ test:audit:
   allow_failure: true
 
 # -----------------------------------------------------------------------------
-# STAGE 5: BUILD
+# STAGE 5: COVERAGE
+# Combine the per-job coverage data into one report. Uses optional needs so the
+# job still runs (and combines whatever exists) when some test jobs were skipped
+# by their rules.
+# -----------------------------------------------------------------------------
+
+coverage:report:
+  <<: *rules_code
+  stage: coverage
+  image: python:3.13-slim
+  needs:
+    - job: test:unit
+      artifacts: true
+      optional: true
+    - job: test:smoke-models
+      artifacts: true
+      optional: true
+    - job: test:smoke-data
+      artifacts: true
+      optional: true
+    - job: test:integration
+      artifacts: true
+      optional: true
+  before_script:
+    - pip install --quiet "coverage[toml]"
+  script:
+    - mkdir -p coverage
+    - |
+      if ls coverage-data/.coverage.* >/dev/null 2>&1; then
+        coverage combine coverage-data
+        coverage xml -o coverage/cobertura-coverage.xml
+        coverage report
+      else
+        echo "No coverage data collected (all test jobs skipped)."
+      fi
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 1 week
+  allow_failure: false
+
+# -----------------------------------------------------------------------------
+# STAGE 6: DOCS
+# Keep docs/ci-cd.md in lockstep with this file + the code.
+#   docs:check   — on branches/MRs, warns if the committed doc is stale
+#   docs:autogen — on the default branch, regenerates and commits the doc back
+# -----------------------------------------------------------------------------
+
+docs:check:
+  <<: *rules_code
+  extends: .install_ci
+  stage: docs
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: never
+    - changes:
+        - seanergys_modelzoo/**/*
+        - tests/**/*
+        - ci/**/*
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+  script:
+    - poetry run python ci/gen_capabilities_doc.py --check
+  allow_failure: true
+
+docs:autogen:
+  extends: .install_ci
+  stage: docs
+  rules:
+    # Only on the default branch, and only when a bot token is configured.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $DOCS_BOT_TOKEN'
+      when: on_success
+    - when: never
+  variables:
+    GIT_STRATEGY: clone
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - pip install --quiet --upgrade pip
+    - pip install --quiet "poetry==${POETRY_VERSION}"
+    - poetry config virtualenvs.in-project true
+    - poetry install --no-interaction --with dev,ci
+  script:
+    - git config user.email "ci-bot@seanergys"
+    - git config user.name "seanergys-ci-bot"
+    - poetry run python ci/gen_capabilities_doc.py
+    - |
+      if git diff --quiet -- docs/ci-cd.md; then
+        echo "docs/ci-cd.md already current — nothing to commit."
+      else
+        git add docs/ci-cd.md
+        git commit -m "docs(ci): regenerate capability tables [skip ci]"
+        git push -o ci.skip \
+          "https://oauth2:${DOCS_BOT_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
+          "HEAD:${CI_DEFAULT_BRANCH}"
+        echo "✓ Regenerated docs/ci-cd.md pushed to ${CI_DEFAULT_BRANCH}."
+      fi
+  # Non-blocking: a token/permission hiccup must never break the default branch.
+  allow_failure: true
+
+# -----------------------------------------------------------------------------
+# STAGE 7: BUILD
 # -----------------------------------------------------------------------------
 
 build:wheel:
@@ -281,9 +460,10 @@ build:wheel:
   allow_failure: false
 
 # -----------------------------------------------------------------------------
-# STAGE 6: TEST-WHEEL
-# Validates the distributed package installs and imports correctly.
+# STAGE 8: TEST-WHEEL
+# Validate the distributed package installs and imports correctly.
 # PYTHONPATH cleared so the installed wheel is tested, not the source tree.
+# ci/verify_wheel.py walks every submodule dynamically (no hardcoded import list).
 # -----------------------------------------------------------------------------
 
 test:wheel:
@@ -298,8 +478,5 @@ test:wheel:
     - pip install --quiet dist/*.whl
     - TORCH_VER=$(python -c "import importlib.metadata; print(importlib.metadata.version('torch'))")
     - pip install --quiet --force-reinstall "torch==${TORCH_VER}+cpu" --index-url https://download.pytorch.org/whl/cpu
-    - python -c "import seanergys_modelzoo; print('✓ seanergys_modelzoo')"
-    - python -c "from seanergys_modelzoo.logger.seanergys_logger import SeanergysLogger; print('✓ SeanergysLogger')"
-    - python -c "from seanergys_modelzoo.models.common.seanergys_model import SeanergysModel; print('✓ SeanergysModel')"
-    - python -c "from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset; print('✓ SeanergysDataset')"
+    - python ci/verify_wheel.py
   allow_failure: false

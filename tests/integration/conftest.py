@@ -1,112 +1,160 @@
 """
-Fixtures and helpers for integration tests.
+Fixtures and helpers for the integration pipeline tests.
 
-Uses sample_data from tests/fixtures/sample_data/ (create with `make sample-data`).
+The integration suite runs the full lifecycle (config → load → train → predict →
+save → load) for every discovered (model, dataset) pair, offline, against the
+committed sample fixtures in tests/fixtures/sample_data/.
 
-No model or dataset names are hardcoded here. All helpers are generic and work
-with any model that implements get_train_config().
+Nothing here hardcodes a model or dataset name. Pairs come from each model's
+supported_datasets (see tests/conftest.MODEL_DATASET_PAIRS); pairs that are known
+to be broken pending an author fix are declared in ci/policy.yml (integration_xfail),
+not in test code.
 """
 
+from __future__ import annotations
+
+import contextlib
+import traceback
 from pathlib import Path
+from typing import Dict
 
 import pytest
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_POLICY = _REPO_ROOT / "ci" / "policy.yml"
+
 
 def _integration_data_dir() -> Path:
-    """Path to tests/fixtures/sample_data."""
-    root = Path(__file__).resolve().parent.parent
-    return root / "fixtures" / "sample_data"
+    return Path(__file__).resolve().parent.parent / "fixtures" / "sample_data"
 
 
 @pytest.fixture(scope="session")
-def integration_data_dir():
-    """Path to tests/fixtures/sample_data. Run `make sample-data` if missing."""
+def integration_data_dir() -> Path:
+    """Path to tests/fixtures/sample_data. Run `make sample-data` if a fixture is missing."""
     d = _integration_data_dir()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 @pytest.fixture
-def temp_model_dir(tmp_path):
-    """Temporary directory for saving models during tests."""
+def temp_model_dir(tmp_path) -> Path:
+    """Temporary directory for saving models during a test."""
     return tmp_path
 
 
 # ---------------------------------------------------------------------------
-# Generic helpers — used by test_model_train.py and test_model_save_load.py
+# Fixture path convention (mirrors scripts/create_sample_data.py)
 # ---------------------------------------------------------------------------
 
 
 def fixture_path_for(dataset_cls, data_dir: Path) -> Path:
-    """
-    Return the expected fixture path for a dataset class.
-
-    Naming convention mirrors create_sample_data.py:
-      FDataDataset  → sample_fdata.parquet
-      PM100Dataset  → sample_pm100.parquet
-    """
+    """FDataDataset → sample_fdata.parquet, PM100Dataset → sample_pm100.parquet."""
     name = dataset_cls.__name__.lower().replace("dataset", "")
     return data_dir / f"sample_{name}.parquet"
 
 
-def load_first_fixture_entry(model_name: str, model_cls, data_dir: Path):
+# ---------------------------------------------------------------------------
+# Precise stage reporting
+# ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def run_stage(stage: str, model_name: str, dataset_id: str):
     """
-    Find the first dataset entry in get_train_config() that has a fixture file,
-    load the dataset from that fixture, and return (model_instance, dataset, loader).
-
-    Calls pytest.skip() if no fixture is available for any entry.
-
-    This helper is the offline counterpart to test_model_pipeline.py which uses
-    is_dummy=True. These fixture-based tests work without network access as long
-    as `make sample-data` has been run.
+    Wrap one pipeline stage. On any exception, re-raise as an AssertionError whose
+    message names the exact stage, model, and dataset, and includes the original
+    traceback (so the failing file:line is right there in the pytest report).
     """
-    pytest.importorskip("sklearn")
-    pytest.importorskip("torch")
+    try:
+        yield
+    except Exception as e:  # noqa: BLE001 — we deliberately annotate and re-raise
+        tb = traceback.format_exc()
+        raise AssertionError(
+            "\n"
+            + "=" * 72
+            + "\nPIPELINE FAILURE"
+            + f"\n  stage   : {stage}"
+            + f"\n  model   : {model_name}"
+            + f"\n  dataset : {dataset_id}"
+            + f"\n  error   : {type(e).__name__}: {e}\n"
+            + "-" * 72
+            + f"\n{tb}"
+            + "=" * 72
+        ) from e
 
+
+# ---------------------------------------------------------------------------
+# Offline pair loading from committed fixtures
+# ---------------------------------------------------------------------------
+
+
+def load_pair_from_fixture(model_cls, dataset_id: str, data_dir: Path):
+    """
+    Build (model_instance, dataset, loader) for one (model, dataset_id) pair using
+    get_train_config(dataset_id) and the committed fixture for that dataset.
+
+    Raises (never skips) so the caller can turn problems into precise failures:
+      - FileNotFoundError  if the fixture parquet is not committed
+      - ValueError         if the fixture loads 0 rows
+    """
     from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 
-    config = model_cls.get_train_config()
-    tried = []
-
-    for entry_name, (
-        model_instance,
-        dataset_cls,
-        (ds_params, dl_params),
-    ) in config.items():
-        fixture = fixture_path_for(dataset_cls, data_dir)
-        tried.append(f"{entry_name} → {fixture.name}")
-
-        if not fixture.exists():
-            continue
-
-        # Override data_path to point at the local fixture and clear filters.
-        # Date/range filters from get_train_config() are designed for the full
-        # Zenodo dataset — applying them to a small fixture sample would likely
-        # return 0 rows. All other params (features, transforms, etc.) are kept.
-        local_params = ds_params.model_copy(
-            update={"data_path": fixture, "filters": None}
+    config = model_cls.get_train_config(dataset_id)
+    if dataset_id not in config:
+        raise KeyError(
+            f"{model_cls.__name__}.get_train_config({dataset_id!r}) returned no entry "
+            f"for {dataset_id!r} (keys: {list(config)})"
         )
 
-        try:
-            dataset = dataset_cls.from_config(local_params)
-            dataset.load_data()
-        except Exception as e:
-            pytest.skip(
-                f"{model_name}/{entry_name}: failed to load fixture {fixture.name}: {e}"
-            )
+    model_instance, dataset_cls, (ds_params, dl_params) = config[dataset_id]
 
-        if len(dataset) == 0:
-            pytest.skip(
-                f"{model_name}/{entry_name}: fixture {fixture.name} loaded 0 rows."
-            )
-
-        loader = SeanergysDataloader.from_config(
-            data_loader_config=dl_params, dataset=dataset
+    fixture = fixture_path_for(dataset_cls, data_dir)
+    if not fixture.exists():
+        raise FileNotFoundError(
+            f"missing fixture {fixture.name} for {dataset_cls.__name__}. "
+            f"Run `make sample-data` and commit "
+            f"tests/fixtures/sample_data/{fixture.name}."
         )
-        return model_instance, dataset, loader
 
-    pytest.skip(
-        f"{model_name}: no fixture file found for any dataset in get_train_config().\n"
-        f"  Entries checked: {', '.join(tried)}\n"
-        f"  Run `make sample-data` to create fixture files."
+    # Point the dataset at the local fixture and drop the date/range filters, which
+    # are sized for the full Zenodo dataset and would zero-out a small sample.
+    # Datasets are constructed from their params (to_dict preserves the transform
+    # callables) and load their data in model_post_init — no explicit load_data().
+    local_params = ds_params.model_copy(update={"data_path": fixture, "filters": None})
+    dataset = dataset_cls(**local_params.to_dict())
+
+    if len(dataset) == 0:
+        raise ValueError(
+            f"fixture {fixture.name} loaded 0 rows for {dataset_cls.__name__}; "
+            f"regenerate it with `make sample-data`."
+        )
+
+    loader = SeanergysDataloader.from_config(
+        data_loader_config=dl_params, dataset=dataset
     )
+    return model_instance, dataset, loader
+
+
+# ---------------------------------------------------------------------------
+# Known-broken pairs (declared in ci/policy.yml, not in test code)
+# ---------------------------------------------------------------------------
+
+
+def load_known_xfails() -> Dict[str, str]:
+    """
+    Read ci/policy.yml -> integration_xfail: { "Model-dataset_id": "reason" }.
+
+    These pairs are expected to fail pending an author fix; they are marked
+    xfail(strict=True) so that when the fix lands the test xpasses and forces the
+    entry to be removed. Returns {} if the file or section is absent.
+    """
+    if not _POLICY.exists():
+        return {}
+    try:
+        import yaml
+
+        data = yaml.safe_load(_POLICY.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    section = data.get("integration_xfail") or {}
+    return {str(k): str(v) for k, v in section.items()}

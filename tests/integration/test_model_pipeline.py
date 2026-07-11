@@ -1,153 +1,231 @@
 """
-Integration tests: full pipeline per (model, dataset) pair.
+Integration tests: the full pipeline for every (model, dataset) pair.
 
-For every (model_cls, dataset_id) pair discovered via supported_datasets:
-  1. test_get_train_config_structure — get_train_config(dataset_id) returns valid structure
-  2. test_full_pipeline             — train → predict → save → load
+For each pair discovered from supported_datasets (tests/conftest.MODEL_DATASET_PAIRS)
+this exercises the complete lifecycle and checks as many aspects as possible:
 
-Both tests are fully dynamic. No model or dataset names are hardcoded.
-Adding a new model and declaring its supported_datasets automatically adds it here.
+    config → load → dataloader → train → predict → save → reload → compare → metadata
 
-CI contract for model authors:
-  - Declare supported_datasets in _inject_defaults (list of dataset classes with DATASET_ID)
-  - Implement get_train_config(dataset_name) returning
-      Dict[str, Tuple[model, DatasetClass, (SeanergysDatasetParams, SeanergysDataloaderParams)]]
-  - Ensure the dataset supports is_dummy=True so CI does not need real data or network
+Two variants run the same stages:
+  * test_full_pipeline_offline — uses the committed sample fixtures (no network).
+    This is the one that runs in CI. It FAILS (not skips) on any real error, and the
+    failure names the exact stage + model + dataset (see run_stage).
+  * test_full_pipeline_zenodo  — @pytest.mark.zenodo; uses is_dummy=True against real
+    Zenodo downloads. Skipped with CI_SKIP_ZENODO=1.
+
+Nothing here hardcodes a model or dataset name. Adding a model and declaring its
+supported_datasets automatically adds its pairs. Pairs known to be broken pending an
+author fix are declared in ci/policy.yml (integration_xfail) — not here.
 """
+
+from __future__ import annotations
 
 import os
 
 import pytest
 
 from tests.conftest import MODEL_DATASET_PAIRS
+from tests.integration.conftest import (
+    load_known_xfails,
+    load_pair_from_fixture,
+    run_stage,
+)
 
-_PAIR_IDS = [f"{m.__name__}-{d}" for m, d in MODEL_DATASET_PAIRS]
+_XFAILS = load_known_xfails()
+
+
+def _plain_params():
+    """Parametrization with no xfail — used by the structural (no-data) test."""
+    return [pytest.param(m, d, id=f"{m.__name__}-{d}") for m, d in MODEL_DATASET_PAIRS]
+
+
+def _pipeline_params():
+    """Parametrization with xfail(strict) applied to pairs declared in policy.yml.
+
+    Used only by the full-pipeline tests (which actually load data and run the
+    model), so a broken pair is a documented expected-failure rather than a hard
+    red. The structural test above still runs plainly and must pass for all pairs.
+    """
+    params = []
+    for model_cls, dataset_id in MODEL_DATASET_PAIRS:
+        key = f"{model_cls.__name__}-{dataset_id}"
+        marks = []
+        if key in _XFAILS:
+            marks.append(pytest.mark.xfail(reason=_XFAILS[key], strict=True))
+        params.append(pytest.param(model_cls, dataset_id, id=key, marks=marks))
+    return params
+
+
+_PLAIN_PARAMS = _plain_params()
+_PIPELINE_PARAMS = _pipeline_params()
 
 
 # ---------------------------------------------------------------------------
-# Test 1: get_train_config(dataset_id) returns a valid structure
+# Structural contract (fast, no data)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("model_cls,dataset_name", MODEL_DATASET_PAIRS, ids=_PAIR_IDS)
-def test_get_train_config_structure(model_cls, dataset_name):
-    """
-    get_train_config(dataset_name) must return a dict with the entry for that dataset:
-      { dataset_name: (model_instance, DatasetClass, (SeanergysDatasetParams, SeanergysDataloaderParams)) }
-
-    Also checks that the model instance has all required interface methods.
-    """
-    pytest.importorskip("sklearn")
-
+@pytest.mark.parametrize("model_cls,dataset_id", _PLAIN_PARAMS)
+def test_get_train_config_structure(model_cls, dataset_id):
+    """get_train_config(dataset_id) returns the documented structure and interface."""
     from seanergys_modelzoo.datasets.common.seanergys_dataset import SeanergysDataset
     from seanergys_modelzoo.models.common.seanergys_configurator import (
         SeanergysDataloaderParams,
         SeanergysDatasetParams,
     )
 
-    model_name = model_cls.__name__
-    config = model_cls.get_train_config(dataset_name)
-
-    assert isinstance(config, dict), (
-        f"{model_name}.get_train_config({dataset_name!r}) must return a dict"
-    )
-    assert dataset_name in config, (
-        f"{model_name}.get_train_config({dataset_name!r}) did not return entry for {dataset_name!r}"
-    )
-
-    model_instance, dataset_cls, params = config[dataset_name]
-    assert len(params) == 2, (
-        f"{model_name}/{dataset_name}: third element must be (SeanergysDatasetParams, SeanergysDataloaderParams)"
-    )
-    ds_params, dl_params = params
-
-    for method in ("train", "predict", "save", "load"):
-        assert hasattr(model_instance, method), (
-            f"{model_name} is missing required method: {method}"
+    name = model_cls.__name__
+    with run_stage("get_train_config", name, dataset_id):
+        config = model_cls.get_train_config(dataset_id)
+        assert isinstance(config, dict), "get_train_config must return a dict"
+        assert dataset_id in config, (
+            f"no entry for {dataset_id!r} (keys: {list(config)})"
         )
 
-    assert issubclass(dataset_cls, SeanergysDataset), (
-        f"{model_name}/{dataset_name}: DatasetClass must subclass SeanergysDataset, "
-        f"got {dataset_cls}"
-    )
-    assert isinstance(ds_params, SeanergysDatasetParams), (
-        f"{model_name}/{dataset_name}: ds_params must be SeanergysDatasetParams, "
-        f"got {type(ds_params)}"
-    )
-    assert isinstance(dl_params, SeanergysDataloaderParams), (
-        f"{model_name}/{dataset_name}: dl_params must be SeanergysDataloaderParams, "
-        f"got {type(dl_params)}"
-    )
+        model_instance, dataset_cls, params = config[dataset_id]
+        assert len(params) == 2, (
+            "params must be (SeanergysDatasetParams, SeanergysDataloaderParams)"
+        )
+        ds_params, dl_params = params
+
+        for method in ("train", "predict", "save", "load"):
+            assert hasattr(model_instance, method), f"model missing method: {method}"
+        assert issubclass(dataset_cls, SeanergysDataset), (
+            "DatasetClass must subclass SeanergysDataset"
+        )
+        assert isinstance(ds_params, SeanergysDatasetParams)
+        assert isinstance(dl_params, SeanergysDataloaderParams)
 
 
 # ---------------------------------------------------------------------------
-# Test 2: full pipeline — train → predict → save → load
+# Full offline pipeline (runs in CI, fails loudly, checks many aspects)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("model_cls,dataset_id", _PIPELINE_PARAMS)
+def test_full_pipeline_offline(model_cls, dataset_id, integration_data_dir, tmp_path):
+    """Complete lifecycle for one pair against committed fixtures. Fails on any error."""
+    import numpy as np
+
+    name = model_cls.__name__
+
+    # --- load (fixture-backed) -------------------------------------------------
+    with run_stage("load-fixture", name, dataset_id):
+        model_instance, dataset, loader = load_pair_from_fixture(
+            model_cls, dataset_id, integration_data_dir
+        )
+
+    # --- dataset contract ------------------------------------------------------
+    with run_stage("dataset-contract", name, dataset_id):
+        assert len(dataset) > 0, "dataset is empty"
+        item = dataset[0]
+        assert isinstance(item, tuple) and len(item) == 2, "dataset[0] must be (x, y)"
+
+    # --- dataloader yields a batch --------------------------------------------
+    with run_stage("dataloader", name, dataset_id):
+        batch = next(iter(loader))
+        assert batch is not None, "dataloader yielded nothing"
+
+    # --- train -----------------------------------------------------------------
+    with run_stage("train", name, dataset_id):
+        history = model_instance.train(loader)
+        assert model_instance.is_trained, "is_trained must be True after train()"
+        assert history is not None, "train() must return a history object"
+
+    # --- predict ---------------------------------------------------------------
+    with run_stage("predict", name, dataset_id):
+        predictions = model_instance.predict(loader)
+        assert predictions is not None, "predict() returned None"
+        assert len(predictions) == len(dataset), (
+            f"len(predictions)={len(predictions)} != len(dataset)={len(dataset)}"
+        )
+        arr = np.asarray(predictions)
+        if np.issubdtype(arr.dtype, np.number):
+            assert np.isfinite(arr).all(), "predictions contain NaN/inf"
+
+    # --- save ------------------------------------------------------------------
+    save_path = tmp_path / name / dataset_id
+    save_path.mkdir(parents=True)
+    model_file = save_path / "model"
+    with run_stage("save", name, dataset_id):
+        saved = model_instance.save(str(model_file))
+        assert saved, "save() must return True"
+        # At least one artifact must exist on disk (model file or companions).
+        produced = list(save_path.glob("model*"))
+        assert produced, f"save() wrote no files under {save_path}"
+
+    # --- reload + compare ------------------------------------------------------
+    with run_stage("load", name, dataset_id):
+        loaded = type(model_instance).load(str(model_file))
+        assert loaded is not None, "load() returned None"
+        assert loaded.is_trained, "reloaded model must be trained"
+
+    with run_stage("predict-after-reload", name, dataset_id):
+        pred_after = np.asarray(loaded.predict(loader))
+        pred_before = np.asarray(predictions)
+        assert len(pred_before) == len(pred_after), (
+            "prediction length changed after reload"
+        )
+        if np.issubdtype(pred_before.dtype, np.number) and np.issubdtype(
+            pred_after.dtype, np.number
+        ):
+            assert np.allclose(pred_before, pred_after, equal_nan=True), (
+                "predictions changed after save/reload"
+            )
+        else:
+            assert list(pred_before) == list(pred_after), (
+                "predictions changed after save/reload"
+            )
+
+    # --- metadata --------------------------------------------------------------
+    with run_stage("metadata", name, dataset_id):
+        assert getattr(model_instance, "metadata", None) is not None, "metadata missing"
+        assert getattr(model_instance.metadata, "name", None), "metadata.name not set"
+
+
+# ---------------------------------------------------------------------------
+# Zenodo variant (real is_dummy download; skipped with CI_SKIP_ZENODO=1)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.zenodo
-@pytest.mark.parametrize("model_cls,dataset_name", MODEL_DATASET_PAIRS, ids=_PAIR_IDS)
-def test_full_pipeline(model_cls, dataset_name, tmp_path):
-    """
-    Full pipeline for each (model, dataset) pair using get_train_config(dataset_name).
-
-    Uses is_dummy=True on the dataset config. NOTE: some datasets still download from
-    Zenodo with filters when is_dummy=True, so network access may be required.
-
-    Skip with: CI_SKIP_ZENODO=1 make test-integration
-
-    Skips if the dataset does not support is_dummy=True properly (len == 0 or load fails).
-    This skip is a signal to the dataset author to implement is_dummy support.
-    """
+@pytest.mark.parametrize("model_cls,dataset_id", _PIPELINE_PARAMS)
+def test_full_pipeline_zenodo(model_cls, dataset_id, tmp_path):
+    """Same lifecycle against a real is_dummy=True dataset from Zenodo."""
     if os.environ.get("CI_SKIP_ZENODO") == "1":
-        pytest.skip("SKIP: CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run.")
-
-    pytest.importorskip("sklearn")
-    pytest.importorskip("torch")
+        pytest.skip("CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run.")
 
     from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
 
-    model_name = model_cls.__name__
-    config = model_cls.get_train_config(dataset_name)
-    model_instance, dataset_cls, (ds_params, dl_params) = config[dataset_name]
-
+    name = model_cls.__name__
+    config = model_cls.get_train_config(dataset_id)
+    model_instance, dataset_cls, (ds_params, dl_params) = config[dataset_id]
     ds_params.is_dummy = True
 
-    try:
-        dataset = dataset_cls.from_config(ds_params)
-        dataset.load_data()
-    except Exception as e:
-        pytest.skip(
-            f"{model_name}/{dataset_name}: dataset setup failed — {e}. "
-            f"Ensure {dataset_cls.__name__} supports is_dummy=True without network access."
-        )
+    with run_stage("load-zenodo", name, dataset_id):
+        dataset = dataset_cls(**ds_params.to_dict())
 
     if len(dataset) == 0:
         pytest.skip(
-            f"{model_name}/{dataset_name}: dataset returned 0 samples with is_dummy=True. "
-            f"Implement is_dummy support in {dataset_cls.__name__} to enable this test."
+            f"{name}/{dataset_id}: is_dummy=True returned 0 rows — "
+            f"implement dummy support in {dataset_cls.__name__}."
         )
 
     loader = SeanergysDataloader.from_config(
         data_loader_config=dl_params, dataset=dataset
     )
 
-    history = model_instance.train(loader)
-    assert model_instance.is_trained, (
-        f"{model_name}: is_trained must be True after train()"
-    )
-    assert history is not None, (
-        f"{model_name}: train() must return a history dict, got None"
-    )
+    with run_stage("train", name, dataset_id):
+        model_instance.train(loader)
+        assert model_instance.is_trained
 
-    predictions = model_instance.predict(loader)
-    assert predictions is not None, f"{model_name}: predict() returned None"
-    assert len(predictions) > 0, f"{model_name}: predict() returned empty result"
+    with run_stage("predict", name, dataset_id):
+        predictions = model_instance.predict(loader)
+        assert predictions is not None and len(predictions) > 0
 
-    save_path = tmp_path / model_name / dataset_name
+    save_path = tmp_path / name / dataset_id
     save_path.mkdir(parents=True)
-    saved = model_instance.save(str(save_path / "model"))
-    assert saved, f"{model_name}: save() must return True"
-
-    loaded_model = type(model_instance).load(str(save_path / "model"))
-    assert loaded_model is not None, f"{model_name}: load() returned None"
+    with run_stage("save-load", name, dataset_id):
+        assert model_instance.save(str(save_path / "model"))
+        reloaded = type(model_instance).load(str(save_path / "model"))
+        assert reloaded is not None and reloaded.is_trained

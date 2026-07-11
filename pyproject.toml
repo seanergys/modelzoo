@@ -25,6 +25,19 @@ markers = [
     "zenodo: tests that download from Zenodo (require network)",
 ]
 
+[tool.coverage.run]
+source = ["seanergys_modelzoo"]
+# relative_files lets `coverage combine` merge data files produced by separate CI
+# jobs, and makes the cobertura paths repo-relative so GitLab maps them to the diff.
+relative_files = true
+
+[tool.coverage.paths]
+# Treat the source tree and any installed copy as the same files when combining.
+source = ["seanergys_modelzoo", "*/seanergys_modelzoo"]
+
+[tool.coverage.report]
+show_missing = true
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
@@ -37,6 +50,7 @@ dev = [
     "ruff>=0.15.12,<0.16.0",
     "pydantic>=2.13.3,<3.0.0",
     "pygments>=2.20.0,<3.0.0",
+    "pyyaml>=6.0.2,<7.0.0",
 ]
 ci = [
     "pydantic>=2.13.3,<3.0.0",
