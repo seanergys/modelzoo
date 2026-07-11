@@ -172,6 +172,9 @@ class JPCP(SeanergysSklearnModel):
                 )
             }
 
+        if dataset_name != "pm100":
+            raise Exception("Invalid dataset name. Datasets allowed: 'f-data', 'pm100'")
+
         model_pm100 = cls(  # type: ignore[call-arg]
             embedding_type=Embedding.INT, model_hyperparameters={"n_jobs": -1}
         )

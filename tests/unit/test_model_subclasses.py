@@ -149,23 +149,14 @@ def test_get_train_config_structure(model_cls, dataset_id):
 
 
 @pytest.mark.parametrize("model_cls", _MODELS, ids=_MODEL_IDS)
-def test_get_train_config_rejects_unknown_dataset(model_cls):
-    """An unknown dataset id must never silently yield a config keyed by that id.
+def test_get_train_config_invalid_dataset_raises(model_cls):
+    """Every model's train-config builder rejects an unknown dataset id.
 
-    MACK/MCBound raise on an unknown id; JPCP.get_train_config currently maps any
-    non-"f-data" id to its PM100 branch (see the else-fallthrough in jpcp_model.py) —
-    so it does not raise, but it also must not return a config under the bogus id.
-    This invariant holds for all three and would catch a model that echoed the id back.
+    (JPCP previously mapped any non-"f-data" id to its PM100 branch instead of
+    raising; that was fixed so all three validate consistently.)
     """
-    bogus = "definitely-not-a-real-dataset-id"
-    try:
-        cfg = model_cls.get_train_config(bogus)
-    except Exception:
-        return  # raising is the strict, preferred behaviour
-    assert bogus not in cfg, (
-        f"{model_cls.__name__}.get_train_config silently accepted an unknown "
-        f"dataset id and returned a config for it"
-    )
+    with pytest.raises(Exception):
+        model_cls.get_train_config("definitely-not-a-real-dataset-id")
 
 
 # ---------------------------------------------------------------------------
