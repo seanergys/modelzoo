@@ -8,7 +8,10 @@ the distributed package (site-packages), not the source tree.
 Rather than hardcoding a fixed list of modules/classes (which drifts as the
 package grows), this walks every submodule of the installed package and imports
 it, then confirms the abstract base classes are importable and are real classes.
-Any ImportError anywhere in the package fails the job.
+
+The wheel ships only its core runtime deps; a submodule that fails to import
+solely because an optional ML dep (pandas, numpy, sklearn, …) is absent is
+recorded as skipped, not a failure. Any other import error fails the job.
 
 Exit 0 if the wheel is import-clean, 1 otherwise.
 """
