@@ -1,6 +1,5 @@
 """Unit tests for dataset contract (__len__, __getitem__, supported_features)."""
 
-
 import torch  # noqa: F401
 
 
