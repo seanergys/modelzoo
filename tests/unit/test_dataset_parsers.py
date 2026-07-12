@@ -7,9 +7,9 @@ not trigger ``validate_model`` (which would download from Zenodo).
 
 import pytest
 
-pytest.importorskip("torch")
-pytest.importorskip("pyarrow")
-pytest.importorskip("cachetools")
+import torch  # noqa: F401
+import pyarrow  # noqa: F401
+import cachetools  # noqa: F401
 
 from seanergys_modelzoo.datasets.f_data import FDataDataset  # noqa: E402
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402

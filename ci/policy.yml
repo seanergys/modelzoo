@@ -1,0 +1,110 @@
+# CI/CD policy rationale — the "why" behind each pipeline rule and gate.
+#
+# The pipeline STRUCTURE (jobs, triggers, allow_failure) is the source of truth in
+# .gitlab-ci.yml and is auto-extracted into docs/ci-cd.md. This file supplies the
+# engineering RATIONALE that cannot be introspected from YAML. When you change a
+# job's behaviour in .gitlab-ci.yml, update its rationale here, then run
+# `make docs-ci` (or let docs:autogen do it on the default branch).
+#
+# A colleague requesting a change should edit the relevant entry here and open a
+# CI Change Request issue.
+
+# ---------------------------------------------------------------------------
+# Trigger anchors — when each job runs (rules:changes granularity is job-level).
+# ---------------------------------------------------------------------------
+rules:
+  always:
+    description: "Runs on every pipeline (cheap checks < 10s, no change filter)."
+  rules_code:
+    description: "Any source, test, script, CI, or dependency change."
+  rules_unit:
+    description: "Source, tests/unit/**, conftest, or dependency change."
+  rules_smoke:
+    description: "Source, tests/smoke/**, conftest, or dependency change."
+  rules_integration:
+    description: "Source, tests/integration/**, conftest, create_sample_data.py, or deps."
+  rules_deps:
+    description: "Only pyproject.toml / poetry.lock / .gitlab-ci.yml changed."
+  rules_wheel:
+    description: "Source or pyproject.toml changed (packaging-relevant)."
+  rules_zenodo:
+    description: "Default branch, or a change under seanergys_modelzoo/datasets/**, tests/integration/**, or conftest."
+  default-branch:
+    description: "Runs only on the default branch (post-merge)."
+  merge-request:
+    description: "Runs on branches / merge requests (excluded on the default branch)."
+  custom:
+    description: "Job-specific rule; see .gitlab-ci.yml for the exact condition."
+
+# ---------------------------------------------------------------------------
+# Per-job rationale — why it blocks or is allowed to fail.
+# ---------------------------------------------------------------------------
+jobs:
+  sanity:python-syntax:
+    rationale: "Broken syntax must never enter the pipeline; a cheap hard gate."
+  sanity:check-structure:
+    rationale: "Guards the repo layout that every later job and import assumes."
+  sanity:check-secrets:
+    rationale: "Warn-only: the regex scan can false-positive; a human triages hits."
+  validate:yaml-json:
+    rationale: "Invalid YAML/JSON (incl. this pipeline) would break CI itself — hard gate."
+  lint:python:
+    rationale: "Style/lint issues are quality signals, not correctness; non-blocking."
+  lint:format:
+    rationale: "Formatting drift shouldn't block merges; run `make format` to fix."
+  lint:mypy:
+    rationale: "Type coverage is incomplete; surfaced as a warning, not a gate."
+  test:unit:
+    rationale: "Component correctness is a hard gate — the fastest signal of breakage."
+  test:smoke-models:
+    rationale: "Model discovery/instantiation must hold or nothing downstream works."
+  test:smoke-data:
+    rationale: "Dataset contract + fixtures must load; hard gate (runs without Zenodo)."
+  test:integration:
+    rationale: "End-to-end model×dataset pipeline must pass; the core correctness gate."
+  test:zenodo:
+    rationale: "The only job that reaches Zenodo: downloads a small is_dummy subset (memory-safe capped read — FDataDataset.max_rows via pyarrow.iter_batches over an fsspec HTTP range-request stream, ~136 MB not the ~2 GB whole row group) and runs train→predict→save/load. Warn-only because Zenodo is an external service — downtime must not block merges; a failure is a visible connectivity/regression signal. Flip allow_failure to false to make it a hard gate."
+  test:audit:
+    rationale: "Dependency CVEs are informational and often unfixable immediately; warn-only."
+  coverage:report:
+    rationale: "Combines per-job coverage into one report; fails only on tooling error."
+  docs:check:
+    rationale: "Warns on merge requests when docs/ci-cd.md is stale; not blocking."
+  docs:autogen:
+    rationale: "Regenerates + commits docs on the default branch; warn-only so a token or push hiccup never breaks main."
+  build:wheel:
+    rationale: "A non-buildable package is a release blocker — hard gate."
+  test:wheel:
+    rationale: "The distributed wheel must import cleanly for consumers — hard gate."
+
+# ---------------------------------------------------------------------------
+# Known-broken (model, dataset) integration pairs.
+# Each entry is "<Model>-<dataset_id>: <reason>". Listed pairs are marked
+# xfail(strict=True) in tests/integration/test_model_pipeline.py — they are
+# EXPECTED to fail pending an author fix, and when the fix lands the test xpasses
+# and forces the entry to be removed. Keep this list empty when all pairs pass.
+# ---------------------------------------------------------------------------
+integration_xfail:
+  MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
+  MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
+
+# ---------------------------------------------------------------------------
+# Ignored dependency vulnerabilities (test:audit / pip-audit).
+# Each entry is "<VULN_ID>: <reason>". Listed advisories are passed to pip-audit
+# via --ignore-vuln so the audit stays green for CVEs we cannot act on yet (no
+# fixed release upstream). REMOVE an entry as soon as a patched version exists so
+# the audit flags the upgrade. Everything not listed here is still reported.
+# ---------------------------------------------------------------------------
+audit_ignore:
+  CVE-2025-3000: "torch 2.12.0 — no fixed version published by PyTorch yet (pip-audit 'Fix Versions' column is empty). Revisit when a patched torch releases; do not pin to a nonexistent fix."
+
+# ---------------------------------------------------------------------------
+# Implicit test skips that are NOT literal pytest.skip() calls (so the AST scan
+# can't see them) — e.g. a parametrize list that empties out. Surfaced in the
+# skip-inventory table alongside the auto-scanned skips.
+# ---------------------------------------------------------------------------
+skip_notes:
+  - file: tests/smoke/test_smoke_data.py
+    location: "`test_dataset_contract_via_model_config` + 2 more (empty parametrize)"
+    reason: "Under CI_SKIP_ZENODO=1, _collect_dataset_configs_from_models() returns {} because building the config instantiates datasets that connect to Zenodo at collection time — so these tests parametrize to zero cases and report 'empty parameter set'."
+    solution: "Exercised for real by the `test:zenodo` job. Full offline fix: make each model's get_train_config() assemble params WITHOUT instantiating its dataset."

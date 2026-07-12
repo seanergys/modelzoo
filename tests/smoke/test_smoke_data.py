@@ -28,10 +28,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-pytest.importorskip("pandas")
-pytest.importorskip("pyarrow")
-pytest.importorskip("torch")
-pytest.importorskip("sklearn")
+import pyarrow  # noqa: F401
+import torch  # noqa: F401
+import sklearn  # noqa: F401
 
 from tests.conftest import DATASET_CLASSES, MODEL_CLASSES
 

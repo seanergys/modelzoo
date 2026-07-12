@@ -8,8 +8,8 @@ no network access or data files are required.
 import numpy as np
 import pytest
 
-pytest.importorskip("torch")
-pytest.importorskip("sklearn")
+import torch  # noqa: F401
+import sklearn  # noqa: F401
 
 from sklearn.linear_model import (  # noqa: E402
     LinearRegression,
@@ -99,7 +99,6 @@ def test_build_model_error_path_reraises():
 
 
 def test_to_numpy_variants():
-    import torch
 
     arr = np.array([1, 2, 3])
     assert SeanergysSklearnModel._to_numpy(arr) is arr

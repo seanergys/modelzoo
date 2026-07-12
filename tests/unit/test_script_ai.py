@@ -5,8 +5,8 @@ The remote GitHub loading path requires network and is not exercised here.
 
 import pytest
 
-pytest.importorskip("torch")
-pd = pytest.importorskip("pandas")
+import torch  # noqa: F401
+import pandas as pd
 
 from seanergys_modelzoo.datasets.script_ai import SCRIPTAIDataset  # noqa: E402
 

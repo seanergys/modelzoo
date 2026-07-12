@@ -50,5 +50,5 @@ python scripts/create_sample_data.py --max-rows 50
 
 ## See also
 
-- `docs/TESTING_AND_CI_GUIDE.md` — full test strategy
+- `docs/ci-cd.md` — CI/CD reference + developer guide (running tests, adding models)
 - `Makefile` — `make help` for all targets

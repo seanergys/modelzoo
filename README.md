@@ -134,6 +134,10 @@ First, basic sanity checks ensure the repository is well-formed and free of obvi
 
 Tests are parametrised to cover all registered models and all *compatible model–dataset pairs* automatically. Specifically, models are discovered automatically by parsing the model directories. Subsequently, for each model, the list of compatible datasets and train/test configurations is retrieved and their integration tested using dummy versions of the datasets. 
 
+After the tests, coverage from every layer is combined into a single report, the build stage produces the installable wheel, and a final stage verifies the distributed wheel imports cleanly.
+
 This means that contributing a new model or dataset is enough to have it tested — the pipeline discovers and tests it without any manual configuration.
+
+A complete, always-current reference of **every pipeline job, its trigger rule, its pass/fail behaviour, and the full model×dataset capability matrix** is maintained in [`docs/ci-cd.md`](docs/ci-cd.md). That document is auto-generated from the pipeline definition and the code, so it never drifts; to propose a change to any CI rule or gate, open an issue using the *CI Change Request* template.
 
 The CI pipeline is still under development, and additional test coverage is planned.

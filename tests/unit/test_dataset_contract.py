@@ -1,8 +1,6 @@
 """Unit tests for dataset contract (__len__, __getitem__, supported_features)."""
 
-import pytest
-
-pytest.importorskip("torch")
+import torch  # noqa: F401
 
 
 def test_dataset_len_and_getitem():

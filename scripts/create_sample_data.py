@@ -34,8 +34,9 @@ is created automatically — no changes needed here.
 LIMITATION
 ----------
 If a dataset is added without any model (no get_train_config() pointing to it),
-this script will not create a fixture for it. In that case, get_dummy_params()
-must be implemented on the dataset class — see docs/COLLEAGUE_FEEDBACK.md §6.1.
+this script will not create a fixture for it. In that case the dataset needs a
+self-describing way to produce test params (there is no get_dummy_params() today);
+see the "Design decisions & known limitations" section of docs/ci-cd.md.
 
 Usage:
     python scripts/create_sample_data.py

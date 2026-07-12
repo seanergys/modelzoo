@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-pytest.importorskip("torch")
+import torch  # noqa: F401
 
 from seanergys_modelzoo.dataloader.seanergys_dataloader import (  # noqa: E402
     SeanergysDataloader,
@@ -29,7 +29,6 @@ class _TinyDataset(SeanergysDataset):
 
 
 def test_dataloader_rejects_non_seanergys_dataset():
-    import torch
     from torch.utils.data import TensorDataset
 
     plain = TensorDataset(torch.zeros(4, 2))

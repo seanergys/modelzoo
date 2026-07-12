@@ -15,8 +15,8 @@ Sections
 
 import pytest
 
-pytest.importorskip("torch", reason="Smoke tests require torch")
-pytest.importorskip("sklearn", reason="Smoke tests require sklearn")
+import torch  # noqa: F401
+import sklearn  # noqa: F401
 
 from tests.conftest import MODEL_CLASSES  # noqa: E402
 

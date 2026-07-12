@@ -13,12 +13,15 @@ DS_Store
 
 # Generated build / test artifacts (regenerated on every run, never committed)
 coverage/
+coverage-data/
 .coverage
+.coverage.*
 dist/
 build/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 
 __pycache__
 **/__pycache__/
@@ -27,3 +30,6 @@ t.py
 seanergys_modelzoo/models/tasks/application_characterization
 
 D5_4_Definition_and_first_release_of_Verification_Suite.pdf
+# Internal design docs / ADRs — kept local, not pushed to GitLab
+design/
+mohsen.note.txt
