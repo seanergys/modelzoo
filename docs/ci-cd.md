@@ -132,8 +132,9 @@ a model or dataset updates this table on the next regeneration.
 
 Today `MACK` and `MCBound` on `f-data` are `xfail` because they request an `output_features`
 column, `mem_compute_bound`, that does not exist in raw F-DATA — see
-[Design decisions & known limitations](#design-decisions--known-limitations) for the full
-reason and the fix path.
+[Design decisions & known limitations](#design-decisions--known-limitations) for the reason,
+and [How a known-broken pair is marked `xfail`](#how-a-known-broken-pair-is-marked-xfail-the-mechanism)
+for how the test wires it up from `ci/policy.yml`.
 
 ## Datasets
 
@@ -319,3 +320,60 @@ are managed with Poetry groups: `dev` (tooling) and `ci` (the full ML stack); CI
   `ci/policy.yml` `integration_xfail`: they use `output_features=['mem_compute_bound']`, a
   column absent from raw F-DATA. When the model authors point them at a real column the test
   xpasses and forces the entry to be removed.
+
+## How a known-broken pair is marked `xfail` (the mechanism)
+
+CI "knows" a pair is expected-to-fail because the **test reads the list from `ci/policy.yml`
+at collection time** and tags exactly those parametrized cases — nothing is hard-coded in
+the test. The chain is:
+
+**1. The list lives in `ci/policy.yml`:**
+
+```yaml
+integration_xfail:
+  MACK-f-data:    "output_features=['mem_compute_bound'] — column absent from raw F-DATA…"
+  MCBound-f-data: "…"
+```
+
+**2. `tests/integration/conftest.py` reads it** (`load_known_xfails()`) into a dict
+`{"MACK-f-data": "reason", "MCBound-f-data": "reason"}`.
+
+**3. `tests/integration/test_model_pipeline.py` attaches a strict-xfail marker to matching
+pairs when it builds its parametrization:**
+
+```python
+_XFAILS = load_known_xfails()                           # from policy.yml
+
+def _pipeline_params():
+    params = []
+    for model_cls, dataset_id in MODEL_DATASET_PAIRS:    # auto-discovered pairs
+        key = f"{model_cls.__name__}-{dataset_id}"       # e.g. "MACK-f-data"
+        marks = []
+        if key in _XFAILS:                               # ← known-broken?
+            marks.append(pytest.mark.xfail(reason=_XFAILS[key], strict=True))
+        params.append(pytest.param(model_cls, dataset_id, id=key, marks=marks))
+    return params
+```
+
+So `test_full_pipeline_offline[MACK-f-data]` carries `xfail(strict=True)`; `JPCP-f-data`
+carries no marker (a normal test).
+
+**4. At run time pytest decides the outcome:**
+
+- The test runs, tries to train, and **raises** (the missing column). Because the case has an
+  `xfail` marker, pytest records that as **`XFAIL`** — an *accepted* result, **not** a
+  failure. The job exit code stays `0` → the pipeline is green (`… 2 xfailed`).
+- `strict=True` is the guard: if the test had instead **passed**, pytest records **`XPASS`**
+  and — being strict — converts it into a **real failure** (job red), forcing you to delete
+  the `policy.yml` entry. That is the self-correcting "tell me the moment it's fixed" loop.
+
+**Why the same pair can PASS one test and XFAIL another:** there are two parametrization
+lists on purpose.
+
+| List | Marker | Used by | MACK-f-data result |
+|---|---|---|---|
+| `_PLAIN_PARAMS` | none | `test_get_train_config_structure` (config shape only, no data) | **PASSED** — building the config never touches the missing column |
+| `_PIPELINE_PARAMS` | `xfail(strict)` on known-broken pairs | `test_full_pipeline_offline` / `…_zenodo` (loads data + trains) | **XFAIL** — training hits the missing column |
+
+That is why a run shows `test_get_train_config_structure[MACK-f-data] PASSED` **and**
+`test_full_pipeline_offline[MACK-f-data] XFAIL` for the same pair.
