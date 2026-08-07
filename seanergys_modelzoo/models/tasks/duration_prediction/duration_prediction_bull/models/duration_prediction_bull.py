@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import joblib
+import numpy as np
 from pydantic import model_validator
 
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
@@ -56,6 +57,30 @@ class DurationPredictionBull(SeanergysModel):
     and DurationModel into the interface expected by Seanergys models.
     """
 
+    @staticmethod
+    def flatten_input_sample(sample: np.ndarray) -> np.ndarray:
+        """
+        Flatten an F-DATA duration-prediction sample into a numeric vector.
+
+        The raw sample contains:
+            [embedding, cnumr, nnumr, elpl]
+
+        where embedding is a vector and the remaining features are scalars.
+
+        Returns:
+            np.ndarray:
+                Numeric float32 vector containing the embedding followed by
+                cnumr, nnumr and elpl.
+        """
+        embedding = np.asarray(sample[0], dtype=np.float32).reshape(-1)
+
+        numeric_features = np.asarray(
+            sample[1:],
+            dtype=np.float32,
+        )
+
+        return np.concatenate([embedding, numeric_features]).astype(np.float32)
+
     @classmethod
     def get_train_config(
         cls,
@@ -75,11 +100,16 @@ class DurationPredictionBull(SeanergysModel):
             Dict[str, Any]:
                 Training configuration.
         """
+        if dataset_name != "f-data":
+            raise ValueError("Invalid dataset name. Allowed dataset: 'f-data'.")
+
+        model_fdata = cls(task_type=SeanergysModelTask.REGRESSION)
 
         ds_params = SeanergysDatasetParams(
-            use_zenodo_url=True,
+            use_zenodo_url=not get_dummy_data,
             is_dummy=get_dummy_data,
-            files=["21_04"],
+            files=[] if get_dummy_data else ["21_04"],
+            transform=model_fdata.flatten_input_sample,
             input_features=[
                 "embedding",
                 "cnumr",
@@ -96,7 +126,7 @@ class DurationPredictionBull(SeanergysModel):
 
         return {
             dataset_name: (
-                cls(task_type=SeanergysModelTask.REGRESSION),
+                model_fdata,
                 FDataDataset,
                 (
                     ds_params,
@@ -261,9 +291,10 @@ class DurationPredictionBull(SeanergysModel):
             raise ValueError("Invalid dataset name. Allowed dataset: 'f-data'.")
 
         dataset = FDataDataset(
-            use_zenodo_url=True,
+            use_zenodo_url=not get_dummy_data,
             is_dummy=get_dummy_data,
-            files=["21_04"],
+            files=[] if get_dummy_data else ["21_04"],
+            transform=model.flatten_input_sample,
             input_features=[
                 "embedding",
                 "cnumr",
