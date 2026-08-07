@@ -114,6 +114,7 @@ jobs:
 # ---------------------------------------------------------------------------
 audit_ignore:
   CVE-2025-3000: "torch 2.12.0 — no fixed version published by PyTorch yet (pip-audit 'Fix Versions' column is empty). Revisit when a patched torch releases; do not pin to a nonexistent fix."
+  PYSEC-2026-3447: "setuptools 81.0.0 — fixed in setuptools 83.0.0, but torch 2.12.0 requires setuptools <82. Revisit when PyTorch allows setuptools >=83."
 
 # ---------------------------------------------------------------------------
 # Implicit test skips that are NOT literal pytest.skip() calls (so the AST scan

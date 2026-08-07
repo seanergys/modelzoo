@@ -68,5 +68,5 @@ ci = [
     # fetches only the selected columns' chunks (~136 MB), not the whole file. fsspec's
     # HTTPFileSystem requires aiohttp; without it the read raises ImportError.
     "fsspec>=2026.4.0",
-    "aiohttp>=3.14.1,<4.0.0",
+    "aiohttp>=3.14.3,<4.0.0",
 ]
