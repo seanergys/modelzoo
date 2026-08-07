@@ -264,7 +264,7 @@ lint:python:
   stage: lint
   image: python:3.13-slim
   script:
-    - pip install --quiet ruff
+    - pip install --quiet "ruff>=0.15.12,<0.16.0"
     - ruff check seanergys_modelzoo ci tests
   allow_failure: true
 
@@ -273,7 +273,7 @@ lint:format:
   stage: lint
   image: python:3.13-slim
   script:
-    - pip install --quiet ruff
+    - pip install --quiet "ruff>=0.15.12,<0.16.0"
     - ruff format --check seanergys_modelzoo ci tests
   allow_failure: true
 
