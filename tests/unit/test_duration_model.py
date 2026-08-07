@@ -1,6 +1,11 @@
 from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.models.duration_model import (
     DurationModel,
 )
+
+from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.models.duration_prediction_bull import (
+    DurationPredictionBull,
+)
+
 import pytest
 import numpy as np
 
@@ -94,3 +99,35 @@ def test_save_and_load(tmp_path):
     loaded = DurationModel.load(tmp_path)
 
     assert isinstance(loaded, DurationModel)
+
+
+def test_flatten_input_sample():
+    """Duration input samples should be flattened into a numeric vector."""
+    embedding = np.arange(384, dtype=np.float32)
+    sample = np.array([embedding, 8, 2, 3600], dtype=object)
+
+    result = DurationPredictionBull.flatten_input_sample(sample)
+
+    assert result.shape == (387,)
+    assert result.dtype == np.float32
+    np.testing.assert_array_equal(result[:384], embedding)
+    np.testing.assert_array_equal(result[-3:], [8, 2, 3600])
+
+
+def test_duration_train_config_uses_raw_fdata_features():
+    """Training config should use the raw F-DATA duration features."""
+    config = DurationPredictionBull.get_train_config(
+        dataset_name="f-data",
+        get_dummy_data=True,
+    )
+
+    _, _, (ds_params, _) = config["f-data"]
+
+    assert ds_params.input_features == [
+        "embedding",
+        "cnumr",
+        "nnumr",
+        "elpl",
+    ]
+    assert ds_params.output_features == ["duration"]
+    assert ds_params.transform is not None
