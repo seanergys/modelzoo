@@ -37,7 +37,7 @@ pipeline or only warns.
 <!-- BEGIN:GENERATED jobs -->
 | Stage | Job | Trigger | On failure | Runs |
 | --- | --- | --- | --- | --- |
-| sanity | `sanity:check-secrets` | `always` | Warns | ./ci/check_secrets.sh . |
+| sanity | `sanity:check-secrets` | `always` | Blocks | ./ci/check_secrets.sh . |
 | sanity | `sanity:check-structure` | `always` | Blocks | test -f pyproject.toml |
 | sanity | `sanity:python-syntax` | `always` | Blocks | find seanergys_modelzoo ci tests scripts -name "*.py" -print0 \| xargs -0 -r python -m py… |
 | validate | `validate:yaml-json` | `always` | Blocks | python ci/validate_yaml.py |
@@ -83,7 +83,7 @@ auto-derived from `.gitlab-ci.yml`; the *why* below is maintained in
 <!-- BEGIN:GENERATED rationale -->
 | Job | On failure | Why |
 | --- | --- | --- |
-| `sanity:check-secrets` | Warns | Warn-only: the regex scan can false-positive; a human triages hits. |
+| `sanity:check-secrets` | Blocks | Warn-only: the regex scan can false-positive; a human triages hits. |
 | `sanity:check-structure` | Blocks | Guards the repo layout that every later job and import assumes. |
 | `sanity:python-syntax` | Blocks | Broken syntax must never enter the pipeline; a cheap hard gate. |
 | `validate:yaml-json` | Blocks | Invalid YAML/JSON (incl. this pipeline) would break CI itself — hard gate. |

@@ -233,7 +233,7 @@ sanity:check-secrets:
   script:
     - chmod +x ci/check_secrets.sh
     - ./ci/check_secrets.sh .
-  allow_failure: true
+  allow_failure: false
 
 # -----------------------------------------------------------------------------
 # STAGE 2: VALIDATE  (always runs)

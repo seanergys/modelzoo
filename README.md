@@ -140,4 +140,6 @@ This means that contributing a new model or dataset is enough to have it tested 
 
 A complete, always-current reference of **every pipeline job, its trigger rule, its pass/fail behaviour, and the full model×dataset capability matrix** is maintained in [`docs/ci-cd.md`](docs/ci-cd.md). That document is auto-generated from the pipeline definition and the code, so it never drifts; to propose a change to any CI rule or gate, open an issue using the *CI Change Request* template.
 
+New to the pipeline? Start with the basic-language [`CI/CD tutorials`](docs/tutorials/README.md), which explain the stages, tests, important files, automatic discovery, and documentation generator step by step.
+
 The CI pipeline is still under development, and additional test coverage is planned.
