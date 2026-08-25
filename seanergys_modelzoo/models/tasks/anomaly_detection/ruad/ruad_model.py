@@ -34,8 +34,12 @@ class RUAD(SeanergysModel):
     learning_rate: float = 0.01
     sequence_length: int = 20
 
+    # Default node used only by the ModelZoo CI.
+    # AIProduction can instantiate RUAD with the actual node_id.
+    DEFAULT_CI_NODE_ID: ClassVar[int] = 36
+    
     node_id: int = Field(
-        ...,
+        DEFAULT_CI_NODE_ID,
         description=(
             "Single M100 node used for training. "
             "Feature dimensionality is inferred from the data "
@@ -50,10 +54,6 @@ class RUAD(SeanergysModel):
     _x_min = None
     _x_max = None
     _epochs = 3
-
-    # Default node used only by the ModelZoo CI.
-    # AIProduction can instantiate RUAD with the actual node_id.
-    DEFAULT_CI_NODE_ID: ClassVar[int] = 36
 
     @model_validator(mode="before")
     @classmethod
