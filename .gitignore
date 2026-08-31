@@ -10,6 +10,7 @@ CLAUDE.md
 .vscode/*
 
 DS_Store
+.DS_Store
 
 # Generated build / test artifacts (regenerated on every run, never committed)
 coverage/

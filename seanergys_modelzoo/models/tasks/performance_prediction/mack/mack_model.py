@@ -213,7 +213,7 @@ class MACK(SeanergysSklearnModel):
             preprocessing_functions=[preprocess_fdata],
             filters=[[("adt", "<=", "2021-04-02")]],
             input_features=["embedding"],
-            output_features=["mem_compute_bound"],
+            output_features=["pclass"],
         )
         data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
         model_fdata.train(train_data_loader=data_loader_fdata)
@@ -243,7 +243,7 @@ class MACK(SeanergysSklearnModel):
 
             def preprocess_fdata(df):
                 df["pclass"] = model_fdata.transform_kmeans(
-                    df.flops.values, df.memory_bw.values, fit=True
+                    df.flops.values, df.mbwidth.values, fit=True
                 )
                 return df
 
@@ -258,7 +258,8 @@ class MACK(SeanergysSklearnModel):
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                output_features=["mem_compute_bound"],
+                columns = ["flops", "mbwidth"],
+                output_features=["pclass"],
             )
             return {
                 "f-data": (

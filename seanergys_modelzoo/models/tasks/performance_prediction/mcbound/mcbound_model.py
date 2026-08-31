@@ -155,7 +155,7 @@ class MCBound(SeanergysSklearnModel):
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                output_features=["mem_compute_bound"],
+                output_features=["pclass"],
             )
             return {
                 "f-data": (
@@ -191,7 +191,7 @@ class MCBound(SeanergysSklearnModel):
                     ("adt", "<=", "2024-02-28"),
                 ],
                 input_features=["embedding"],
-                output_features=["mem_compute_bound"],
+                output_features=["pclass"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return {"f-data": (model, data_loader_fdata)}
