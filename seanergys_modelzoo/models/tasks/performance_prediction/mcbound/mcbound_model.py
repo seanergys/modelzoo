@@ -125,6 +125,36 @@ class MCBound(SeanergysSklearnModel):
         arr[:] = np.array(embedding[0])
         return arr
 
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the target column below, to improve the quality of
+    # the code. NOT APPLIED: this model is owned by its authors, and picking the
+    # target is a modelling decision. Tracked in GitLab issue #10. Until it is
+    # fixed, test_full_pipeline_offline[MCBound-f-data] FAILS in CI on purpose —
+    # the failure is left visible rather than masked with xfail.
+    #
+    # Reproduce:
+    #   CI_SKIP_ZENODO=1 PYTHONPATH=. pytest tests/integration/ -q \
+    #       -k "full_pipeline_offline and MCBound"
+    #
+    # output_features=["mem_compute_bound"] — that column exists in NO F-DATA
+    # file. The dataset projects columns = input_features + output_features at
+    # read time, so the pair dies at construction, before training:
+    #     ValidationError: No match for FieldRef.Name(mem_compute_bound)
+    # The published column holding the memory/compute-bound label is `pclass`.
+    # SUGGESTED: output_features=["pclass"].
+    #
+    # `pclass` ships as a STRING ('memory-bound', ...), so it also needs encoding:
+    # RandomForestClassifier needs a numeric target, and torch's default_collate
+    # rejects the object array a string target produces ("found object"). Mohsen
+    # suggests a preprocessing_functions entry that label-encodes `pclass` with an
+    # encoder fitted once and persisted in save()/load(), so this training config
+    # and get_test_config below agree on the class ids.
+    #
+    # A working patch was measured green end-to-end (train -> predict -> save ->
+    # load) against the committed fixtures; it is attached to issue #10 for the
+    # authors to accept, adapt, or reject.
+    # =====================================================================
     @classmethod
     def get_train_config(
         cls, dataset_name: str = "f-data", get_dummy_data: bool = False
@@ -167,6 +197,8 @@ class MCBound(SeanergysSklearnModel):
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same target-column
+    # problem as in get_train_config above. See that SUGGESTION block.
     @classmethod
     def get_test_config(
         cls,

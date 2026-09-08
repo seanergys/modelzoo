@@ -185,6 +185,9 @@ class MACK(SeanergysSklearnModel):
             out += e[:idx].replace("\n", "")
         return out
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same three problems as
+    # in get_train_config below — mem_compute_bound / memory_bw do not exist, and
+    # df["pclass"] is overwritten. See the full SUGGESTION block on get_train_config.
     @classmethod
     def run_dummy_validation(cls):
         """
@@ -218,6 +221,42 @@ class MACK(SeanergysSklearnModel):
         data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
         model_fdata.train(train_data_loader=data_loader_fdata)
 
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the three points below, to improve the quality of
+    # the code. NOT APPLIED: this model is owned by its authors, and picking the
+    # target column is a modelling decision, not a test fix. Tracked in GitLab
+    # issue #10. Until it is fixed, test_full_pipeline_offline[MACK-f-data] FAILS
+    # in CI on purpose — the failure is left visible rather than masked with xfail.
+    #
+    # Reproduce:
+    #   CI_SKIP_ZENODO=1 PYTHONPATH=. pytest tests/integration/ -q \
+    #       -k "full_pipeline_offline and MACK"
+    #
+    # 1) output_features=["mem_compute_bound"] — that column exists in NO F-DATA
+    #    file. The dataset projects columns = input_features + output_features at
+    #    read time, so the pair dies at construction, before training:
+    #        ValidationError: No match for FieldRef.Name(mem_compute_bound)
+    #    The published column holding the memory/compute-bound label is `pclass`
+    #    (observed values e.g. 'memory-bound'). SUGGESTED: output_features=["pclass"].
+    #
+    # 2) preprocess_fdata() reads `df.memory_bw`, which does not exist either.
+    #    F-DATA's memory-bandwidth column is `mbwidth`.
+    #    SUGGESTED: df.mbwidth.values.
+    #
+    # 3) preprocess_fdata() writes its KMeans result into df["pclass"], i.e. it
+    #    OVERWRITES the real label column with a (flops_class, mbw_class) tuple.
+    #    A tuple target also breaks the dataloader: torch's default_collate
+    #    rejects the resulting object array ("found object"). SUGGESTED: write the
+    #    derived class to its own column (e.g. `kmeans_pclass`), encode `pclass`
+    #    to integer ids for XGBoost, and widen `columns` to
+    #    ["embedding", "pclass", "flops", "mbwidth"] so preprocessing still gets
+    #    the columns it needs.
+    #
+    # A working patch for all three was measured green end-to-end (train ->
+    # predict -> save -> load) against the committed fixtures; it is attached to
+    # issue #10 for the authors to accept, adapt, or reject.
+    # =====================================================================
     @classmethod
     def get_train_config(
         cls, dataset_name: str = "f-data", get_dummy_data: bool = False
@@ -271,6 +310,10 @@ class MACK(SeanergysSklearnModel):
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same three problems as
+    # in get_train_config above. Note also that this testing config refits the
+    # KMeans on the test data (fit=True), which leaks test statistics into the
+    # clustering — Mohsen suggests fit=False here once the columns are corrected.
     @classmethod
     def get_test_config(
         cls,

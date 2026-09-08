@@ -41,6 +41,38 @@ class FDataDataset(SeanergysParquetDataset):
     - And more...
     """
 
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the docstring above, to improve the quality of
+    # the code. Not applied here: this file is owned by the dataset/model
+    # authors. Tracked in GitLab issue #10.
+    #
+    # WHY: the "Key Features" list above does not match the schema that the
+    # published F-DATA parquet files actually carry, and it is the source of a
+    # real CI failure (see the SUGGESTION blocks in mack_model.py and
+    # mcbound_model.py). Measured on tests/fixtures/sample_data/sample_fdata.parquet:
+    #
+    #     documented name        actual published column
+    #     ---------------------  -----------------------
+    #     job_id                 jid
+    #     user_encoded           usr
+    #     n_nodes                nnuma / nnumr
+    #     power_consumption      avgpcon / minpcon / maxpcon / econ
+    #     memory_bandwidth       mbwidth
+    #     operational_intensity  opint
+    #     mem_compute_bound      pclass      <-- values e.g. 'memory-bound'
+    #
+    # `mem_compute_bound` exists in NO F-DATA file. Because validate_model()
+    # sets `columns = input_features + output_features` and _read_parquet()
+    # projects those columns, any model that asks for a documented-but-absent
+    # name fails at dataset construction with
+    #     "No match for FieldRef.Name(mem_compute_bound)".
+    #
+    # PROPOSED: replace the list with the names the files really publish, and
+    # add a note that the reader projects these names verbatim, so an alias
+    # invented in the docstring becomes a runtime error rather than a typo.
+    # =====================================================================
+
     DATASET_ID: ClassVar[str] = "f-data"
 
     # Base URL for F-DATA files on Zenodo

@@ -191,8 +191,8 @@ def create_sample(dataset_cls, required_cols, max_rows: int, out_dir: Path) -> P
     Going through the dataset class has several problems:
 
     1. is_dummy=True in FDataDataset only adds date filters — it still hits Zenodo.
-    2. Column filtering: MACK uses output_features=["mem_compute_bound"] which
-       only exists in some files, not the latest one.
+    2. Column filtering: a model's required columns may not all exist in every
+       monthly file, so a projected read can fail on the newest one.
     3. Transforms require fitted models (embedding_parsing, etc.) which cannot
        run at sample creation time — the model has not been trained yet.
 

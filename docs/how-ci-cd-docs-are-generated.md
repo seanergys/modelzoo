@@ -1,6 +1,6 @@
 # How the CI/CD docs are auto-generated — the human manual
 
-**This file is the human manual for the CI/CD documentation system.** It is written and
+**This file is the manual for the CI/CD documentation system.** It is written and
 maintained *entirely by hand*. It tells you, in plain terms:
 
 - **which document is written by a human and which is generated automatically** — so you

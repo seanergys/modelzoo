@@ -84,9 +84,18 @@ jobs:
 # EXPECTED to fail pending an author fix, and when the fix lands the test xpasses
 # and forces the entry to be removed. Keep this list empty when all pairs pass.
 # ---------------------------------------------------------------------------
-integration_xfail:
-  MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
-  MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
+# KEPT EMPTY ON PURPOSE — do not add entries to make a red pipeline green.
+#
+# `MACK-f-data` and `MCBound-f-data` currently FAIL. That is deliberate and
+# visible: both request `output_features=["mem_compute_bound"]`, a column that
+# exists in no F-DATA file (the real one is `pclass`). The fix belongs to the
+# model authors, not to CI — see the SUGGESTION blocks in mack_model.py,
+# mcbound_model.py and f_data.py, and GitLab issue #10.
+#
+# Masking them with xfail would turn a real defect in the shipped models into a
+# green pipeline, which is exactly the failure mode this project must not have.
+# A broken model is a broken model, and CI must say so.
+integration_xfail: {}
 
 # ---------------------------------------------------------------------------
 # Ignored dependency vulnerabilities (test:audit / pip-audit).

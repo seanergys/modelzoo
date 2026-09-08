@@ -37,7 +37,7 @@ pipeline or only warns.
 <!-- BEGIN:GENERATED jobs -->
 | Stage | Job | Trigger | On failure | Runs |
 | --- | --- | --- | --- | --- |
-| sanity | `sanity:check-secrets` | `always` | Warns | ./ci/check_secrets.sh . |
+| sanity | `sanity:check-secrets` | `always` | Blocks | ./ci/check_secrets.sh . |
 | sanity | `sanity:check-structure` | `always` | Blocks | test -f pyproject.toml |
 | sanity | `sanity:python-syntax` | `always` | Blocks | find seanergys_modelzoo ci tests scripts -name "*.py" -print0 \| xargs -0 -r python -m py… |
 | validate | `validate:yaml-json` | `always` | Blocks | python ci/validate_yaml.py |
@@ -83,7 +83,7 @@ auto-derived from `.gitlab-ci.yml`; the *why* below is maintained in
 <!-- BEGIN:GENERATED rationale -->
 | Job | On failure | Why |
 | --- | --- | --- |
-| `sanity:check-secrets` | Warns | Warn-only: the regex scan can false-positive; a human triages hits. |
+| `sanity:check-secrets` | Blocks | Warn-only: the regex scan can false-positive; a human triages hits. |
 | `sanity:check-structure` | Blocks | Guards the repo layout that every later job and import assumes. |
 | `sanity:python-syntax` | Blocks | Broken syntax must never enter the pipeline; a cheap hard gate. |
 | `validate:yaml-json` | Blocks | Invalid YAML/JSON (incl. this pipeline) would break CI itself — hard gate. |
@@ -114,8 +114,8 @@ a model or dataset updates this table on the next regeneration.
 | --- | --- | --- | --- | --- |
 | JPCP | Regression | PM100Dataset | `pm100` | yes |
 | JPCP | Regression | FDataDataset | `f-data` | yes |
-| MACK | Classification | FDataDataset | `f-data` | xfail |
-| MCBound | Classification | FDataDataset | `f-data` | xfail |
+| MACK | Classification | FDataDataset | `f-data` | yes |
+| MCBound | Classification | FDataDataset | `f-data` | yes |
 <!-- END:GENERATED capabilities -->
 
 **Legend — the "Tested in CI" column:**
@@ -130,11 +130,21 @@ a model or dataset updates this table on the next regeneration.
   and reality can't silently drift apart. In other words, `xfail` = "documented as broken on
   purpose, and CI will tell us the moment it's fixed."
 
-Today `MACK` and `MCBound` on `f-data` are `xfail` because they request an `output_features`
-column, `mem_compute_bound`, that does not exist in raw F-DATA — see
-[Design decisions & known limitations](#design-decisions--known-limitations) for the reason,
-and [How a known-broken pair is marked `xfail`](#how-a-known-broken-pair-is-marked-xfail-the-mechanism)
-for how the test wires it up from `ci/policy.yml`.
+**Today no pair is `xfail`, and the list is deliberately kept empty.** `MACK-f-data` and
+`MCBound-f-data` **currently fail** — they request `output_features=['mem_compute_bound']`,
+a column that exists in no F-DATA file (the real one is `pclass`). That failure is left
+**visible** rather than excused: the fix is a modelling decision owned by the model authors,
+not something CI may paper over. See the `SUGGESTION` blocks in `mack_model.py`,
+`mcbound_model.py` and `f_data.py`, and GitLab issue #10.
+
+> **Ownership.** `ci/`, `tests/`, `.gitlab-ci.yml`, `Makefile`, `scripts/` and `docs/` are
+> maintained by the CI/test maintainer. Everything under `seanergys_modelzoo/` — models,
+> datasets, common base classes — belongs to the model authors. When a test fails because of
+> core code, CI's job is to **report it precisely**, not to fix it and not to hide it.
+
+The `xfail` mechanism stays available, but adding an entry to make a red pipeline green is
+explicitly not what it is for — see
+[How a known-broken pair is marked `xfail`](#how-a-known-broken-pair-is-marked-xfail-the-mechanism).
 
 ## Datasets
 
@@ -316,27 +326,38 @@ are managed with Poetry groups: `dev` (tooling) and `ci` (the full ML stack); CI
   `importorskip` could only fire on a broken environment — silently skipping and turning
   "nothing tested" into a green run. Import test dependencies directly so a missing dep fails
   loudly at collection.
-- **Known-broken pairs** (`MACK-f-data`, `MCBound-f-data`) are `xfail(strict)` via
-  `ci/policy.yml` `integration_xfail`: they use `output_features=['mem_compute_bound']`, a
-  column absent from raw F-DATA. When the model authors point them at a real column the test
-  xpasses and forces the entry to be removed.
+- **No pair is excused from the pipeline, and two of them fail.** `integration_xfail` in
+  `ci/policy.yml` is empty, so nothing is masked: `pytest --runxfail` produces exactly the
+  same result as a normal run. `MACK-f-data` and `MCBound-f-data` fail because they target
+  `output_features=['mem_compute_bound']`, a column absent from every F-DATA file — the
+  published memory/compute-bound label is `pclass`. Two further problems surface once that is
+  corrected: MACK reads `df.memory_bw` (the real column is `mbwidth`) and overwrites
+  `df["pclass"]` with a tuple, which torch's `default_collate` rejects. All three are written
+  up as `SUGGESTION` blocks inside the owning source files and tracked in issue #10. **CI
+  reports this; CI does not fix it and does not hide it.**
 
 ## How a known-broken pair is marked `xfail` (the mechanism)
+
+> **The list is empty today and stays empty.** This section documents the mechanism, not a
+> licence to use it. Two pairs are red right now (`MACK-f-data`, `MCBound-f-data`) and they
+> are deliberately **not** listed here: a defect in a shipped model must be visible in the
+> pipeline. Adding an entry to silence a red test is the one use this mechanism must never
+> be put to.
 
 CI "knows" a pair is expected-to-fail because the **test reads the list from `ci/policy.yml`
 at collection time** and tags exactly those parametrized cases — nothing is hard-coded in
 the test. The chain is:
 
-**1. The list lives in `ci/policy.yml`:**
+**1. The list lives in `ci/policy.yml`** (shown here with a hypothetical entry; the real
+file has `integration_xfail: {}`):
 
 ```yaml
 integration_xfail:
-  MACK-f-data:    "output_features=['mem_compute_bound'] — column absent from raw F-DATA…"
-  MCBound-f-data: "…"
+  SomeModel-some-dataset: "why it is broken, and what the fix depends on"
 ```
 
 **2. `tests/integration/conftest.py` reads it** (`load_known_xfails()`) into a dict
-`{"MACK-f-data": "reason", "MCBound-f-data": "reason"}`.
+`{"SomeModel-some-dataset": "reason"}` — an empty dict when the section is empty.
 
 **3. `tests/integration/test_model_pipeline.py` attaches a strict-xfail marker to matching
 pairs when it builds its parametrization:**
@@ -355,14 +376,15 @@ def _pipeline_params():
     return params
 ```
 
-So `test_full_pipeline_offline[MACK-f-data]` carries `xfail(strict=True)`; `JPCP-f-data`
-carries no marker (a normal test).
+So a listed pair carries `xfail(strict=True)`; every other pair — which today means *all*
+of them — carries no marker and is an ordinary must-pass test.
 
 **4. At run time pytest decides the outcome:**
 
-- The test runs, tries to train, and **raises** (the missing column). Because the case has an
-  `xfail` marker, pytest records that as **`XFAIL`** — an *accepted* result, **not** a
-  failure. The job exit code stays `0` → the pipeline is green (`… 2 xfailed`).
+- The test runs, tries to train, and **raises**. Because the case has an `xfail` marker,
+  pytest records that as **`XFAIL`** — an *accepted* result, **not** a failure. The job exit
+  code stays `0` → the pipeline is green (`… 1 xfailed`). This is exactly why the list must
+  stay empty: an `XFAIL` is a test that is not really testing anything.
 - `strict=True` is the guard: if the test had instead **passed**, pytest records **`XPASS`**
   and — being strict — converts it into a **real failure** (job red), forcing you to delete
   the `policy.yml` entry. That is the self-correcting "tell me the moment it's fixed" loop.
@@ -370,10 +392,9 @@ carries no marker (a normal test).
 **Why the same pair can PASS one test and XFAIL another:** there are two parametrization
 lists on purpose.
 
-| List | Marker | Used by | MACK-f-data result |
+| List | Marker | Used by | Result for a listed pair |
 |---|---|---|---|
-| `_PLAIN_PARAMS` | none | `test_get_train_config_structure` (config shape only, no data) | **PASSED** — building the config never touches the missing column |
-| `_PIPELINE_PARAMS` | `xfail(strict)` on known-broken pairs | `test_full_pipeline_offline` / `…_zenodo` (loads data + trains) | **XFAIL** — training hits the missing column |
+| `_PLAIN_PARAMS` | none | `test_get_train_config_structure` (config shape only, no data) | **PASSED** — building the config never loads data |
+| `_PIPELINE_PARAMS` | `xfail(strict)` on known-broken pairs | `test_full_pipeline_offline` / `…_zenodo` (loads data + trains) | **XFAIL** — the real breakage is hit |
 
-That is why a run shows `test_get_train_config_structure[MACK-f-data] PASSED` **and**
-`test_full_pipeline_offline[MACK-f-data] XFAIL` for the same pair.
+With the list empty, both lists behave identically and every pair must pass in both.
