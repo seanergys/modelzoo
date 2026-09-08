@@ -32,7 +32,12 @@ import pyarrow  # noqa: F401
 import torch  # noqa: F401
 import sklearn  # noqa: F401
 
-from tests.conftest import DATASET_CLASSES, MODEL_CLASSES
+from tests.conftest import (
+    DATASET_CLASSES,
+    MODEL_CLASSES,
+    MODEL_DATASET_CONFIGS,
+    fixture_name_for,
+)
 
 _FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sample_data"
 
@@ -42,42 +47,45 @@ _FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sample_da
 # ---------------------------------------------------------------------------
 
 
-def _zenodo_dataset_classes() -> dict:
+def _fixture_dataset_classes() -> dict:
     """
-    Return dataset classes that declare ZENODO_URL or ZENODO_BASE_URL as a
-    Pydantic field. These can be sampled independently of any model config.
+    Dataset classes for which a committed sample parquet is a meaningful fixture:
+    those that declare a remote source create_sample_data.py can sample AND that
+    some model actually consumes.
+
+    Requiring reachability from a model config is what stops a dataset nobody
+    uses from parametrizing into a case that skips forever ("fixture not found")
+    while the pipeline still reports green. Datasets excluded here are recorded,
+    with the reason and the owner's fix, under 'dataset_scope' in ci/policy.yml.
     """
+    reachable = {cls.__name__ for _m, cls, _p, _d in MODEL_DATASET_CONFIGS.values()}
     return {
         name: cls
         for name, cls in DATASET_CLASSES.items()
-        if "ZENODO_URL" in cls.model_fields or "ZENODO_BASE_URL" in cls.model_fields
+        if name in reachable
+        and ("ZENODO_URL" in cls.model_fields or "ZENODO_BASE_URL" in cls.model_fields)
     }
 
 
-_ZENODO_DATASET_CLASSES = _zenodo_dataset_classes()
+_ZENODO_DATASET_CLASSES = _fixture_dataset_classes()
 
 
 def _collect_dataset_configs_from_models():
     """
-    Collect unique (dataset_cls, ds_params) from all model get_train_config() calls.
-    Deduplicated by dataset class name so each dataset is loaded only once.
+    Collect unique (dataset_cls, ds_params) per dataset from the shared
+    discovery helper in tests/conftest.py.
 
-    Skipped when CI_SKIP_ZENODO=1 because some models instantiate datasets
-    (which connect to Zenodo) inside get_train_config(), causing a hang during
-    pytest collection even before -m "not zenodo" can filter any tests.
+    Runs unconditionally, including under CI_SKIP_ZENODO=1. It used to return {}
+    in that case, on the stated grounds that get_train_config() instantiates
+    datasets which connect to Zenodo during collection. That was measured and is
+    false: with outbound sockets blocked, get_train_config() returns in ~0s for
+    every model and never opens a socket — it only assembles a model and a params
+    object. The early return was costing three tests their entire parameter set
+    ("got empty parameter set"), which read as passing CI while nothing ran.
     """
-    if os.environ.get("CI_SKIP_ZENODO"):
-        return {}
     seen = {}
-    for model_name, model_cls in MODEL_CLASSES.items():
-        try:
-            config = model_cls.get_train_config()
-            for entry_name, (_, dataset_cls, (ds_params, _dl)) in config.items():
-                key = dataset_cls.__name__
-                if key not in seen:
-                    seen[key] = (dataset_cls, ds_params, f"{model_name}/{entry_name}")
-        except Exception:
-            continue
+    for key, (_model_cls, dataset_cls, ds_params, _dl) in MODEL_DATASET_CONFIGS.items():
+        seen.setdefault(dataset_cls.__name__, (dataset_cls, ds_params, key))
     return seen
 
 
@@ -178,8 +186,7 @@ def test_dataset_fixture_has_data(dataset_cls):
     Fixture naming: FDataDataset → sample_fdata.parquet
     """
     dataset_name = dataset_cls.__name__
-    name = dataset_name.lower().replace("dataset", "")
-    fixture = _FIXTURES_DIR / f"sample_{name}.parquet"
+    fixture = _FIXTURES_DIR / fixture_name_for(dataset_cls)
 
     if not fixture.exists():
         pytest.skip(

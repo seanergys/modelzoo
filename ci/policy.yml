@@ -111,9 +111,43 @@ audit_ignore:
 # Implicit test skips that are NOT literal pytest.skip() calls (so the AST scan
 # can't see them) — e.g. a parametrize list that empties out. Surfaced in the
 # skip-inventory table alongside the auto-scanned skips.
+#
+# Empty on purpose. The previous entry claimed that under CI_SKIP_ZENODO=1
+# _collect_dataset_configs_from_models() returned {} because building a model's
+# train config instantiates datasets that connect to Zenodo at collection time.
+# That was measured and found to be FALSE: with outbound sockets blocked,
+# get_train_config() returns in ~0s for every model and never opens a socket —
+# it only assembles a model instance and a params object. The {} came from a
+# defensive early return in the test helper itself, which has been removed.
+# Those tests now parametrize for real and skip explicitly; test:zenodo runs them.
 # ---------------------------------------------------------------------------
-skip_notes:
-  - file: tests/smoke/test_smoke_data.py
-    location: "`test_dataset_contract_via_model_config` + 2 more (empty parametrize)"
-    reason: "Under CI_SKIP_ZENODO=1, _collect_dataset_configs_from_models() returns {} because building the config instantiates datasets that connect to Zenodo at collection time — so these tests parametrize to zero cases and report 'empty parameter set'."
-    solution: "Exercised for real by the `test:zenodo` job. Full offline fix: make each model's get_train_config() assemble params WITHOUT instantiating its dataset."
+skip_notes: []
+
+# ---------------------------------------------------------------------------
+# Dataset scope — discovered datasets that the discovery-driven tests do NOT
+# exercise, and why.
+#
+# The modelzoo's promise is that a developer adds a model or dataset and CI
+# tests it with no test edit. tests/unit/test_discovery_contract.py enforces
+# that: a dataset that is discovered but reachable from no model's
+# get_train_config() FAILS the unit job, because it would otherwise sit in the
+# repo contributing zero executed cases while the pipeline reported green.
+#
+# This section is the ONLY escape hatch, and it is deliberately a CI-side
+# record rather than a change to the dataset: the modelzoo core is owned by the
+# dataset/model authors, so CI documents the gap and names the owner's fix
+# instead of silently working around it. Every entry must say what is missing
+# and who closes it. Delete the entry when they do — the test then requires the
+# dataset to be genuinely covered.
+# ---------------------------------------------------------------------------
+dataset_scope:
+  M100Dataset:
+    covered: no
+    missing: "DATASET_ID (inherits the empty default) and no model lists it in supported_datasets."
+    reason: "M100 is discovered but no model consumes it, so it enters no (model, dataset) configuration and no fixture can be built for it. It is also not a single-parquet source: it downloads per-record tar archives whose telemetry columns vary by plugin/metric and are aligned into a global schema only at index time, so scripts/create_sample_data.py matches neither of its two branches."
+    owner_action: "The dataset author sets DATASET_ID = \"m100\" and a model declares M100Dataset in supported_datasets with a get_train_config(dataset_name=\"m100\") entry. A fixture path also needs a create_sample_data.py branch for tar-archive sources."
+  SCRIPTAIDataset:
+    covered: no
+    missing: "DATASET_ID (inherits the empty default) and no model lists it in supported_datasets."
+    reason: "SCRIPT-AI is discovered but no model consumes it, so it contributes no test cases. It is served from GitHub rather than Zenodo, and loading it fetches one job-script file per 'jid' in features.csv, so a single sample parquet cannot represent the source either."
+    owner_action: "The dataset author sets DATASET_ID = \"script-ai\" and a model declares SCRIPTAIDataset in supported_datasets with a matching get_train_config entry."

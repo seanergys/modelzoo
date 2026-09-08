@@ -299,8 +299,29 @@ def _capabilities(conftest) -> Tuple[List[dict], List[dict]]:
             fld = ds_cls.model_fields.get("DATASET_ID")
             ds_id = getattr(fld, "default", None) if fld else None
         has_dummy = "yes" if "is_dummy" in getattr(ds_cls, "model_fields", {}) else "no"
+
+        # A dataset is "covered" when some model consumes it, i.e. it appears in
+        # a (model, dataset) pair. One that is discovered but reachable from no
+        # model contributes zero executed cases, so it must be recorded in
+        # ci/policy.yml -> dataset_scope; tests/unit/test_discovery_contract.py
+        # fails the unit job otherwise.
+        scope = (_load_policy().get("dataset_scope") or {}).get(ds_name, {})
+        covered = "yes" if any(r["dataset"] == ds_name for r in cap_rows) else "no"
         ds_rows.append(
-            {"dataset": ds_name, "dataset_id": ds_id or "—", "is_dummy": has_dummy}
+            {
+                "dataset": ds_name,
+                "dataset_id": ds_id or "—",
+                "is_dummy": has_dummy,
+                "covered": covered,
+                "missing": scope.get("missing", "") or "—",
+                "reason": scope.get("reason", "")
+                or (
+                    "—"
+                    if covered == "yes"
+                    else "**undocumented — add a dataset_scope entry to ci/policy.yml**"
+                ),
+                "owner_action": scope.get("owner_action", "") or "—",
+            }
         )
     return cap_rows, ds_rows
 
@@ -535,8 +556,30 @@ def _build_blocks() -> Dict[str, str]:
     )
 
     # Dataset table.
-    ds_tbl = [[r["dataset"], f"`{r['dataset_id']}`", r["is_dummy"]] for r in ds_rows]
-    blocks["datasets"] = _table(["Dataset", "DATASET_ID", "is_dummy mode"], ds_tbl)
+    ds_tbl = [
+        [r["dataset"], f"`{r['dataset_id']}`", r["is_dummy"], r["covered"]]
+        for r in ds_rows
+    ]
+    blocks["datasets"] = _table(
+        ["Dataset", "DATASET_ID", "is_dummy mode", "Exercised by CI"], ds_tbl
+    )
+
+    # Datasets discovered but not exercised — the coverage gaps, and who closes
+    # each one. Empty table = every discovered dataset is genuinely tested.
+    gap_tbl = [
+        [r["dataset"], r["missing"], r["reason"], r["owner_action"]]
+        for r in ds_rows
+        if r["covered"] == "no"
+    ]
+    blocks["dataset-gaps"] = _table(
+        [
+            "Dataset",
+            "What is missing",
+            "Why it is not tested",
+            "Who closes it, and how",
+        ],
+        gap_tbl,
+    )
 
     # Test inventory.
     inv_tbl = [[r["category"], f"`{r['file']}`", r["purpose"]] for r in inventory]

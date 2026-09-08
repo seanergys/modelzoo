@@ -48,9 +48,16 @@ def temp_model_dir(tmp_path) -> Path:
 
 
 def fixture_path_for(dataset_cls, data_dir: Path) -> Path:
-    """FDataDataset → sample_fdata.parquet, PM100Dataset → sample_pm100.parquet."""
-    name = dataset_cls.__name__.lower().replace("dataset", "")
-    return data_dir / f"sample_{name}.parquet"
+    """
+    FDataDataset → sample_fdata.parquet, PM100Dataset → sample_pm100.parquet.
+
+    Delegates to tests.conftest.fixture_name_for so the rule has exactly one
+    definition; it used to be written out separately here, in
+    tests/smoke/test_smoke_data.py and in scripts/create_sample_data.py.
+    """
+    from tests.conftest import fixture_name_for
+
+    return data_dir / fixture_name_for(dataset_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -146,15 +153,11 @@ def load_known_xfails() -> Dict[str, str]:
 
     These pairs are expected to fail pending an author fix; they are marked
     xfail(strict=True) so that when the fix lands the test xpasses and forces the
-    entry to be removed. Returns {} if the file or section is absent.
-    """
-    if not _POLICY.exists():
-        return {}
-    try:
-        import yaml
+    entry to be removed.
 
-        data = yaml.safe_load(_POLICY.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return {}
-    section = data.get("integration_xfail") or {}
-    return {str(k): str(v) for k, v in section.items()}
+    Delegates to tests.conftest so the unit, smoke and integration layers read
+    the policy through one code path.
+    """
+    from tests.conftest import load_known_xfails as _shared
+
+    return _shared()

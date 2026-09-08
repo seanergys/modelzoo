@@ -150,13 +150,33 @@ explicitly not what it is for — see
 ## Datasets
 
 <!-- BEGIN:GENERATED datasets -->
-| Dataset | DATASET_ID | is_dummy mode |
-| --- | --- | --- |
-| FDataDataset | `f-data` | yes |
-| M100Dataset | `—` | yes |
-| PM100Dataset | `pm100` | yes |
-| SCRIPTAIDataset | `—` | yes |
+| Dataset | DATASET_ID | is_dummy mode | Exercised by CI |
+| --- | --- | --- | --- |
+| FDataDataset | `f-data` | yes | yes |
+| M100Dataset | `—` | yes | no |
+| PM100Dataset | `pm100` | yes | yes |
+| SCRIPTAIDataset | `—` | yes | no |
 <!-- END:GENERATED datasets -->
+
+### Discovered but not exercised — the coverage gaps
+
+The modelzoo's promise is that a developer adds a model or dataset and CI tests it **with no
+test edit**. Auto-discovery finds the new class; what makes the promise real is that something
+*fails* when a discovered class is never actually run. `tests/unit/test_discovery_contract.py`
+does that: a dataset that no model consumes fails `test:unit` unless `ci/policy.yml ->
+dataset_scope` records why, what is missing, and who fixes it.
+
+That escape hatch is deliberately a **CI-side record, not a change to the dataset**. The
+modelzoo core belongs to the model and dataset authors; CI publishes the gap and names the
+owner's fix rather than silently working around it. An empty table below means every
+discovered dataset is genuinely exercised.
+
+<!-- BEGIN:GENERATED dataset-gaps -->
+| Dataset | What is missing | Why it is not tested | Who closes it, and how |
+| --- | --- | --- | --- |
+| M100Dataset | DATASET_ID (inherits the empty default) and no model lists it in supported_datasets. | M100 is discovered but no model consumes it, so it enters no (model, dataset) configuration and no fixture can be built for it. It is also not a single-parquet source: it downloads per-record tar archives whose telemetry columns vary by plugin/metric and are aligned into a global schema only at index time, so scripts/create_sample_data.py matches neither of its two branches. | The dataset author sets DATASET_ID = "m100" and a model declares M100Dataset in supported_datasets with a get_train_config(dataset_name="m100") entry. A fixture path also needs a create_sample_data.py branch for tar-archive sources. |
+| SCRIPTAIDataset | DATASET_ID (inherits the empty default) and no model lists it in supported_datasets. | SCRIPT-AI is discovered but no model consumes it, so it contributes no test cases. It is served from GitHub rather than Zenodo, and loading it fetches one job-script file per 'jid' in features.csv, so a single sample parquet cannot represent the source either. | The dataset author sets DATASET_ID = "script-ai" and a model declares SCRIPTAIDataset in supported_datasets with a matching get_train_config entry. |
+<!-- END:GENERATED dataset-gaps -->
 
 ## Test inventory
 
@@ -171,6 +191,7 @@ Every test file grouped by layer, with the check it performs (from its docstring
 | unit | `test_dataloader_params.py` | Unit tests for SeanergysDataloaderParams validation. |
 | unit | `test_dataset_contract.py` | Unit tests for dataset contract (__len__, __getitem__, supported_features). |
 | unit | `test_dataset_parsers.py` | Unit tests for dataset file/node-spec parsing logic. |
+| unit | `test_discovery_contract.py` | The discovery contract: whatever a developer adds must be tested automatically. |
 | unit | `test_logger.py` | Unit tests for SeanergysLogger. |
 | unit | `test_m100.py` | Unit tests for M100Dataset. |
 | unit | `test_metadata.py` | Unit tests for SeanergysModelMetadata. |
@@ -198,14 +219,14 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L191) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L196) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L209) | {…}/{…}: is_dummy=True returned 0 rows | Implement dummy support in {…}. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_contract_via_model_config` + 2 more (empty parametrize) | Under CI_SKIP_ZENODO=1, _collect_dataset_configs_from_models() returns {} because building the config instantiates datasets that connect to Zenodo at collection time — so these tests parametrize to zero cases and report 'empty parameter set'. | Exercised for real by the `test:zenodo` job. Full offline fix: make each model's get_train_config() assemble params WITHOUT instantiating its dataset. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_fixture_has_data` (L185) | fixture not found: {…} | Run `make sample-data` to create it. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L255) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L272) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L283) | use_zenodo_url=True not supported. | Add use_zenodo_url field to {…} to enable Zenodo testing. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L203) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
-| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L222) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_fixture_has_data` (L192) | fixture not found: {…} | Run `make sample-data` to create it. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L262) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L279) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L290) | use_zenodo_url=True not supported. | Add use_zenodo_url field to {…} to enable Zenodo testing. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L210) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L116) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
+| `tests/unit/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L199) | no committed fixture {…}. | Run `make sample-data` to create it. |
 <!-- END:GENERATED test-skips -->
 
 ---

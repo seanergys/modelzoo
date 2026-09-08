@@ -117,6 +117,135 @@ MODEL_DATASET_PAIRS = _collect_model_dataset_pairs()
 
 
 # ---------------------------------------------------------------------------
+# Shared discovery helpers
+#
+# These live here, once, so the unit, smoke and integration layers all read the
+# SAME contract. They deliberately hold no knowledge of any concrete model or
+# dataset: everything is derived from what a model author already has to
+# implement (get_train_config / supported_datasets) plus ci/policy.yml.
+# ---------------------------------------------------------------------------
+
+_POLICY_PATH = _PROJECT_ROOT / "ci" / "policy.yml"
+
+
+def load_policy() -> Dict:
+    """Read ci/policy.yml. Returns {} if absent or unparseable."""
+    if not _POLICY_PATH.exists():
+        return {}
+    try:
+        import yaml
+
+        return yaml.safe_load(_POLICY_PATH.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def load_known_xfails() -> Dict[str, str]:
+    """
+    ci/policy.yml -> integration_xfail: { "Model-dataset_id": "reason" }.
+
+    Pairs expected to fail pending an author fix. Marked xfail(strict=True) so a
+    fix makes the test xpass and forces the entry to be removed.
+    """
+    return {
+        str(k): str(v)
+        for k, v in (load_policy().get("integration_xfail") or {}).items()
+    }
+
+
+def load_dataset_scope() -> Dict[str, Dict]:
+    """
+    ci/policy.yml -> dataset_scope: { "DatasetClassName": {...} }.
+
+    Records a discovered dataset that is deliberately NOT exercised by the
+    discovery-driven tests, with the reason. Anything discovered and neither
+    reachable from a model nor listed here is a coverage hole, and
+    tests/unit/test_discovery_contract.py fails on it.
+    """
+    return {
+        str(k): (v or {}) for k, v in (load_policy().get("dataset_scope") or {}).items()
+    }
+
+
+def fixture_name_for(dataset_cls) -> str:
+    """
+    The one definition of the sample-fixture naming rule.
+
+    FDataDataset -> sample_fdata.parquet, PM100Dataset -> sample_pm100.parquet.
+    tests/smoke, tests/integration and scripts/create_sample_data.py all import
+    this instead of re-deriving it, so the rule cannot drift.
+    """
+    name = dataset_cls.__name__.lower().replace("dataset", "")
+    return f"sample_{name}.parquet"
+
+
+def collect_model_dataset_configs() -> Dict:
+    """
+    Every (model, dataset) training configuration the repo can offer, derived
+    only from the model-author contract.
+
+    For each discovered model, ask it about EVERY dataset in its
+    supported_datasets (not just its default), then call
+    get_train_config(dataset_name=<DATASET_ID>).
+
+    Returns {"<Model>-<dataset_id>": (model_cls, dataset_cls, ds_params, dl_params)}.
+
+    Safe at collection time: get_train_config() only assembles a model and a
+    params object — it does not instantiate the dataset and does not touch the
+    network. (Measured with outbound sockets blocked: ~0s for every model.)
+    """
+    configs: Dict = {}
+    for model_name, model_cls in MODEL_CLASSES.items():
+        try:
+            instance = model_cls(model_hyperparameters={"n_jobs": 1})
+            dataset_ids = [
+                ds.DATASET_ID
+                for ds in (instance.supported_datasets or [])
+                if getattr(ds, "DATASET_ID", "")
+            ]
+        except Exception:
+            continue
+
+        for dataset_id in dataset_ids:
+            try:
+                config = model_cls.get_train_config(dataset_name=dataset_id)
+            except Exception:
+                continue
+            for _entry, (_model, dataset_cls, (ds_params, dl_params)) in config.items():
+                configs[f"{model_name}-{dataset_id}"] = (
+                    model_cls,
+                    dataset_cls,
+                    ds_params,
+                    dl_params,
+                )
+    return configs
+
+
+MODEL_DATASET_CONFIGS = collect_model_dataset_configs()
+
+
+def offline_params(ds_params, fixture_path) -> Dict:
+    """
+    Turn a model author's dataset params into offline params.
+
+    Only the TRANSPORT is overridden — read this local file instead of the
+    remote source. The features, filters and transforms stay exactly as the
+    model author wrote them, which is what makes this a real test of their
+    config rather than of something a test invented.
+    """
+    params = ds_params.model_dump()
+    params["data_path"] = str(fixture_path)
+    params["is_dummy"] = True
+    for remote_flag in ("use_zenodo_url", "use_github_url"):
+        if remote_flag in params:
+            params[remote_flag] = False
+    # File selection is meaningless for a single local fixture and would make
+    # the reader look for months that the fixture does not contain.
+    params.pop("files", None)
+    return params
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
