@@ -581,6 +581,22 @@ def _build_blocks() -> Dict[str, str]:
         gap_tbl,
     )
 
+    # Core change requests — what must change in seanergys_modelzoo/, and who owns it.
+    cr = _load_policy().get("core_change_requests") or {}
+    cr_tbl = [
+        [
+            f"`{rid}`",
+            f"`{e.get('symbol', '—')}`",
+            e.get("owner", "—"),
+            e.get("request", "—"),
+            e.get("why_ci_cannot", "—"),
+        ]
+        for rid, e in sorted(cr.items())
+    ]
+    blocks["core-change-requests"] = _table(
+        ["ID", "Symbol", "Owner", "What must change", "Why CI cannot do it"], cr_tbl
+    )
+
     # Test inventory.
     inv_tbl = [[r["category"], f"`{r['file']}`", r["purpose"]] for r in inventory]
     blocks["test-inventory"] = _table(["Layer", "File", "Checks"], inv_tbl)

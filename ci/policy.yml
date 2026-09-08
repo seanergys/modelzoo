@@ -151,3 +151,73 @@ dataset_scope:
     missing: "DATASET_ID (inherits the empty default) and no model lists it in supported_datasets."
     reason: "SCRIPT-AI is discovered but no model consumes it, so it contributes no test cases. It is served from GitHub rather than Zenodo, and loading it fetches one job-script file per 'jid' in features.csv, so a single sample parquet cannot represent the source either."
     owner_action: "The dataset author sets DATASET_ID = \"script-ai\" and a model declares SCRIPTAIDataset in supported_datasets with a matching get_train_config entry."
+
+# ---------------------------------------------------------------------------
+# Core change requests — changes needed in seanergys_modelzoo/ that CI must NOT
+# make itself.
+#
+# The modelzoo core belongs to the model and dataset authors. The CI/test layer
+# never edits it: when a test cannot be written correctly because of something in
+# core, the request is recorded HERE, published in docs/ci-cd.md, and handed to
+# the owner. That keeps one rule intact — CI reports the truth about the code, it
+# does not quietly reshape the code to make itself pass.
+#
+# Each entry carries a machine-checkable `check`, so
+# tests/unit/test_core_change_requests.py can tell whether the request is still
+# open. When the owner lands the fix the check flips and the test FAILS, telling
+# whoever runs it to delete the entry — the same strict contract as
+# integration_xfail. A request therefore cannot rot: it is either open and
+# documented, or done and removed.
+#
+# check kinds:
+#   dataset_missing_dataset_id  — open while <target> leaves DATASET_ID empty
+#   dataset_not_consumed        — open while no model lists <target> in supported_datasets
+#   source_contains             — open while <file> still contains <needle>
+# ---------------------------------------------------------------------------
+core_change_requests:
+  CR-1:
+    file: seanergys_modelzoo/datasets/m100.py
+    symbol: M100Dataset
+    owner: "M100 dataset author"
+    request: 'Set `DATASET_ID: ClassVar[str] = "m100"` on M100Dataset, and have a model list M100Dataset in supported_datasets with a matching get_train_config(dataset_name="m100") entry.'
+    why: 'SeanergysDataset declares `DATASET_ID: ClassVar[str] = ""` with the comment "Every concrete dataset must set this"; M100Dataset leaves it empty. Without it the dataset can never be paired with a model, so it enters no (model, dataset) configuration, no fixture can be built for it, and it contributes zero executed test cases.'
+    why_ci_cannot: "Setting it from the test layer would mean CI editing a dataset it does not own, and inventing an id and a model pairing on the author's behalf. CI can only report that the contract is unmet."
+    evidence: "M100Dataset.DATASET_ID == '' and no model's supported_datasets includes it (measured 2026-09-08)."
+    check: dataset_missing_dataset_id
+    target: M100Dataset
+
+  CR-2:
+    file: seanergys_modelzoo/datasets/script_ai.py
+    symbol: SCRIPTAIDataset
+    owner: "SCRIPT-AI dataset author"
+    request: 'Set `DATASET_ID: ClassVar[str] = "script-ai"` on SCRIPTAIDataset, and have a model list SCRIPTAIDataset in supported_datasets with a matching get_train_config entry.'
+    why: "Same unmet base-class contract as CR-1: the dataset is discovered by auto-discovery but is invisible to every discovery-driven test."
+    why_ci_cannot: "Same as CR-1 — the id and the model pairing are the author's decision, not CI's."
+    evidence: "SCRIPTAIDataset.DATASET_ID == '' and no model's supported_datasets includes it (measured 2026-09-08)."
+    check: dataset_missing_dataset_id
+    target: SCRIPTAIDataset
+
+  CR-3:
+    file: seanergys_modelzoo/datasets/f_data.py
+    symbol: FDataDataset.get_statistics_by_partition
+    owner: "F-DATA dataset author"
+    request: "Rewrite get_statistics_by_partition() against F-DATA's real published columns, or remove it. It currently reads 'partition', 'n_nodes' and 'power_consumption'; the real columns are 'nnumr'/'nnuma' (nodes), 'avgpcon' (average power) and 'duration', and raw F-DATA has no partition column at all."
+    why: "The method raises on every real F-DATA input, so it is dead code that looks like a working feature. It cannot be covered by any test built on real data."
+    why_ci_cannot: "Choosing the replacement grouping key (or deciding to drop the method) is a dataset-semantics decision owned by the author. CI must not silently rewrite a public method to make a test pass."
+    evidence: "Against tests/fixtures/sample_data/sample_fdata.parquet: get_statistics_by_partition() raises ValueError(\"'partition' column not available in dataset.\"); 'partition'/'n_nodes'/'power_consumption' are absent while 'nnumr'/'nnuma'/'avgpcon'/'duration' are present (measured 2026-09-08)."
+    check: source_contains
+    target: seanergys_modelzoo/datasets/f_data.py
+    needle: power_consumption
+
+  CR-4:
+    file: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
+    symbol: RUAD.build_model
+    owner: "RUAD model author"
+    request: "Do not construct M100Dataset inside RUAD's model_validator/build_model. Build the dataset only where the caller asks for data — get_train_config() should assemble params and return the dataset CLASS, matching JPCP/MACK/MCBound."
+    why: "Instantiating the model has the side effect of loading a dataset, so merely constructing RUAD reaches Zenodo. Every discovery-driven test constructs each model, so model discovery cannot be exercised without network I/O, and CI_SKIP_ZENODO=1 cannot prevent it."
+    why_ci_cannot: "The fix is a restructuring of the model's own initialisation and its data-loading contract; only the model author can decide where the dataset should be built."
+    evidence: "On origin/main merged with this branch, a clean run of `CI_SKIP_ZENODO=1 pytest tests/unit tests/smoke` downloaded ~303 MB into data/7541722 and had not finished after 2 minutes. Later clean runs completed in ~1s fetching only 12 KB, so the cost is network-dependent and intermittent, not constant. RUAD instantiation constructs M100Dataset at ruad_model.py:103 (also :304). Observed 2026-09-08."
+    note: "RUAD lives on origin/main and is not present on this branch, so the check below reports 'not applicable here' until the branches are merged."
+    check: source_contains
+    target: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
+    needle: "M100Dataset("

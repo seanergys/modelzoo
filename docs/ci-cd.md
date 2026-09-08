@@ -178,6 +178,29 @@ discovered dataset is genuinely exercised.
 | SCRIPTAIDataset | DATASET_ID (inherits the empty default) and no model lists it in supported_datasets. | SCRIPT-AI is discovered but no model consumes it, so it contributes no test cases. It is served from GitHub rather than Zenodo, and loading it fetches one job-script file per 'jid' in features.csv, so a single sample parquet cannot represent the source either. | The dataset author sets DATASET_ID = "script-ai" and a model declares SCRIPTAIDataset in supported_datasets with a matching get_train_config entry. |
 <!-- END:GENERATED dataset-gaps -->
 
+## Core change requests
+
+Changes needed inside `seanergys_modelzoo/` that **CI does not make itself**.
+
+The core belongs to the model and dataset authors; the CI/test layer never edits it. When a
+test cannot be written correctly because of something in core, the request is recorded in
+`ci/policy.yml -> core_change_requests`, published here, and handed to the owner. CI reports
+the truth about the code — it does not reshape the code to make itself pass.
+
+Each entry carries a machine-checkable condition, so `tests/unit/test_core_change_requests.py`
+fails in **both** directions: a vague entry fails, and an entry whose fix has already landed
+fails too, forcing its removal. A request is therefore either open and accurate, or deleted —
+it cannot sit here making a false claim about the code.
+
+<!-- BEGIN:GENERATED core-change-requests -->
+| ID | Symbol | Owner | What must change | Why CI cannot do it |
+| --- | --- | --- | --- | --- |
+| `CR-1` | `M100Dataset` | M100 dataset author | Set `DATASET_ID: ClassVar[str] = "m100"` on M100Dataset, and have a model list M100Dataset in supported_datasets with a matching get_train_config(dataset_name="m100") entry. | Setting it from the test layer would mean CI editing a dataset it does not own, and inventing an id and a model pairing on the author's behalf. CI can only report that the contract is unmet. |
+| `CR-2` | `SCRIPTAIDataset` | SCRIPT-AI dataset author | Set `DATASET_ID: ClassVar[str] = "script-ai"` on SCRIPTAIDataset, and have a model list SCRIPTAIDataset in supported_datasets with a matching get_train_config entry. | Same as CR-1 — the id and the model pairing are the author's decision, not CI's. |
+| `CR-3` | `FDataDataset.get_statistics_by_partition` | F-DATA dataset author | Rewrite get_statistics_by_partition() against F-DATA's real published columns, or remove it. It currently reads 'partition', 'n_nodes' and 'power_consumption'; the real columns are 'nnumr'/'nnuma' (nodes), 'avgpcon' (average power) and 'duration', and raw F-DATA has no partition column at all. | Choosing the replacement grouping key (or deciding to drop the method) is a dataset-semantics decision owned by the author. CI must not silently rewrite a public method to make a test pass. |
+| `CR-4` | `RUAD.build_model` | RUAD model author | Do not construct M100Dataset inside RUAD's model_validator/build_model. Build the dataset only where the caller asks for data — get_train_config() should assemble params and return the dataset CLASS, matching JPCP/MACK/MCBound. | The fix is a restructuring of the model's own initialisation and its data-loading contract; only the model author can decide where the dataset should be built. |
+<!-- END:GENERATED core-change-requests -->
+
 ## Test inventory
 
 Every test file grouped by layer, with the check it performs (from its docstring).
@@ -186,6 +209,7 @@ Every test file grouped by layer, with the check it performs (from its docstring
 | Layer | File | Checks |
 | --- | --- | --- |
 | unit | `test_configurator.py` | Unit tests for Seanergys configurator (Pydantic params). |
+| unit | `test_core_change_requests.py` | Core change requests: things that must change in seanergys_modelzoo/, which CI |
 | unit | `test_coverage_extra.py` | Additional unit tests targeting branches not reachable through the happy |
 | unit | `test_dataloader.py` | Unit tests for SeanergysDataloader (type guard + from_config). |
 | unit | `test_dataloader_params.py` | Unit tests for SeanergysDataloaderParams validation. |
@@ -226,6 +250,7 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L210) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L116) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
+| `tests/unit/test_core_change_requests.py` | `test_request_is_still_open` (L115) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
 | `tests/unit/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L199) | no committed fixture {…}. | Run `make sample-data` to create it. |
 <!-- END:GENERATED test-skips -->
 
