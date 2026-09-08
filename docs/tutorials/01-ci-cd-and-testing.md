@@ -252,8 +252,8 @@ The current model–dataset combinations are:
 |---|---|---|---|
 | JPCP | PM100Dataset | `pm100` | Tested; must pass |
 | JPCP | FDataDataset | `f-data` | Tested; must pass |
-| MACK | FDataDataset | `f-data` | Known expected failure |
-| MCBound | FDataDataset | `f-data` | Known expected failure |
+| MACK | FDataDataset | `f-data` | Tested; must pass |
+| MCBound | FDataDataset | `f-data` | Tested; must pass |
 
 The discovered datasets also include `M100Dataset` and `SCRIPTAIDataset`, but they are not
 currently connected to a model through a non-empty `DATASET_ID` pair. Unit tests still
@@ -264,8 +264,9 @@ is a teaching snapshot and may change less often.
 
 ### What `xfail(strict)` means
 
-A known-broken pair can be listed under `integration_xfail` in `ci/policy.yml`. Pytest still
-runs that integration case:
+A known-broken pair can be listed under `integration_xfail` in `ci/policy.yml`. **The list is
+empty today** — every pair must pass — but when an entry exists pytest still runs that
+integration case:
 
 - If it fails as expected, the result is `XFAIL` and the pipeline can continue.
 - If it unexpectedly passes, strict mode reports `XPASS` as a failure. This tells the team

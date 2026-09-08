@@ -25,19 +25,21 @@ class FDataDataset(SeanergysParquetDataset):
     The dataset is split across 38 monthly parquet files (YY_MM.parquet) covering
     March 2021 to April 2024.
 
-    Key Features:
-    - job_id: Unique job identifier
-    - user_encoded: Anonymized user ID
-    - account_encoded: Anonymized account ID
-    - partition: Partition where job was executed
-    - exit_code: Job exit code
-    - n_nodes: Number of nodes allocated
+    Key Features (column names are the ones actually published in the parquet
+    files — do not invent friendlier aliases, the reader projects them verbatim):
+    - jid: Unique job identifier
+    - usr: Anonymized user ID
+    - jnam: Anonymized job name
+    - adt / qdt / sdt / edt: Accept, queue, start and end timestamps
+    - ec / exit state: Job exit code and exit state
+    - nnuma / nnumr: Nodes allocated / requested
     - duration: Job duration (seconds)
-    - power_consumption: Average power consumption (watts)
+    - avgpcon / minpcon / maxpcon / econ: Power consumption and energy
     - flops: Floating point operations per second
-    - memory_bandwidth: Memory bandwidth (GB/s)
-    - operational_intensity: Ratio of computation to memory access
-    - mem_compute_bound: Memory/compute bound classification
+    - mbwidth: Memory bandwidth
+    - opint: Operational intensity (ratio of computation to memory access)
+    - pclass: Memory/compute bound classification ('memory-bound', ...)
+    - embedding: Precomputed job-script embedding
     - And more...
     """
 

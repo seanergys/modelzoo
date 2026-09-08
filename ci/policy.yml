@@ -84,9 +84,10 @@ jobs:
 # EXPECTED to fail pending an author fix, and when the fix lands the test xpasses
 # and forces the entry to be removed. Keep this list empty when all pairs pass.
 # ---------------------------------------------------------------------------
-integration_xfail:
-  MACK-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
-  MCBound-f-data: "output_features=['mem_compute_bound'] — that column does not exist in raw F-DATA. Pending a model-author fix to a real F-DATA column."
+# Empty on purpose: every (model, dataset) pair passes the full pipeline for real.
+# MACK-f-data / MCBound-f-data were listed here until they were fixed to target
+# F-DATA's real `pclass` column instead of the non-existent `mem_compute_bound`.
+integration_xfail: {}
 
 # ---------------------------------------------------------------------------
 # Ignored dependency vulnerabilities (test:audit / pip-audit).

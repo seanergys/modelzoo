@@ -62,6 +62,10 @@ class MCBound(SeanergysSklearnModel):
         default="all-MiniLM-L6-v2",
         description="The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB",
     )
+    label_encoder: Optional[LabelEncoder] = Field(
+        default=None,
+        description="Encoder mapping F-DATA's string `pclass` label to integer class ids.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -116,6 +120,26 @@ class MCBound(SeanergysSklearnModel):
                 ]
             )
 
+    def encode_pclass(self, df):
+        """
+        Encode F-DATA's `pclass` memory/compute-bound label into integer class ids.
+
+        F-DATA ships `pclass` as a string ('memory-bound', 'compute-bound'), but the
+        RandomForest needs a numeric target and torch's default collate rejects object
+        arrays. The encoder is fitted on first use (training) and reused afterwards,
+        so the training and testing configs agree on the class ids; save() persists it.
+
+        Args:
+            df: The dataframe loaded by the dataset, carrying a `pclass` column.
+
+        Returns:
+            The same dataframe with `pclass` replaced by its integer encoding.
+        """
+        if self.label_encoder is None:
+            self.label_encoder = LabelEncoder().fit(df["pclass"].astype(str))
+        df["pclass"] = self.label_encoder.transform(df["pclass"].astype(str))
+        return df
+
     def embedding_parsing(self, embedding: np.ndarray) -> np.ndarray:
         """
         Parses the precomputed embedding vector to a suitable format for the model
@@ -150,12 +174,13 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
+                preprocessing_functions=[model_fdata.encode_pclass],
                 filters=[
                     ("adt", ">=", "2023-12-01"),
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                output_features=["mem_compute_bound"],
+                output_features=["pclass"],
             )
             return {
                 "f-data": (
@@ -186,12 +211,13 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["24_02"],
                 transform=model.embedding_parsing,
+                preprocessing_functions=[model.encode_pclass],
                 filters=[
                     ("adt", ">=", "2023-02-01"),
                     ("adt", "<=", "2024-02-28"),
                 ],
                 input_features=["embedding"],
-                output_features=["mem_compute_bound"],
+                output_features=["pclass"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return {"f-data": (model, data_loader_fdata)}
@@ -202,7 +228,8 @@ class MCBound(SeanergysSklearnModel):
         self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
         """
-        Persist the estimator, embedder, metadata, and supplementary info to disk.
+        Persist the estimator, embedder, label encoder, metadata, and supplementary
+        info to disk.
 
         Args:
             path:     Destination path for the joblib model file.
@@ -222,6 +249,14 @@ class MCBound(SeanergysSklearnModel):
                 compress=compress,
             )
             self.logger.info(f"Embedder saved to {path}")
+
+            joblib.dump(
+                self.label_encoder,
+                f"{os.path.join(str(path), 'label_encoder.joblib')}",
+                compress=compress,
+            )
+            self.logger.info(f"Label encoder saved to {path}")
+
             super().save(path=path, compress=compress)
             return True
 
@@ -248,6 +283,9 @@ class MCBound(SeanergysSklearnModel):
             obj = super().load(path=path, **kwargs)
             assert isinstance(obj, cls)
             obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
+            obj.label_encoder = joblib.load(
+                f"{os.path.join(str(path), 'label_encoder.joblib')}"
+            )
             return obj
 
         except Exception as e:
