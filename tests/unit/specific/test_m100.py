@@ -19,7 +19,21 @@ import pandas as pd
 
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402
 
-AGG_RECORD = "7541722"
+# ---------------------------------------------------------------------------
+# Constants read from the CLASS, never retyped (GitLab issue #6).
+# Changing M100Dataset's record map upstream requires no edit here.
+# ---------------------------------------------------------------------------
+_RECORDS = list(M100Dataset.model_fields["AVAILABLE_FILES_PER_RECORD"].default)
+AGG_RECORD = next(iter(_RECORDS[-1]))
+_RAW = [
+    (rid, f)
+    for record in _RECORDS
+    for rid, files in record.items()
+    if rid != AGG_RECORD
+    for f in files
+]
+# A representative raw (record_id, month) pair — the last raw month available.
+RAW_RECORD, RAW_MONTH = _RAW[-1]
 
 
 def _write_node_parquet(path, n=3):
@@ -80,8 +94,8 @@ def test_m100_row_group_cache_hit(tmp_path):
 def test_m100_raw_mode(tmp_path):
     base = (
         tmp_path
-        / "7589942"
-        / "22-02"
+        / RAW_RECORD
+        / RAW_MONTH
         / "year_month=22-02"
         / "plugin=ipmi"
         / "metric=power"
@@ -89,7 +103,7 @@ def test_m100_raw_mode(tmp_path):
     base.mkdir(parents=True)
     _write_node_parquet(base / "data.parquet", n=3)
     ds = M100Dataset(
-        yy_mm="22-02",
+        yy_mm=RAW_MONTH,
         plugins=["ipmi"],
         metrics=["power"],
         dataset_path=str(tmp_path),
@@ -100,8 +114,8 @@ def test_m100_raw_mode(tmp_path):
 def test_m100_raw_mode_metric_filtered_out(tmp_path):
     base = (
         tmp_path
-        / "7589942"
-        / "22-02"
+        / RAW_RECORD
+        / RAW_MONTH
         / "year_month=22-02"
         / "plugin=ipmi"
         / "metric=temp"
@@ -111,7 +125,7 @@ def test_m100_raw_mode_metric_filtered_out(tmp_path):
     # metric "power" requested but only "temp" present → no files → ValueError
     with pytest.raises(ValueError, match="No parquet"):
         M100Dataset(
-            yy_mm="22-02",
+            yy_mm=RAW_MONTH,
             plugins=["ipmi"],
             metrics=["power"],
             dataset_path=str(tmp_path),

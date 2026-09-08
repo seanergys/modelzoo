@@ -26,6 +26,23 @@ import seanergys_modelzoo.datasets.m100 as m100_mod  # noqa: E402
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402
 from tests.conftest import MODEL_DATASET_PAIRS  # noqa: E402
 
+# ---------------------------------------------------------------------------
+# Constants read from the CLASS, never retyped (GitLab issue #6).
+# Changing M100Dataset's record map upstream requires no edit here.
+# ---------------------------------------------------------------------------
+FDATA_FILES = list(FDataDataset.model_fields["AVAILABLE_FILES"].default)
+_RECORDS = list(M100Dataset.model_fields["AVAILABLE_FILES_PER_RECORD"].default)
+AGG_RECORD = next(iter(_RECORDS[-1]))
+_RAW = [
+    (rid, f)
+    for record in _RECORDS
+    for rid, files in record.items()
+    if rid != AGG_RECORD
+    for f in files
+]
+# A representative raw (record_id, month) pair — the last raw month available.
+RAW_RECORD, RAW_MONTH = _RAW[-1]
+
 _PAIR_IDS = [f"{m.__name__}-{d}" for m, d in MODEL_DATASET_PAIRS]
 
 
@@ -175,7 +192,7 @@ def test_fdata_zenodo_merge(monkeypatch):
     monkeypatch.setattr(fdata_mod.pd, "read_parquet", lambda *a, **k: fake.copy())
     ds = FDataDataset(
         use_zenodo_url=True,
-        files=["21_03", "21_04"],
+        files=FDATA_FILES[:2],
         input_features=["n_nodes", "duration"],
         output_features=["power_consumption"],
     )
@@ -224,7 +241,7 @@ def test_pm100_preprocessing_functions(parquet_file):
 
 
 def test_m100_nan_fill_for_missing_column(tmp_path):
-    d = tmp_path / "7541722" / "0"
+    d = tmp_path / AGG_RECORD / "0"
     d.mkdir(parents=True)
     pd.DataFrame({"timestamp": [0, 1], "p0": [1.0, 2.0], "p1": [3.0, 4.0]}).to_parquet(
         d / "0.parquet"
@@ -236,7 +253,7 @@ def test_m100_nan_fill_for_missing_column(tmp_path):
 
 
 def test_m100_node_filter_skips_extra_files(tmp_path):
-    d = tmp_path / "7541722" / "0"
+    d = tmp_path / AGG_RECORD / "0"
     d.mkdir(parents=True)
     for nd in (0, 1, 2):
         pd.DataFrame({"timestamp": [0, 1], "p0": [1.0, 2.0]}).to_parquet(
@@ -250,8 +267,8 @@ def test_m100_plugin_filter_skips(tmp_path):
     for plugin in ("ipmi", "other"):
         base = (
             tmp_path
-            / "7589942"
-            / "22-02"
+            / RAW_RECORD
+            / RAW_MONTH
             / "year_month=22-02"
             / f"plugin={plugin}"
             / "metric=power"
@@ -261,7 +278,7 @@ def test_m100_plugin_filter_skips(tmp_path):
             base / "d.parquet"
         )
     ds = M100Dataset(
-        yy_mm="22-02", plugins=["ipmi"], metrics=["power"], dataset_path=str(tmp_path)
+        yy_mm=RAW_MONTH, plugins=["ipmi"], metrics=["power"], dataset_path=str(tmp_path)
     )
     assert len(ds) == 2  # only the ipmi plugin file
 

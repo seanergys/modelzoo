@@ -14,6 +14,33 @@ import cachetools  # noqa: F401
 from seanergys_modelzoo.datasets.f_data import FDataDataset  # noqa: E402
 from seanergys_modelzoo.datasets.m100 import M100Dataset  # noqa: E402
 
+# ---------------------------------------------------------------------------
+# Constants read from the CLASSES, never retyped (GitLab issue #6).
+#
+# Zenodo record ids and monthly file ids used to be typed out here. When one
+# changed upstream these tests failed with a mismatch that read like a code bug
+# rather than a stale test. Deriving them means changing AVAILABLE_FILES or the
+# record map needs no edit to this file.
+# ---------------------------------------------------------------------------
+
+# F-DATA monthly file ids, e.g. ("21_03", "21_04", ...).
+FDATA_FILES = list(FDataDataset.model_fields["AVAILABLE_FILES"].default)
+
+# M100 record map: [{record_id: [file, ...]}, ...]. The LAST entry is the
+# 15-minute aggregated record; every earlier entry is raw monthly data.
+M100_RECORDS = list(M100Dataset.model_fields["AVAILABLE_FILES_PER_RECORD"].default)
+AGG_RECORD, AGG_FILES = next(iter(M100_RECORDS[-1].items()))
+
+# Flatten the raw (non-aggregated) records into an ordered (record_id, file) list.
+M100_RAW = [
+    (rid, f)
+    for record in M100_RECORDS
+    for rid, files in record.items()
+    if rid != AGG_RECORD
+    for f in files
+]
+NODES_PER_RACK = 20
+
 
 # ---------------------------------------------------------------------------
 # M100Dataset._parse_nodes
@@ -59,7 +86,8 @@ def test_parse_nodes_all():
 
 
 def test_get_total_nodes():
-    assert M100Dataset.model_construct()._get_total_nodes() == 1000
+    expected = len(AGG_FILES) * NODES_PER_RACK
+    assert M100Dataset.model_construct()._get_total_nodes() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -69,41 +97,40 @@ def test_get_total_nodes():
 
 def test_build_file_list_aggregated_maps_nodes_to_racks():
     ds = M100Dataset.model_construct()
-    ds._nodes = [0, 25, 40]  # racks 0, 1, 2
+    ds._nodes = [0, NODES_PER_RACK + 5, 2 * NODES_PER_RACK]  # racks 0, 1, 2
     files = ds._build_file_list(None, aggregated=True)
-    assert files == [("7541722", "0"), ("7541722", "1"), ("7541722", "2")]
+    assert files == [(AGG_RECORD, "0"), (AGG_RECORD, "1"), (AGG_RECORD, "2")]
 
 
 def test_build_file_list_aggregated_fallback_all_racks():
     ds = M100Dataset.model_construct()
     ds._nodes = []
     files = ds._build_file_list(None, aggregated=True)
-    assert len(files) == 50
-    assert all(rid == "7541722" for rid, _ in files)
+    assert len(files) == len(AGG_FILES)
+    assert all(rid == AGG_RECORD for rid, _ in files)
 
 
 def test_build_file_list_raw_single():
     ds = M100Dataset.model_construct()
     ds._nodes = []
-    assert ds._build_file_list("22-02", aggregated=False) == [("7589942", "22-02")]
+    rid, month = M100_RAW[-1]
+    assert ds._build_file_list(month, aggregated=False) == [(rid, month)]
 
 
 def test_build_file_list_raw_range():
     ds = M100Dataset.model_construct()
     ds._nodes = []
-    files = ds._build_file_list("20-03:20-05", aggregated=False)
-    assert files == [
-        ("7588815", "20-03"),
-        ("7588815", "20-04"),
-        ("7588815", "20-05"),
-    ]
+    first, third = M100_RAW[0][1], M100_RAW[2][1]
+    files = ds._build_file_list(f"{first}:{third}", aggregated=False)
+    assert files == M100_RAW[:3]
 
 
 def test_build_file_list_raw_list():
     ds = M100Dataset.model_construct()
     ds._nodes = []
-    files = ds._build_file_list(["20-03", "21-01"], aggregated=False)
-    assert files == [("7588815", "20-03"), ("7589131", "21-01")]
+    picked = [M100_RAW[0], M100_RAW[10]]
+    files = ds._build_file_list([f for _, f in picked], aggregated=False)
+    assert files == picked
 
 
 def test_build_file_list_raw_all():
@@ -111,8 +138,8 @@ def test_build_file_list_raw_all():
     ds._nodes = []
     files = ds._build_file_list(None, aggregated=False)
     # all non-aggregated months
-    assert ("7589942", "22-02") in files
-    assert all(rid != "7541722" for rid, _ in files)
+    assert M100_RAW[-1] in files
+    assert all(rid != AGG_RECORD for rid, _ in files)
 
 
 def test_build_file_list_invalid_type_raises():
@@ -139,22 +166,23 @@ def test_fdata_parse_files_all_string():
 
 def test_fdata_parse_files_single():
     ds = FDataDataset.model_construct()
-    assert ds._parse_files_parameter("21_03") == ["21_03"]
+    assert ds._parse_files_parameter(FDATA_FILES[0]) == [FDATA_FILES[0]]
 
 
 def test_fdata_parse_files_single_strips_extension():
     ds = FDataDataset.model_construct()
-    assert ds._parse_files_parameter("21_03.parquet") == ["21_03"]
+    assert ds._parse_files_parameter(f"{FDATA_FILES[0]}.parquet") == [FDATA_FILES[0]]
 
 
 def test_fdata_parse_files_range():
     ds = FDataDataset.model_construct()
-    assert ds._parse_files_parameter("21_03:21_05") == ["21_03", "21_04", "21_05"]
+    spec = f"{FDATA_FILES[0]}:{FDATA_FILES[2]}"
+    assert ds._parse_files_parameter(spec) == FDATA_FILES[:3]
 
 
 def test_fdata_parse_files_list():
     ds = FDataDataset.model_construct()
-    assert ds._parse_files_parameter(["21_03", "21_04"]) == ["21_03", "21_04"]
+    assert ds._parse_files_parameter(FDATA_FILES[:2]) == FDATA_FILES[:2]
 
 
 def test_fdata_parse_files_invalid_single_raises():
@@ -172,7 +200,7 @@ def test_fdata_parse_files_invalid_range_raises():
 def test_fdata_parse_files_invalid_list_raises():
     ds = FDataDataset.model_construct()
     with pytest.raises(ValueError):
-        ds._parse_files_parameter(["21_03", "nope"])
+        ds._parse_files_parameter([FDATA_FILES[0], "nope"])
 
 
 def test_fdata_parse_files_invalid_type_raises():
