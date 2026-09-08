@@ -290,6 +290,7 @@ This is safer than silently skipping the test.
 | `tests/integration/` | Full lifecycle tests. |
 | `tests/fixtures/` | Small committed data used by offline tests. |
 | `ci/policy.yml` | Human explanations, expected failures, audit exceptions, and skip notes. |
+| `scripts/ensure_tools.sh` | Machine toolchain check and bootstrap (uv, Python, poetry). |
 | `ci/gen_capabilities_doc.py` | Automatic CI documentation generator. |
 | `ci/validate_yaml.py` | YAML and JSON validation. |
 | `ci/verify_wheel.py` | Installed-wheel verification. |
@@ -298,12 +299,39 @@ This is safer than silently skipping the test.
 
 ## 9. Commands to run locally
 
-First-time setup:
+First-time setup: there is none. The only things your machine needs are `curl`, `git` and
+`make`. Every command below installs whatever it is missing before it runs — `uv`, a
+supported Python (3.12–3.14), `poetry`, the `.venv/` virtual environment, and all locked
+dependencies. Nothing is installed system-wide and no `sudo` is used; the tools land in
+`~/.local/bin` and the packages in `.venv/`.
+
+So on a fresh clone this is enough:
 
 ```bash
-make install-ci
-make sample-data
+make test
 ```
+
+If you prefer to do the setup as an explicit step, or want to inspect it:
+
+```bash
+make bootstrap      # toolchain + .venv + all dependencies, no tests
+make doctor         # report what is present, change nothing
+make tools-check    # check the toolchain and FAIL instead of installing
+```
+
+The setup is guarded, so it is cheap to repeat: `poetry install` re-runs only when
+`pyproject.toml` or `poetry.lock` actually changed, and the toolchain step is a handful of
+`command -v` checks when everything is already there.
+
+On a machine where installing tools is not allowed, set `MODELZOO_NO_AUTO_INSTALL=1` and the
+setup step will only report what is missing:
+
+```bash
+MODELZOO_NO_AUTO_INSTALL=1 make test
+```
+
+The integration fixtures are committed to the repository, so the offline tests work
+immediately. `make sample-data` re-downloads them from Zenodo if you need to refresh them.
 
 During normal development:
 
@@ -333,6 +361,7 @@ make test-wheel
 
 ## 10. Normal merge-request checklist
 
+0. Nothing to set up — any `make` target below prepares the environment itself.
 1. Make the code or CI change.
 2. Add or update tests.
 3. Run `make format` and `make pre-push`.

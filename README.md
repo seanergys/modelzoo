@@ -12,6 +12,68 @@ The model zoo is a GitLab repository (https://gitlab.seanergys.fz-juelich.de/sof
 * Facilitate import of models and train/test configuration by Seanergys AI production tool
 
 
+## Quick start
+
+**Requirements:** Linux or macOS with `curl`, `git` and `make`. Everything else — `uv`,
+a supported Python (3.12–3.14), `poetry`, the virtual environment and all dependencies —
+is installed for you.
+
+```bash
+git clone https://gitlab.seanergys.fz-juelich.de/software/modelzoo.git
+cd modelzoo
+make test
+```
+
+That is the whole setup. Every `make` target that needs a working environment depends on
+`make env`, which:
+
+1. runs `scripts/ensure_tools.sh` — checks `curl`/`git`/`make`, then installs **uv** and
+   **poetry** into `~/.local/bin` if they are missing, and fetches a supported Python with
+   `uv python install` when the system one is out of range (no `sudo`, nothing global);
+2. verifies `poetry.lock` is in sync with `pyproject.toml`;
+3. creates `.venv/` if absent and runs `poetry install --with dev,ci`, re-running it only
+   when `pyproject.toml` or `poetry.lock` actually changed.
+
+So `make test`, `make lint`, `make docs-ci` and friends all work on a fresh clone with no
+manual setup step.
+
+| Command | What it does |
+|---|---|
+| `make bootstrap` | Do the whole setup explicitly, without running tests |
+| `make doctor` | Report toolchain / `.venv` / fixture state, change nothing |
+| `make tools` | Ensure `uv`, Python 3.12–3.14 and `poetry` exist (installs the missing ones) |
+| `make tools-check` | Same checks, **never** installs — non-zero exit if anything is missing |
+| `make env` | Ensure `.venv/` exists and matches `poetry.lock` (dev + ci groups) |
+| `make help` | Full list of targets |
+
+**Opting out of automatic installation.** On a locked-down machine, or in a container image
+that must not fetch tools, set `MODELZOO_NO_AUTO_INSTALL=1` — the toolchain step then only
+reports what is missing and fails instead of installing:
+
+```bash
+MODELZOO_NO_AUTO_INSTALL=1 make test
+```
+
+If the new tools are not on your `PATH` in a fresh shell, add this to `~/.bashrc`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Running the tests
+
+```bash
+make test               # unit + smoke — fast, offline, run before every push
+make test-all           # unit + smoke + integration
+make pre-push           # format-check + secrets + lint + fast tests
+make ci                 # full local mirror of the GitLab pipeline
+```
+
+The integration fixtures are committed, so the offline tests need no download.
+`make sample-data` refreshes them from Zenodo. `CI_SKIP_ZENODO=1` forbids any network access.
+
+The full local-development reference lives in [`docs/ci-cd.md`](docs/ci-cd.md).
+
 ## Repository structure
 
 The repository has 4 main folders: two contain classes for the dataloader and datasets, one the logger, and one contains all models.

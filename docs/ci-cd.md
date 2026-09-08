@@ -116,6 +116,7 @@ a model or dataset updates this table on the next regeneration.
 | JPCP | Regression | FDataDataset | `f-data` | yes |
 | MACK | Classification | FDataDataset | `f-data` | yes |
 | MCBound | Classification | FDataDataset | `f-data` | yes |
+| RUAD | — | — | `—` | no |
 <!-- END:GENERATED capabilities -->
 
 **Legend — the "Tested in CI" column:**
@@ -214,13 +215,56 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 Everything below is hand-written prose (preserved across regeneration). It is the
 merged, updated content of the former `TESTING_AND_CI_GUIDE.md` and the old CI plans.
 
-## Running the tests locally
+## Setting up a machine
 
-Run the tests before every push — it is faster than waiting for a red pipeline.
+The only things you must have are `curl`, `git` and `make`. Everything else is installed
+for you on first use, into `~/.local/bin` and `.venv/.
 
 ```bash
-make install-ci     # install all deps (dev + ci: torch, sklearn, xgboost, pyarrow, …)
-make sample-data    # download the small fixture files from Zenodo once (for integration)
+make test           # on a fresh clone this bootstraps the machine, then runs the tests
+```
+
+Every target that needs a working environment depends on `make env`, which chains three
+guarded steps and skips any of them that is already satisfied:
+
+| Step | Target | What it guarantees |
+|---|---|---|
+| 1 | `make tools` | `curl`/`git`/`make` present; **uv** and **poetry** installed if missing; a Python in `>=3.12,<3.15` (fetched with `uv python install` if the system one is out of range). Runs `scripts/ensure_tools.sh`. |
+| 2 | `make deps-check` | `poetry.lock` is in sync with `pyproject.toml` (`poetry check --lock`) |
+| 3 | `$(VENV)/.deps-installed` | `.venv/` exists and `poetry install --with dev,ci` has run. The stamp file depends on `pyproject.toml` and `poetry.lock`, so the install re-runs **only** when one of them actually changed. |
+
+Useful setup targets:
+
+| Command | Does |
+|---|---|
+| `make bootstrap` | The whole setup explicitly, without running tests |
+| `make doctor` | Reports toolchain / `.venv` / fixture state and changes nothing |
+| `make tools` | Toolchain only — installs what is missing |
+| `make tools-check` | Toolchain only — **never** installs, non-zero exit if incomplete |
+| `make env` | Toolchain + lock check + `.venv` synced to `poetry.lock` |
+| `make install` | `dev` group only (tooling). Not enough to run the tests — they import torch/sklearn through the package — so it clears the stamp and the next test target reinstalls `dev,ci`. |
+| `make install-ci` | `dev` + `ci` groups (same as `make env`) |
+| `make clean-venv` | Deletes `.venv/`; the next make target rebuilds it |
+
+**Environment switches:**
+
+| Variable | Effect |
+|---|---|
+| `MODELZOO_NO_AUTO_INSTALL=1` | Never install machine tools — report what is missing and fail. Use on locked-down machines and in images that must not fetch anything. |
+| `PYTHON_BIN=/usr/bin/python3.13` | Force the interpreter used to create `.venv/` |
+| `PYTHON_KEYRING_BACKEND=…` | Defaults to the **null** backend. Poetry otherwise queries the system keyring and aborts mid-install on sessions without an unlocked DBus secret service (`DBusErrorResponse` → `Cannot install <pkg>`). Override only if you add a private package index. |
+| `CI_SKIP_ZENODO=1` | Never touch the network; offline fixtures only |
+
+If a fresh shell cannot find `uv`/`poetry` afterwards, add `export PATH="$HOME/.local/bin:$PATH"`
+to your `~/.bashrc`.
+
+## Running the tests locally
+
+Run the tests before every push — it is faster than waiting for a red pipeline. No setup
+command is required first; each of these bootstraps what it needs.
+
+```bash
+make sample-data    # optional — refreshes the Zenodo fixtures (they are committed already)
 ```
 
 | Command | Runs | When |
@@ -297,6 +341,7 @@ If a (model, dataset) pair is known-broken, add it to `integration_xfail` in `ci
 
 ## Common workflows
 
+- **Fresh clone / new machine:** nothing — `make test` sets everything up. `make doctor` if you want to see the state first.
 - **Before every push:** `make pre-push` (format-check + secrets + lint + unit/smoke).
 - **Before opening an MR:** `make test-all` and `make docs-ci-check`.
 - **After changing `.gitlab-ci.yml`, `ci/policy.yml`, or test structure:** `make docs-ci`
@@ -310,7 +355,13 @@ If a (model, dataset) pair is known-broken, add it to `integration_xfail` in `ci
 in CI); `mypy` for types; `pip-audit` for dependency CVEs (see `ci/policy.yml` `audit_ignore`);
 `py_compile` for the syntax gate; `PyYAML` for the doc generator and validators. Dependencies
 are managed with Poetry groups: `dev` (tooling) and `ci` (the full ML stack); CI installs
-`--with dev,ci`.
+`--with dev,ci`, and locally `make env` does the same.
+
+The machine toolchain itself — `uv`, a supported Python, and `poetry` — is bootstrapped by
+`scripts/ensure_tools.sh`, which every `make` target reaches through `make tools`. `uv` is
+used as the installer for `poetry` (`uv tool install poetry`) and as the fallback Python
+version manager (`uv python install 3.13`); it is not used to resolve project dependencies —
+`poetry.lock` remains the single source of truth.
 
 ## Design decisions & known limitations
 
