@@ -130,11 +130,20 @@ a model or dataset updates this table on the next regeneration.
   and reality can't silently drift apart. In other words, `xfail` = "documented as broken on
   purpose, and CI will tell us the moment it's fixed."
 
-**Today no pair is `xfail`** — `integration_xfail` in `ci/policy.yml` is empty and every pair
-above runs the full pipeline as a hard gate. `MACK-f-data` and `MCBound-f-data` were listed
-there until they were fixed to target F-DATA's real `pclass` column instead of the
-non-existent `mem_compute_bound`. The mechanism stays available for the next genuinely
-known-broken pair — see
+**Today no pair is `xfail`, and the list is deliberately kept empty.** `MACK-f-data` and
+`MCBound-f-data` **currently fail** — they request `output_features=['mem_compute_bound']`,
+a column that exists in no F-DATA file (the real one is `pclass`). That failure is left
+**visible** rather than excused: the fix is a modelling decision owned by the model authors,
+not something CI may paper over. See the `SUGGESTION` blocks in `mack_model.py`,
+`mcbound_model.py` and `f_data.py`, and GitLab issue #10.
+
+> **Ownership.** `ci/`, `tests/`, `.gitlab-ci.yml`, `Makefile`, `scripts/` and `docs/` are
+> maintained by the CI/test maintainer. Everything under `seanergys_modelzoo/` — models,
+> datasets, common base classes — belongs to the model authors. When a test fails because of
+> core code, CI's job is to **report it precisely**, not to fix it and not to hide it.
+
+The `xfail` mechanism stays available, but adding an entry to make a red pipeline green is
+explicitly not what it is for — see
 [How a known-broken pair is marked `xfail`](#how-a-known-broken-pair-is-marked-xfail-the-mechanism).
 
 ## Datasets
@@ -317,19 +326,23 @@ are managed with Poetry groups: `dev` (tooling) and `ci` (the full ML stack); CI
   `importorskip` could only fire on a broken environment — silently skipping and turning
   "nothing tested" into a green run. Import test dependencies directly so a missing dep fails
   loudly at collection.
-- **No pair is currently excused from the pipeline.** `integration_xfail` in `ci/policy.yml`
-  is empty, so nothing is masked: `pytest --runxfail` produces exactly the same result as a
-  normal run. `MACK-f-data` and `MCBound-f-data` were listed there because they targeted
-  `output_features=['mem_compute_bound']`, a column absent from F-DATA; both now target the
-  real `pclass` (memory/compute-bound) column, label-encoded to integer class ids, and MACK's
-  KMeans performance class was moved to its own `kmeans_pclass` column so it no longer
-  clobbers the label.
+- **No pair is excused from the pipeline, and two of them fail.** `integration_xfail` in
+  `ci/policy.yml` is empty, so nothing is masked: `pytest --runxfail` produces exactly the
+  same result as a normal run. `MACK-f-data` and `MCBound-f-data` fail because they target
+  `output_features=['mem_compute_bound']`, a column absent from every F-DATA file — the
+  published memory/compute-bound label is `pclass`. Two further problems surface once that is
+  corrected: MACK reads `df.memory_bw` (the real column is `mbwidth`) and overwrites
+  `df["pclass"]` with a tuple, which torch's `default_collate` rejects. All three are written
+  up as `SUGGESTION` blocks inside the owning source files and tracked in issue #10. **CI
+  reports this; CI does not fix it and does not hide it.**
 
 ## How a known-broken pair is marked `xfail` (the mechanism)
 
-> **The list is empty today.** This section documents the mechanism for the next
-> genuinely known-broken pair; right now nothing is marked `xfail` and every pair is a hard
-> gate. Adding an entry is a deliberate, temporary act — never a way to quiet a red test.
+> **The list is empty today and stays empty.** This section documents the mechanism, not a
+> licence to use it. Two pairs are red right now (`MACK-f-data`, `MCBound-f-data`) and they
+> are deliberately **not** listed here: a defect in a shipped model must be visible in the
+> pipeline. Adding an entry to silence a red test is the one use this mechanism must never
+> be put to.
 
 CI "knows" a pair is expected-to-fail because the **test reads the list from `ci/policy.yml`
 at collection time** and tags exactly those parametrized cases — nothing is hard-coded in

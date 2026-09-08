@@ -64,10 +64,6 @@ class MACK(SeanergysSklearnModel):
         default="google/embeddinggemma-300m",
         description="The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB",
     )
-    label_encoder: Optional[LabelEncoder] = Field(
-        default=None,
-        description="Encoder mapping F-DATA's string `pclass` label to integer class ids.",
-    )
 
     @model_validator(mode="before")
     @classmethod
@@ -178,42 +174,6 @@ class MACK(SeanergysSklearnModel):
         combined_labels = list(zip(flops_labels.tolist(), memory_bw_labels.tolist()))
         return combined_labels
 
-    def encode_kmeans_labels(self, combined_labels: list) -> np.ndarray:
-        """
-        Flatten the (flops_class, memory_bw_class) pairs returned by transform_kmeans
-        into a single integer class id, so they fit in one dataframe column.
-
-        Args:
-            combined_labels: List of (flops_label, memory_bw_label) tuples.
-
-        Returns:
-            Integer array of class ids in [0, k_flops * k_memory_bw).
-        """
-        assert self.k_memory_bw is not None
-        return np.array(
-            [f * self.k_memory_bw + m for f, m in combined_labels], dtype=int
-        )
-
-    def encode_pclass(self, df):
-        """
-        Encode F-DATA's `pclass` memory/compute-bound label into integer class ids.
-
-        F-DATA ships `pclass` as a string ('memory-bound', 'compute-bound'), but
-        XGBoost needs a numeric target and torch's default collate rejects object
-        arrays. The encoder is fitted on first use (training) and reused afterwards,
-        so the training and testing configs agree on the class ids; save() persists it.
-
-        Args:
-            df: The dataframe loaded by the dataset, carrying a `pclass` column.
-
-        Returns:
-            The same dataframe with `pclass` replaced by its integer encoding.
-        """
-        if self.label_encoder is None:
-            self.label_encoder = LabelEncoder().fit(df["pclass"].astype(str))
-        df["pclass"] = self.label_encoder.transform(df["pclass"].astype(str))
-        return df
-
     def parse_job_script(self, script: str):
         out = ""
         for e in script.split("\n"):
@@ -225,6 +185,9 @@ class MACK(SeanergysSklearnModel):
             out += e[:idx].replace("\n", "")
         return out
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same three problems as
+    # in get_train_config below — mem_compute_bound / memory_bw do not exist, and
+    # df["pclass"] is overwritten. See the full SUGGESTION block on get_train_config.
     @classmethod
     def run_dummy_validation(cls):
         """
@@ -239,14 +202,12 @@ class MACK(SeanergysSklearnModel):
         )
         model_fdata.logger.info("Validation on FData")
 
-        # Derive the KMeans performance class, then encode the target label.
+        # Define pclass creation
         def preprocess_fdata(df):
-            df["kmeans_pclass"] = model_fdata.encode_kmeans_labels(
-                model_fdata.transform_kmeans(
-                    df.flops.values, df.mbwidth.values, fit=True
-                )
+            df["pclass"] = model_fdata.transform_kmeans(
+                df.flops.values, df.memory_bw.values, fit=True
             )
-            return model_fdata.encode_pclass(df)
+            return df
 
         fdata = FDataDataset(
             use_zenodo_url=True,
@@ -255,12 +216,47 @@ class MACK(SeanergysSklearnModel):
             preprocessing_functions=[preprocess_fdata],
             filters=[[("adt", "<=", "2021-04-02")]],
             input_features=["embedding"],
-            output_features=["pclass"],
-            columns=["embedding", "pclass", "flops", "mbwidth"],
+            output_features=["mem_compute_bound"],
         )
         data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
         model_fdata.train(train_data_loader=data_loader_fdata)
 
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the three points below, to improve the quality of
+    # the code. NOT APPLIED: this model is owned by its authors, and picking the
+    # target column is a modelling decision, not a test fix. Tracked in GitLab
+    # issue #10. Until it is fixed, test_full_pipeline_offline[MACK-f-data] FAILS
+    # in CI on purpose — the failure is left visible rather than masked with xfail.
+    #
+    # Reproduce:
+    #   CI_SKIP_ZENODO=1 PYTHONPATH=. pytest tests/integration/ -q \
+    #       -k "full_pipeline_offline and MACK"
+    #
+    # 1) output_features=["mem_compute_bound"] — that column exists in NO F-DATA
+    #    file. The dataset projects columns = input_features + output_features at
+    #    read time, so the pair dies at construction, before training:
+    #        ValidationError: No match for FieldRef.Name(mem_compute_bound)
+    #    The published column holding the memory/compute-bound label is `pclass`
+    #    (observed values e.g. 'memory-bound'). SUGGESTED: output_features=["pclass"].
+    #
+    # 2) preprocess_fdata() reads `df.memory_bw`, which does not exist either.
+    #    F-DATA's memory-bandwidth column is `mbwidth`.
+    #    SUGGESTED: df.mbwidth.values.
+    #
+    # 3) preprocess_fdata() writes its KMeans result into df["pclass"], i.e. it
+    #    OVERWRITES the real label column with a (flops_class, mbw_class) tuple.
+    #    A tuple target also breaks the dataloader: torch's default_collate
+    #    rejects the resulting object array ("found object"). SUGGESTED: write the
+    #    derived class to its own column (e.g. `kmeans_pclass`), encode `pclass`
+    #    to integer ids for XGBoost, and widen `columns` to
+    #    ["embedding", "pclass", "flops", "mbwidth"] so preprocessing still gets
+    #    the columns it needs.
+    #
+    # A working patch for all three was measured green end-to-end (train ->
+    # predict -> save -> load) against the committed fixtures; it is attached to
+    # issue #10 for the authors to accept, adapt, or reject.
+    # =====================================================================
     @classmethod
     def get_train_config(
         cls, dataset_name: str = "f-data", get_dummy_data: bool = False
@@ -284,16 +280,11 @@ class MACK(SeanergysSklearnModel):
                 model_hyperparameters={"n_jobs": -1},
             )
 
-            # The KMeans performance class goes to its own column so it does not
-            # clobber `pclass`, which carries F-DATA's memory/compute-bound label
-            # (the target). `mbwidth` is F-DATA's memory-bandwidth column.
             def preprocess_fdata(df):
-                df["kmeans_pclass"] = model_fdata.encode_kmeans_labels(
-                    model_fdata.transform_kmeans(
-                        df.flops.values, df.mbwidth.values, fit=True
-                    )
+                df["pclass"] = model_fdata.transform_kmeans(
+                    df.flops.values, df.memory_bw.values, fit=True
                 )
-                return model_fdata.encode_pclass(df)
+                return df
 
             ds_params = SeanergysDatasetParams(
                 use_zenodo_url=True,
@@ -306,8 +297,7 @@ class MACK(SeanergysSklearnModel):
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                output_features=["pclass"],
-                columns=["embedding", "pclass", "flops", "mbwidth"],
+                output_features=["mem_compute_bound"],
             )
             return {
                 "f-data": (
@@ -319,6 +309,10 @@ class MACK(SeanergysSklearnModel):
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same three problems as
+    # in get_train_config above. Note also that this testing config refits the
+    # KMeans on the test data (fit=True), which leaks test statistics into the
+    # clustering — Mohsen suggests fit=False here once the columns are corrected.
     @classmethod
     def get_test_config(
         cls,
@@ -334,13 +328,12 @@ class MACK(SeanergysSklearnModel):
         if dataset_name == "f-data":
             model.logger.info("Validation on FData")
 
-            # Same split as get_train_config: KMeans class in its own column, the
-            # F-DATA memory/compute-bound label (`pclass`) stays the target.
+            # Define pclass creation
             def preprocess_fdata(df):
-                df["kmeans_pclass"] = model.encode_kmeans_labels(
-                    model.transform_kmeans(df.flops.values, df.mbwidth.values, fit=True)
+                df["pclass"] = model.transform_kmeans(
+                    df.flops.values, df.memory_bw.values, fit=True
                 )
-                return model.encode_pclass(df)
+                return df
 
             fdata = FDataDataset(
                 use_zenodo_url=True,
@@ -353,8 +346,7 @@ class MACK(SeanergysSklearnModel):
                     ("adt", "<=", "2024-02-01"),
                 ],
                 input_features=["embedding"],
-                output_features=["pclass"],
-                columns=["embedding", "pclass", "flops", "mbwidth"],
+                output_features=["mem_compute_bound"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return {"f-data": (model, data_loader_fdata)}
@@ -365,8 +357,7 @@ class MACK(SeanergysSklearnModel):
         self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
         """
-        Persist the estimator, kmeans, label encoder, metadata, and supplementary
-        info to disk.
+        Persist the estimator, kmeans, metadata, and supplementary info to disk.
 
         Args:
             path:     Destination path for the joblib model file.
@@ -393,13 +384,6 @@ class MACK(SeanergysSklearnModel):
                 compress=compress,
             )
             self.logger.info(f"Kmeans memory_bw saved to {path}")
-
-            joblib.dump(
-                self.label_encoder,
-                f"{os.path.join(str(path), 'label_encoder.joblib')}",
-                compress=compress,
-            )
-            self.logger.info(f"Label encoder saved to {path}")
 
             super().save(path=path, compress=compress)
             return True
@@ -433,9 +417,6 @@ class MACK(SeanergysSklearnModel):
             )
             obj.kmeans_memory_bw = joblib.load(
                 f"{os.path.join(str(path), 'kmeans_memory_bw.joblib')}"
-            )
-            obj.label_encoder = joblib.load(
-                f"{os.path.join(str(path), 'label_encoder.joblib')}"
             )
             return obj
 

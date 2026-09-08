@@ -62,10 +62,6 @@ class MCBound(SeanergysSklearnModel):
         default="all-MiniLM-L6-v2",
         description="The weights to use for the SentenceTransformers, if embedding_type == Embdedding.SB",
     )
-    label_encoder: Optional[LabelEncoder] = Field(
-        default=None,
-        description="Encoder mapping F-DATA's string `pclass` label to integer class ids.",
-    )
 
     @model_validator(mode="before")
     @classmethod
@@ -120,26 +116,6 @@ class MCBound(SeanergysSklearnModel):
                 ]
             )
 
-    def encode_pclass(self, df):
-        """
-        Encode F-DATA's `pclass` memory/compute-bound label into integer class ids.
-
-        F-DATA ships `pclass` as a string ('memory-bound', 'compute-bound'), but the
-        RandomForest needs a numeric target and torch's default collate rejects object
-        arrays. The encoder is fitted on first use (training) and reused afterwards,
-        so the training and testing configs agree on the class ids; save() persists it.
-
-        Args:
-            df: The dataframe loaded by the dataset, carrying a `pclass` column.
-
-        Returns:
-            The same dataframe with `pclass` replaced by its integer encoding.
-        """
-        if self.label_encoder is None:
-            self.label_encoder = LabelEncoder().fit(df["pclass"].astype(str))
-        df["pclass"] = self.label_encoder.transform(df["pclass"].astype(str))
-        return df
-
     def embedding_parsing(self, embedding: np.ndarray) -> np.ndarray:
         """
         Parses the precomputed embedding vector to a suitable format for the model
@@ -149,6 +125,36 @@ class MCBound(SeanergysSklearnModel):
         arr[:] = np.array(embedding[0])
         return arr
 
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the target column below, to improve the quality of
+    # the code. NOT APPLIED: this model is owned by its authors, and picking the
+    # target is a modelling decision. Tracked in GitLab issue #10. Until it is
+    # fixed, test_full_pipeline_offline[MCBound-f-data] FAILS in CI on purpose —
+    # the failure is left visible rather than masked with xfail.
+    #
+    # Reproduce:
+    #   CI_SKIP_ZENODO=1 PYTHONPATH=. pytest tests/integration/ -q \
+    #       -k "full_pipeline_offline and MCBound"
+    #
+    # output_features=["mem_compute_bound"] — that column exists in NO F-DATA
+    # file. The dataset projects columns = input_features + output_features at
+    # read time, so the pair dies at construction, before training:
+    #     ValidationError: No match for FieldRef.Name(mem_compute_bound)
+    # The published column holding the memory/compute-bound label is `pclass`.
+    # SUGGESTED: output_features=["pclass"].
+    #
+    # `pclass` ships as a STRING ('memory-bound', ...), so it also needs encoding:
+    # RandomForestClassifier needs a numeric target, and torch's default_collate
+    # rejects the object array a string target produces ("found object"). Mohsen
+    # suggests a preprocessing_functions entry that label-encodes `pclass` with an
+    # encoder fitted once and persisted in save()/load(), so this training config
+    # and get_test_config below agree on the class ids.
+    #
+    # A working patch was measured green end-to-end (train -> predict -> save ->
+    # load) against the committed fixtures; it is attached to issue #10 for the
+    # authors to accept, adapt, or reject.
+    # =====================================================================
     @classmethod
     def get_train_config(
         cls, dataset_name: str = "f-data", get_dummy_data: bool = False
@@ -174,13 +180,12 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
-                preprocessing_functions=[model_fdata.encode_pclass],
                 filters=[
                     ("adt", ">=", "2023-12-01"),
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                output_features=["pclass"],
+                output_features=["mem_compute_bound"],
             )
             return {
                 "f-data": (
@@ -192,6 +197,8 @@ class MCBound(SeanergysSklearnModel):
         else:
             raise Exception("Invalid dataset name. Datasets allowed: 'f-data'")
 
+    # SUGGESTION (Mohsen Seyedkazemi Ardebili, 2026-09-08): same target-column
+    # problem as in get_train_config above. See that SUGGESTION block.
     @classmethod
     def get_test_config(
         cls,
@@ -211,13 +218,12 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["24_02"],
                 transform=model.embedding_parsing,
-                preprocessing_functions=[model.encode_pclass],
                 filters=[
                     ("adt", ">=", "2023-02-01"),
                     ("adt", "<=", "2024-02-28"),
                 ],
                 input_features=["embedding"],
-                output_features=["pclass"],
+                output_features=["mem_compute_bound"],
             )
             data_loader_fdata = SeanergysDataloader(dataset=fdata, batch_size=1)
             return {"f-data": (model, data_loader_fdata)}
@@ -228,8 +234,7 @@ class MCBound(SeanergysSklearnModel):
         self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
         """
-        Persist the estimator, embedder, label encoder, metadata, and supplementary
-        info to disk.
+        Persist the estimator, embedder, metadata, and supplementary info to disk.
 
         Args:
             path:     Destination path for the joblib model file.
@@ -249,14 +254,6 @@ class MCBound(SeanergysSklearnModel):
                 compress=compress,
             )
             self.logger.info(f"Embedder saved to {path}")
-
-            joblib.dump(
-                self.label_encoder,
-                f"{os.path.join(str(path), 'label_encoder.joblib')}",
-                compress=compress,
-            )
-            self.logger.info(f"Label encoder saved to {path}")
-
             super().save(path=path, compress=compress)
             return True
 
@@ -283,9 +280,6 @@ class MCBound(SeanergysSklearnModel):
             obj = super().load(path=path, **kwargs)
             assert isinstance(obj, cls)
             obj.embedder = joblib.load(f"{os.path.join(str(path), 'embedder.joblib')}")
-            obj.label_encoder = joblib.load(
-                f"{os.path.join(str(path), 'label_encoder.joblib')}"
-            )
             return obj
 
         except Exception as e:

@@ -25,23 +25,53 @@ class FDataDataset(SeanergysParquetDataset):
     The dataset is split across 38 monthly parquet files (YY_MM.parquet) covering
     March 2021 to April 2024.
 
-    Key Features (column names are the ones actually published in the parquet
-    files — do not invent friendlier aliases, the reader projects them verbatim):
-    - jid: Unique job identifier
-    - usr: Anonymized user ID
-    - jnam: Anonymized job name
-    - adt / qdt / sdt / edt: Accept, queue, start and end timestamps
-    - ec / exit state: Job exit code and exit state
-    - nnuma / nnumr: Nodes allocated / requested
+    Key Features:
+    - job_id: Unique job identifier
+    - user_encoded: Anonymized user ID
+    - account_encoded: Anonymized account ID
+    - partition: Partition where job was executed
+    - exit_code: Job exit code
+    - n_nodes: Number of nodes allocated
     - duration: Job duration (seconds)
-    - avgpcon / minpcon / maxpcon / econ: Power consumption and energy
+    - power_consumption: Average power consumption (watts)
     - flops: Floating point operations per second
-    - mbwidth: Memory bandwidth
-    - opint: Operational intensity (ratio of computation to memory access)
-    - pclass: Memory/compute bound classification ('memory-bound', ...)
-    - embedding: Precomputed job-script embedding
+    - memory_bandwidth: Memory bandwidth (GB/s)
+    - operational_intensity: Ratio of computation to memory access
+    - mem_compute_bound: Memory/compute bound classification
     - And more...
     """
+
+    # =====================================================================
+    # SUGGESTION — Mohsen Seyedkazemi Ardebili (CI & test maintainer), 2026-09-08
+    # Mohsen suggests changing the docstring above, to improve the quality of
+    # the code. Not applied here: this file is owned by the dataset/model
+    # authors. Tracked in GitLab issue #10.
+    #
+    # WHY: the "Key Features" list above does not match the schema that the
+    # published F-DATA parquet files actually carry, and it is the source of a
+    # real CI failure (see the SUGGESTION blocks in mack_model.py and
+    # mcbound_model.py). Measured on tests/fixtures/sample_data/sample_fdata.parquet:
+    #
+    #     documented name        actual published column
+    #     ---------------------  -----------------------
+    #     job_id                 jid
+    #     user_encoded           usr
+    #     n_nodes                nnuma / nnumr
+    #     power_consumption      avgpcon / minpcon / maxpcon / econ
+    #     memory_bandwidth       mbwidth
+    #     operational_intensity  opint
+    #     mem_compute_bound      pclass      <-- values e.g. 'memory-bound'
+    #
+    # `mem_compute_bound` exists in NO F-DATA file. Because validate_model()
+    # sets `columns = input_features + output_features` and _read_parquet()
+    # projects those columns, any model that asks for a documented-but-absent
+    # name fails at dataset construction with
+    #     "No match for FieldRef.Name(mem_compute_bound)".
+    #
+    # PROPOSED: replace the list with the names the files really publish, and
+    # add a note that the reader projects these names verbatim, so an alias
+    # invented in the docstring becomes a runtime error rather than a typo.
+    # =====================================================================
 
     DATASET_ID: ClassVar[str] = "f-data"
 
