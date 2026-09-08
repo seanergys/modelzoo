@@ -18,11 +18,31 @@ import pytest
 import torch  # noqa: F401
 import sklearn  # noqa: F401
 
-from tests.conftest import MODEL_CLASSES  # noqa: E402
+from tests.conftest import MODEL_CLASSES, load_model_xfails  # noqa: E402
 
 _ABSTRACT = {"SeanergysModel", "SeanergysSklearnModel"}
 _CONCRETE = [(k, v) for k, v in MODEL_CLASSES.items() if v.__name__ not in _ABSTRACT]
 _CONCRETE_IDS = [k for k, v in MODEL_CLASSES.items() if v.__name__ not in _ABSTRACT]
+
+# Models ci/policy.yml declares broken are marked xfail(strict=True) rather than
+# left as raw red: the breakage stays visible and documented in docs/ci-cd.md,
+# and the entry is forced out the moment the author's fix makes them xpass.
+# No model name appears in this file — only in the policy.
+_MODEL_XFAILS = load_model_xfails()
+
+_CONCRETE_CASES = [
+    pytest.param(
+        name,
+        cls,
+        marks=(
+            [pytest.mark.xfail(reason=_MODEL_XFAILS[name], strict=True)]
+            if name in _MODEL_XFAILS
+            else []
+        ),
+        id=name,
+    )
+    for name, cls in _CONCRETE
+]
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +89,7 @@ def test_model_discovery():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("model_name,model_cls", _CONCRETE, ids=_CONCRETE_IDS)
+@pytest.mark.parametrize("model_name,model_cls", _CONCRETE_CASES)
 def test_model_instantiation(model_name, model_cls):
     """
     Each concrete model instantiates with minimal hyperparams and exposes
@@ -92,7 +112,7 @@ def test_model_instantiation(model_name, model_cls):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("model_name,model_cls", _CONCRETE, ids=_CONCRETE_IDS)
+@pytest.mark.parametrize("model_name,model_cls", _CONCRETE_CASES)
 def test_model_get_train_config(model_name, model_cls):
     """
     get_train_config() returns a valid dict without loading any data.

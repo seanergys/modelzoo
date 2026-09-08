@@ -10,6 +10,8 @@ Adding a new model or dataset to the repo automatically adds it to the test suit
 """
 
 import os
+import signal
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Type
 
@@ -28,6 +30,61 @@ def pytest_configure(config):
 # ---------------------------------------------------------------------------
 # Auto-discovery helpers
 # ---------------------------------------------------------------------------
+
+
+# Seconds a model may take to instantiate or to assemble one train config.
+# Both are supposed to be pure in-memory work; anything slower is doing I/O.
+COLLECTION_TIME_BUDGET_S = int(os.environ.get("MODELZOO_COLLECT_TIMEOUT", "20"))
+
+# Models excluded from discovery because they blew the budget above. Recorded so
+# a test can report them instead of the suite silently shrinking.
+SLOW_MODELS: Dict[str, str] = {}
+
+
+class _CollectionTimeout(Exception):
+    pass
+
+
+@contextmanager
+def _time_budget(model_name: str, what: str):
+    """
+    Abort a model's discovery step if it exceeds COLLECTION_TIME_BUDGET_S.
+
+    Discovery must never depend on the network. Constructing a model and asking
+    it for a train config are meant to be in-memory operations: build the
+    estimator, fill in a params object. A model that instead builds a dataset in
+    its constructor turns `pytest --collect-only` into a multi-hundred-MB
+    download, which is how a full run came to hang for minutes.
+
+    We cannot fix that from the test layer — it lives in the model, and the core
+    belongs to its authors (see core_change_requests in ci/policy.yml). What we
+    can do is refuse to hang: the offending model is dropped from discovery and
+    recorded in SLOW_MODELS, and tests/unit/generic/test_discovery_contract.py
+    turns that into a visible failure rather than a suite that quietly shrank.
+
+    SIGALRM is Unix-only; on any platform without it the guard is a no-op and
+    behaviour is exactly as before.
+    """
+    if not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def _fire(_signum, _frame):
+        raise _CollectionTimeout(
+            f"{model_name}: {what} exceeded {COLLECTION_TIME_BUDGET_S}s — "
+            f"it is doing I/O during discovery."
+        )
+
+    previous = signal.signal(signal.SIGALRM, _fire)
+    signal.alarm(COLLECTION_TIME_BUDGET_S)
+    try:
+        yield
+    except _CollectionTimeout as exc:
+        SLOW_MODELS[model_name] = str(exc)
+        raise
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def _collect_model_classes() -> Dict[str, Type]:
@@ -49,7 +106,11 @@ def _collect_model_classes() -> Dict[str, Type]:
         if py_file.name == "__init__.py":
             continue
         try:
-            classes.update(retrieve_instances_from_file(py_file, SeanergysModel))
+            # retrieve_instances_from_file INSTANTIATES each class it finds, so a
+            # model whose constructor loads a dataset would download here — at
+            # import of this conftest, before a single test runs. Budget it.
+            with _time_budget(py_file.stem, "class discovery"):
+                classes.update(retrieve_instances_from_file(py_file, SeanergysModel))
         except Exception:
             continue
     return classes
@@ -153,6 +214,30 @@ def load_known_xfails() -> Dict[str, str]:
     }
 
 
+def load_model_xfails() -> Dict[str, str]:
+    """
+    ci/policy.yml -> model_xfail: { "ModelClassName": "reason" }.
+
+    Models that cannot satisfy the generic lifecycle contract, usually because a
+    core defect stops them being constructed at all. Marked xfail(strict=True) so
+    the fix makes them xpass and forces the entry to be removed.
+    """
+    return {str(k): str(v) for k, v in (load_policy().get("model_xfail") or {}).items()}
+
+
+def load_config_load_xfails() -> Dict[str, str]:
+    """
+    ci/policy.yml -> config_load_xfail: { "Model-dataset_id": "reason" }.
+
+    Pairs whose dataset cannot be LOADED from the model's own config. Narrower
+    than integration_xfail, which covers the whole train/predict pipeline.
+    """
+    return {
+        str(k): str(v)
+        for k, v in (load_policy().get("config_load_xfail") or {}).items()
+    }
+
+
 def load_dataset_scope() -> Dict[str, Dict]:
     """
     ci/policy.yml -> dataset_scope: { "DatasetClassName": {...} }.
@@ -197,7 +282,8 @@ def collect_model_dataset_configs() -> Dict:
     configs: Dict = {}
     for model_name, model_cls in MODEL_CLASSES.items():
         try:
-            instance = model_cls(model_hyperparameters={"n_jobs": 1})
+            with _time_budget(model_name, "instantiation"):
+                instance = model_cls(model_hyperparameters={"n_jobs": 1})
             dataset_ids = [
                 ds.DATASET_ID
                 for ds in (instance.supported_datasets or [])
@@ -208,7 +294,8 @@ def collect_model_dataset_configs() -> Dict:
 
         for dataset_id in dataset_ids:
             try:
-                config = model_cls.get_train_config(dataset_name=dataset_id)
+                with _time_budget(model_name, f"get_train_config({dataset_id})"):
+                    config = model_cls.get_train_config(dataset_name=dataset_id)
             except Exception:
                 continue
             for _entry, (_model, dataset_cls, (ds_params, dl_params)) in config.items():

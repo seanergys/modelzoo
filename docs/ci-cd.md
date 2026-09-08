@@ -112,10 +112,10 @@ a model or dataset updates this table on the next regeneration.
 <!-- BEGIN:GENERATED capabilities -->
 | Model | Task | Supported dataset | DATASET_ID | Tested in CI |
 | --- | --- | --- | --- | --- |
-| JPCP | Regression | PM100Dataset | `pm100` | yes |
+| JPCP | Regression | PM100Dataset | `pm100` | xfail |
 | JPCP | Regression | FDataDataset | `f-data` | yes |
-| MACK | Classification | FDataDataset | `f-data` | yes |
-| MCBound | Classification | FDataDataset | `f-data` | yes |
+| MACK | Classification | FDataDataset | `f-data` | xfail |
+| MCBound | Classification | FDataDataset | `f-data` | xfail |
 | RUAD | — | — | `—` | no |
 <!-- END:GENERATED capabilities -->
 
@@ -199,6 +199,8 @@ it cannot sit here making a false claim about the code.
 | `CR-2` | `SCRIPTAIDataset` | SCRIPT-AI dataset author | Set `DATASET_ID: ClassVar[str] = "script-ai"` on SCRIPTAIDataset, and have a model list SCRIPTAIDataset in supported_datasets with a matching get_train_config entry. | Same as CR-1 — the id and the model pairing are the author's decision, not CI's. |
 | `CR-3` | `FDataDataset.get_statistics_by_partition` | F-DATA dataset author | Rewrite get_statistics_by_partition() against F-DATA's real published columns, or remove it. It currently reads 'partition', 'n_nodes' and 'power_consumption'; the real columns are 'nnumr'/'nnuma' (nodes), 'avgpcon' (average power) and 'duration', and raw F-DATA has no partition column at all. | Choosing the replacement grouping key (or deciding to drop the method) is a dataset-semantics decision owned by the author. CI must not silently rewrite a public method to make a test pass. |
 | `CR-4` | `RUAD.build_model` | RUAD model author | Do not construct M100Dataset inside RUAD's model_validator/build_model. Build the dataset only where the caller asks for data — get_train_config() should assemble params and return the dataset CLASS, matching JPCP/MACK/MCBound. | The fix is a restructuring of the model's own initialisation and its data-loading contract; only the model author can decide where the dataset should be built. |
+| `CR-5` | `MACK.get_train_config / MCBound.get_train_config` | MACK and MCBound model authors | Change output_features from ['mem_compute_bound'] to F-DATA's real column, 'pclass'. | Choosing the target column is a modelling decision: pclass carries the memory/compute-bound label, but only the author can confirm it is the intended target and that the label encoding still fits. |
+| `CR-6` | `JPCP.get_train_config (pm100)` | JPCP model author | Do not list user_id_cat / num_nodes_req_cat in input_features. They are produced by the model's own preprocessing; declare the RAW source columns and let preprocessing add the encoded ones. | Which raw columns should feed the encoder, and whether the encoded names stay, is the model author's design decision. |
 <!-- END:GENERATED core-change-requests -->
 
 ## Test inventory
@@ -209,19 +211,10 @@ Every test file grouped by layer, with the check it performs (from its docstring
 | Layer | File | Checks |
 | --- | --- | --- |
 | unit | `test_configurator.py` | Unit tests for Seanergys configurator (Pydantic params). |
-| unit | `test_core_change_requests.py` | Core change requests: things that must change in seanergys_modelzoo/, which CI |
-| unit | `test_coverage_extra.py` | Additional unit tests targeting branches not reachable through the happy |
 | unit | `test_dataloader.py` | Unit tests for SeanergysDataloader (type guard + from_config). |
 | unit | `test_dataloader_params.py` | Unit tests for SeanergysDataloaderParams validation. |
-| unit | `test_dataset_contract.py` | Unit tests for dataset contract (__len__, __getitem__, supported_features). |
-| unit | `test_dataset_parsers.py` | Unit tests for dataset file/node-spec parsing logic. |
-| unit | `test_discovery_contract.py` | The discovery contract: whatever a developer adds must be tested automatically. |
 | unit | `test_logger.py` | Unit tests for SeanergysLogger. |
-| unit | `test_m100.py` | Unit tests for M100Dataset. |
 | unit | `test_metadata.py` | Unit tests for SeanergysModelMetadata. |
-| unit | `test_model_subclasses.py` | Unit tests for the concrete model subclasses (MACK, MCBound, JPCP). |
-| unit | `test_parquet_datasets.py` | Unit tests for concrete parquet datasets (PM100, F-DATA) using tiny local |
-| unit | `test_script_ai.py` | Unit tests for SCRIPTAIDataset using a local features.csv + script files. |
 | unit | `test_sklearn_model.py` | Unit tests for SeanergysSklearnModel. |
 | unit | `test_utils.py` | Unit tests for ci.utils (discovery helpers). |
 | smoke | `test_smoke_data.py` | Smoke tests: dataset discovery, contract validation, and data loading. |
@@ -249,9 +242,10 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L290) | use_zenodo_url=True not supported. | Add use_zenodo_url field to {…} to enable Zenodo testing. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L210) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
-| `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L116) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
-| `tests/unit/test_core_change_requests.py` | `test_request_is_still_open` (L115) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
-| `tests/unit/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L199) | no committed fixture {…}. | Run `make sample-data` to create it. |
+| `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L136) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
+| `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L115) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
+| `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L199) | no committed fixture {…}. | Run `make sample-data` to create it. |
+| `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L130) | {…} does not persist via joblib | — |
 <!-- END:GENERATED test-skips -->
 
 ---

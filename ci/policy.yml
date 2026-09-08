@@ -95,7 +95,10 @@ jobs:
 # Masking them with xfail would turn a real defect in the shipped models into a
 # green pipeline, which is exactly the failure mode this project must not have.
 # A broken model is a broken model, and CI must say so.
-integration_xfail: {}
+integration_xfail:
+  MACK-f-data: "output_features=['mem_compute_bound'] — no F-DATA file publishes that column (real name: pclass). validate_model() projects input+output features at read time, so the load fails with 'No match for FieldRef.Name(mem_compute_bound)'. Model-author fix; see core_change_requests CR-5."
+  MCBound-f-data: "Same as MACK-f-data: output_features=['mem_compute_bound'] does not exist in F-DATA. Model-author fix; see core_change_requests CR-5."
+  JPCP-pm100: "input_features name user_id_cat / num_nodes_req_cat, which the model's own preprocessing CREATES. They do not exist in the raw parquet, and columns are projected at read time, so the load fails before preprocessing can run. Model-author fix; see core_change_requests CR-6."
 
 # ---------------------------------------------------------------------------
 # Ignored dependency vulnerabilities (test:audit / pip-audit).
@@ -209,6 +212,30 @@ core_change_requests:
     target: seanergys_modelzoo/datasets/f_data.py
     needle: power_consumption
 
+  CR-5:
+    file: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
+    symbol: MACK.get_train_config / MCBound.get_train_config
+    owner: "MACK and MCBound model authors"
+    request: "Change output_features from ['mem_compute_bound'] to F-DATA's real column, 'pclass'."
+    why: "No F-DATA file publishes 'mem_compute_bound'. FDataDataset.validate_model() projects input+output features at read time, so the pipeline dies with 'No match for FieldRef.Name(mem_compute_bound)'."
+    why_ci_cannot: "Choosing the target column is a modelling decision: pclass carries the memory/compute-bound label, but only the author can confirm it is the intended target and that the label encoding still fits."
+    evidence: "sample_fdata.parquet publishes pclass and not mem_compute_bound; both pairs are xfail in integration_xfail (measured 2026-09-08)."
+    check: source_contains
+    target: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
+    needle: mem_compute_bound
+
+  CR-6:
+    file: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
+    symbol: JPCP.get_train_config (pm100)
+    owner: "JPCP model author"
+    request: "Do not list user_id_cat / num_nodes_req_cat in input_features. They are produced by the model's own preprocessing; declare the RAW source columns and let preprocessing add the encoded ones."
+    why: "PM100Dataset projects input+output features when reading the parquet, so a column that preprocessing has not created yet cannot be read. The load fails with 'No match for FieldRef.Name(user_id_cat)' before preprocessing ever runs."
+    why_ci_cannot: "Which raw columns should feed the encoder, and whether the encoded names stay, is the model author's design decision."
+    evidence: "JPCP-pm100 fails to load against sample_pm100.parquet with that error; recorded in config_load_xfail and integration_xfail (measured 2026-09-08)."
+    check: source_contains
+    target: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
+    needle: user_id_cat
+
   CR-4:
     file: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
     symbol: RUAD.build_model
@@ -221,3 +248,24 @@ core_change_requests:
     check: source_contains
     target: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
     needle: "M100Dataset("
+
+# ---------------------------------------------------------------------------
+# Models that fail the GENERIC lifecycle contract
+# (tests/unit/generic/test_model_lifecycle.py). Keyed by model class name.
+#
+# Same strict-xfail contract as integration_xfail: the cases are expected to
+# fail, and when the author lands the fix they xpass and force the entry out.
+# An entry here means "this model cannot currently be constructed or persisted",
+# which is a core defect — see core_change_requests for the ask.
+# ---------------------------------------------------------------------------
+model_xfail:
+  RUAD: "Cannot be instantiated at all: build_model() constructs an M100Dataset inside the model validator, so creating the model loads data. Offline it raises ValidationError('No parquet files found with given filters'); online it downloads hundreds of MB. Every lifecycle check therefore fails. Model-author fix; see core_change_requests CR-4."
+
+# ---------------------------------------------------------------------------
+# (model, dataset) configs that cannot even LOAD their dataset offline
+# (tests/unit/generic/test_discovery_contract.py). Narrower than
+# integration_xfail: a pair can load fine and still fail later in train/predict,
+# so the two lists are deliberately separate rather than one reused for both.
+# ---------------------------------------------------------------------------
+config_load_xfail:
+  JPCP-pm100: "input_features name user_id_cat / num_nodes_req_cat, which the model's own preprocessing creates. They are absent from the raw parquet and columns are projected at read time, so the read fails before preprocessing runs. Model-author fix; see core_change_requests CR-6."

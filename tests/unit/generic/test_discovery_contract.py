@@ -30,19 +30,19 @@ from tests.conftest import (
     MODEL_DATASET_CONFIGS,
     fixture_name_for,
     load_dataset_scope,
-    load_known_xfails,
+    load_config_load_xfails,
     offline_params,
 )
 
 _SCOPE = load_dataset_scope()
-_XFAILS = load_known_xfails()
+_XFAILS = load_config_load_xfails()
 
 _CONFIG_IDS = sorted(MODEL_DATASET_CONFIGS)
 _DATASET_IDS = sorted(DATASET_CLASSES)
 
 
 def _config_cases():
-    """One case per (model, dataset) config, xfail'd per ci/policy.yml."""
+    """One case per (model, dataset) config, xfail'd per ci/policy.yml -> config_load_xfail."""
     cases = []
     for key in _CONFIG_IDS:
         marks = []
