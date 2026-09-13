@@ -15,6 +15,7 @@ Component-specific tests are legitimate — they just belong in
 tests/unit/specific/, which this scan deliberately ignores.
 """
 
+import fnmatch
 import re
 from pathlib import Path
 
@@ -22,7 +23,7 @@ import pytest
 
 import torch  # noqa: F401
 
-from tests.conftest import DATASET_CLASSES, MODEL_CLASSES
+from tests.conftest import DATASET_CLASSES, MODEL_CLASSES, load_policy
 
 _GENERIC_DIR = Path(__file__).resolve().parent
 _SPECIFIC_DIR = _GENERIC_DIR.parent / "specific"
@@ -31,8 +32,21 @@ _SPECIFIC_DIR = _GENERIC_DIR.parent / "specific"
 # when a model or dataset is added.
 _FORBIDDEN = sorted(set(MODEL_CLASSES) | set(DATASET_CLASSES))
 
+# The same allowlist the repo-wide scan uses (ci/policy.yml -> name_scan.exempt),
+# so a file is exempt in one place or in neither. It covers the scanner modules
+# themselves: they receive the names from discovery and must be able to explain
+# the rule in prose.
+_PROJECT_ROOT = _GENERIC_DIR.parents[2]
+_EXEMPT = (load_policy().get("name_scan") or {}).get("exempt") or {}
+
+
+def _exempt(path: Path) -> bool:
+    rel = path.relative_to(_PROJECT_ROOT).as_posix()
+    return any(fnmatch.fnmatch(rel, pattern) for pattern in _EXEMPT)
+
+
 _GENERIC_MODULES = sorted(
-    p for p in _GENERIC_DIR.glob("*.py") if p.name != "__init__.py"
+    p for p in _GENERIC_DIR.glob("*.py") if p.name != "__init__.py" and not _exempt(p)
 )
 
 

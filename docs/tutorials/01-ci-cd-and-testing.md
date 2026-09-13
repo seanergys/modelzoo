@@ -234,6 +234,21 @@ Its important items are:
 The smoke and integration tests use these collections as pytest parameters. Therefore,
 contributors do not maintain a separate hardcoded list in the pipeline.
 
+This is enforced rather than merely encouraged. `tests/unit/generic/test_no_hardcoded_names.py`
+and `tests/unit/generic/test_no_hardcoded_names_repo.py` scan the pipeline file, the Makefile,
+the `ci/` helpers, the scripts and the tests for the names discovery produces — model and
+dataset class names, `DATASET_ID` values, and the `sample_*.parquet` fixture names — and fail
+the unit job if one appears in executable code. Comments and docstrings are not scanned, so
+explaining a rule in prose stays free. A name is allowed only in `tests/unit/specific/`
+(tests that deliberately target one component), in `ci/policy.yml` (records about a component),
+and in `archive/` (retired material). The list of scanned paths and the allowlist live in
+`ci/policy.yml → name_scan`.
+
+A related guarantee: `test_every_supported_pair_is_exercised_or_declared` requires every model
+to produce a working configuration for **every** dataset in its `supported_datasets`, not just
+its default one. A model that advertises three datasets and only works with one now fails,
+instead of quietly contributing a single test case.
+
 For a new model to participate correctly:
 
 1. Put its module below `seanergys_modelzoo/models/tasks/`.
@@ -331,7 +346,20 @@ MODELZOO_NO_AUTO_INSTALL=1 make test
 ```
 
 The integration fixtures are committed to the repository, so the offline tests work
-immediately. `make sample-data` re-downloads them from Zenodo if you need to refresh them.
+immediately. If one is ever missing, you do not have to do anything: the test session checks
+every discovered dataset at start-up and downloads the missing sample itself
+(`tests/fixture_provisioning.py`), whether you run `make test` or `pytest` directly. Existing
+fixtures are never overwritten.
+
+```bash
+make sample-data                       # refresh what is missing, explicitly
+MODELZOO_FIXTURES=force make test      # re-download every fixture first
+MODELZOO_FIXTURES=never make test      # never touch the network (what CI does)
+```
+
+CI runs with `MODELZOO_FIXTURES=never`, because downloading a full Zenodo file on a runner
+exhausts its memory. There, a missing fixture fails the unit job with a message telling you to
+run `make sample-data` locally and commit the result.
 
 During normal development:
 

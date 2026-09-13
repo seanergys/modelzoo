@@ -244,7 +244,9 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L136) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
 | `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L115) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
-| `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L199) | no committed fixture {…}. | Run `make sample-data` to create it. |
+| `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L266) | no committed fixture {…}. | Run `make sample-data` to create it. |
+| `tests/unit/generic/test_discovery_contract.py` | `test_every_supported_pair_is_exercised_or_declared` (L133) | declared broken in ci/policy.yml -> model_xfail: {…} | — |
+| `tests/unit/generic/test_fixture_provisioning.py` | `test_no_undeclared_fixture_gap_when_downloading_is_disabled` (L290) | the fixture download failed, so this cannot be judged here: {…} | Re-run when the source is reachable, or commit the fixture. |
 | `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L130) | {…} does not persist via joblib | — |
 <!-- END:GENERATED test-skips -->
 
@@ -348,6 +350,80 @@ CI_SKIP_ZENODO=1 make test-integration
   against committed fixtures. Any failure names the exact pair **and** stage. Hard gate.
 - **zenodo** (`test:zenodo`, `-m zenodo`) — the same lifecycle against a real `is_dummy=True`
   download from Zenodo. The **only** job that touches the network; warn-only.
+
+## Test fixtures — provisioned automatically
+
+The suite fetches its own data. There is no step a contributor has to remember.
+
+`tests/fixture_provisioning.py` runs from `pytest_sessionstart` (wired in
+`tests/conftest.py`): before any test executes, every **discovered** dataset is checked for
+its sample parquet in `tests/fixtures/sample_data/`, and anything missing is downloaded as a
+small `is_dummy`-sized chunk via `scripts/create_sample_data.py`. A fixture already on disk
+is never re-fetched, so the normal cost is a handful of `stat()` calls.
+
+The same check exists on the make side (`make ensure-fixtures`, a dependency of every
+data-driven target). Both call `create_sample_data.missing_fixtures()`, and
+`tests/unit/generic/test_fixture_provisioning.py` fails if the two ever disagree — so
+`make test` and a bare `pytest` can never differ on whether the suite has its data.
+
+| Environment | Behaviour |
+|---|---|
+| (nothing set) | `auto` — download only what is missing |
+| `MODELZOO_FIXTURES=never` | never download; report the gap and let data tests skip |
+| `MODELZOO_FIXTURES=force` | re-download every fixture, even if present |
+| `CI_SKIP_ZENODO=1` | implies `never` — that flag means "this run does not touch the network" |
+| `MODELZOO_FIXTURE_TIMEOUT` | seconds before a stuck download is abandoned (default 1800) |
+
+**CI sets `MODELZOO_FIXTURES: "never"` globally** in `.gitlab-ci.yml`. The fixtures are
+committed, and fetching one on a runner pulls a multi-hundred-MB Zenodo file into memory,
+which OOM-kills the job (exit 137). So on a runner a missing fixture is a missing *commit*,
+and `test_no_undeclared_fixture_gap_when_downloading_is_disabled` **fails** the unit job with
+that message rather than letting the dataset skip its way to a green pipeline. The escape
+hatch is the same as everywhere else: record the dataset under `dataset_scope` in
+`ci/policy.yml` with the reason it cannot be sampled.
+
+A download that is attempted and fails (an outage at the source) is reported as a SKIP, not
+a failure — an external service being down must not turn an unrelated run red.
+
+## No hardcoded model or dataset names (enforced)
+
+Auto-discovery only delivers its promise — *add a model or dataset, CI exercises it, no test
+edit* — while nothing in the machinery keys its behaviour on a concrete name. Two tests
+enforce that, and both take the names to hunt for **from discovery itself**, so they need no
+maintenance:
+
+| Test | Scans | Rejects |
+|---|---|---|
+| `tests/unit/generic/test_no_hardcoded_names.py` | `tests/unit/generic/` | any mention of a discovered model/dataset class |
+| `tests/unit/generic/test_no_hardcoded_names_repo.py` | `.gitlab-ci.yml`, `Makefile`, `ci/**/*.py`, `scripts/**/*.py`, `tests/**/*.py` | class names, `DATASET_ID` values and `sample_*.parquet` names **in executable content** |
+
+The repo-wide scan separates code from prose: Python is parsed with `ast` (comments are
+invisible, docstrings skipped) and YAML/Makefile are scanned with comment lines stripped.
+`FDataDataset -> sample_fdata.parquet` in a docstring documents the rule and keeps working
+when a dataset is added; `if name == "FDataDataset":` does not.
+
+Where a name IS allowed, and why:
+
+- `tests/unit/specific/` — component tests, where naming the component is the point.
+- `ci/policy.yml` — statements *about* a component (`integration_xfail`, `model_xfail`,
+  `config_load_xfail`, `dataset_scope`, `core_change_requests`).
+- `archive/` — retired material, run by nothing. See `archive/README.md`.
+- prose anywhere.
+
+The surfaces and the allowlist live in `ci/policy.yml → name_scan`, not in the test, so
+widening or narrowing the scan is a reviewable policy change — and every exemption must
+carry a reason and still match a real file.
+
+## Every model, on every dataset it claims
+
+`supported_datasets` is the model author's promise about what the model works with, and
+`test_every_supported_pair_is_exercised_or_declared` holds them to it: for each discovered
+model, **every** declared dataset must yield a usable configuration from
+`get_train_config(<DATASET_ID>)`. Previously a `get_train_config` that raised for one of the
+model's datasets simply dropped that pair from discovery — the model could advertise three
+datasets, be exercised on one, and CI would still report green. Now the gap either gets fixed
+or gets recorded in `ci/policy.yml` (`model_xfail` / `config_load_xfail` / `dataset_scope`)
+and published in the tables above.
 
 ## `is_dummy=True` and memory-safe Zenodo loading
 

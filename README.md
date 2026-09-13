@@ -69,8 +69,10 @@ make pre-push           # format-check + secrets + lint + fast tests
 make ci                 # full local mirror of the GitLab pipeline
 ```
 
-The integration fixtures are committed, so the offline tests need no download.
-`make sample-data` refreshes them from Zenodo. `CI_SKIP_ZENODO=1` forbids any network access.
+The integration fixtures are committed, so the offline tests need no download — and if one
+is ever missing, the test session fetches it itself before running (any discovered dataset,
+no configuration). `make sample-data` refreshes them explicitly; `MODELZOO_FIXTURES=never`
+(implied by `CI_SKIP_ZENODO=1`) forbids any network access.
 
 The full local-development reference lives in [`docs/ci-cd.md`](docs/ci-cd.md).
 

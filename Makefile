@@ -91,9 +91,11 @@ help:
 	@echo "  make deps-check      Verify poetry.lock is in sync (runs before every test)"
 	@echo "  make lock            Regenerate poetry.lock after editing pyproject.toml"
 	@echo ""
-	@echo "Fixtures are automatic: any target that needs data runs ensure-fixtures"
-	@echo "first, which downloads ONLY what is missing. Nothing overwrites an"
-	@echo "existing fixture unless you ask with sample-data-force."
+	@echo "Fixtures are automatic, from both sides: any target that needs data runs"
+	@echo "ensure-fixtures first, AND the test session itself checks every discovered"
+	@echo "dataset at start-up and fetches what is missing (tests/fixture_provisioning.py),"
+	@echo "so a bare 'pytest' behaves like 'make test'. Only missing fixtures are"
+	@echo "downloaded; nothing is overwritten unless you ask with sample-data-force."
 	@echo ""
 	@echo "Before every push:"
 	@echo "  make format          Auto-fix code formatting (run this first)"
@@ -132,6 +134,8 @@ help:
 	@echo ""
 	@echo "Options:"
 	@echo "  CI_SKIP_ZENODO=1 make test-integration     Never touch the network"
+	@echo "  MODELZOO_FIXTURES=never make test          Never auto-download a fixture"
+	@echo "  MODELZOO_FIXTURES=force make test          Refresh every fixture first"
 	@echo "  SAMPLE_MAX_ROWS=50 make sample-data        Limit rows per fixture (default: 100)"
 	@echo "  FORCE_SAMPLE_DATA=1 make sample-data       Refresh fixtures already on disk"
 	@echo "  MODELZOO_NO_AUTO_INSTALL=1 make test       Never install machine tools, only report"
@@ -267,6 +271,12 @@ sample-data-force: env
 	$(PYTHON) scripts/create_sample_data.py --force $(ARGS)
 
 # Automatic fixture guard used by every data-dependent test target.
+#
+# This is the make-side half of fixture provisioning. The other half lives in
+# tests/fixture_provisioning.py, called from pytest_sessionstart, so the same
+# check runs for anyone who invokes pytest directly (an IDE, a bare
+# `.venv/bin/pytest`, the GitLab jobs). Both ask create_sample_data.py the same
+# question — tests/unit/generic/test_fixture_provisioning.py fails if they drift.
 #
 # Checks fixtures PER DATASET, not "is the directory empty" — a half-populated
 # directory (one dataset added, its fixture never generated) used to satisfy the

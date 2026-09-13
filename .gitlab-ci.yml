@@ -23,6 +23,13 @@ variables:
   PYTHONPATH: "${CI_PROJECT_DIR}"
   # Where each test job writes its coverage data file (combined in the coverage stage).
   COVERAGE_DATA_DIR: "$CI_PROJECT_DIR/coverage-data"
+  # Fixture provisioning (tests/fixture_provisioning.py) runs at pytest session
+  # start and fetches any missing sample fixture. That is right on a developer's
+  # machine and wrong on a runner: the fixtures are COMMITTED here, and fetching
+  # one pulls a multi-hundred-MB Zenodo file into memory, which OOM-kills the
+  # runner (exit 137). So CI never downloads — a fixture that is missing is a
+  # missing commit, and the tests say so instead of papering over it.
+  MODELZOO_FIXTURES: "never"
 
 # -----------------------------------------------------------------------------
 # WORKFLOW — one pipeline per change, and make skipping safe.

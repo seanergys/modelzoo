@@ -27,6 +27,37 @@ def pytest_configure(config):
         os.environ.setdefault("PYTHONPATH", root)
 
 
+# Filled in by pytest_sessionstart below; read by
+# tests/unit/generic/test_fixture_provisioning.py and by the
+# `fixture_provisioning` session fixture.
+FIXTURE_REPORT = None
+
+
+def pytest_sessionstart(session):
+    """
+    Check — and if needed fetch — the sample fixtures before any test runs.
+
+    The suite provisions its own data: every discovered dataset is checked for
+    its sample parquet, and anything missing is downloaded as a small
+    is_dummy-sized chunk. Present fixtures are never re-fetched, so the usual
+    cost is a few stat() calls.
+
+    Deliberately at session start rather than behind a per-test fixture: every
+    layer (the discovery contract in unit, the data smoke tests, the whole
+    integration suite) reads the same files, and a new test written by someone
+    else must inherit the behaviour without having to request a fixture by name.
+
+    Never fails the session. If downloading is disabled (CI_SKIP_ZENODO=1,
+    MODELZOO_FIXTURES=never) or the download fails, the affected tests skip with
+    a precise message and tests/unit/generic/test_fixture_provisioning.py
+    reports the gap.
+    """
+    global FIXTURE_REPORT
+    from tests.fixture_provisioning import ensure_sample_fixtures
+
+    FIXTURE_REPORT = ensure_sample_fixtures()
+
+
 # ---------------------------------------------------------------------------
 # Auto-discovery helpers
 # ---------------------------------------------------------------------------
@@ -354,3 +385,14 @@ def sample_data_dir(project_root) -> Path:
     d = project_root / "tests" / "fixtures" / "sample_data"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+@pytest.fixture(scope="session")
+def fixture_provisioning():
+    """
+    The session's fixture-provisioning report (see tests/fixture_provisioning.py).
+
+    Lets a test say WHY a fixture is absent — downloading disabled, or a failed
+    download — instead of reporting a bare "file not found".
+    """
+    return FIXTURE_REPORT

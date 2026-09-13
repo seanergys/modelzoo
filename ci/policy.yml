@@ -269,3 +269,55 @@ model_xfail:
 # ---------------------------------------------------------------------------
 config_load_xfail:
   JPCP-pm100: "input_features name user_id_cat / num_nodes_req_cat, which the model's own preprocessing creates. They are absent from the raw parquet and columns are projected at read time, so the read fails before preprocessing runs. Model-author fix; see core_change_requests CR-6."
+
+# ---------------------------------------------------------------------------
+# Name scan — where a concrete model/dataset name may appear, and where it may not.
+#
+# tests/unit/generic/test_no_hardcoded_names_repo.py scans the CI and test
+# surfaces below for the names produced by auto-discovery (model classes,
+# dataset classes, DATASET_IDs, and the derived fixture file names). A hit in
+# executable code fails the unit job.
+#
+# What counts as a hit: only CODE. Identifiers, attributes, imports and string
+# literals in Python (parsed with ast, so comments are invisible to the scan);
+# non-comment lines in YAML and the Makefile. A name in a docstring or a comment
+# is documentation — "FDataDataset -> sample_fdata.parquet" explains the rule and
+# breaks nothing when a dataset is added — so it is deliberately allowed.
+#
+# `exempt` is the only escape hatch and every entry carries its reason. Adding a
+# path here is a decision to let that file know a name; prefer making the file
+# discovery-driven instead.
+# ---------------------------------------------------------------------------
+name_scan:
+  surfaces:
+    - .gitlab-ci.yml
+    - Makefile
+    - "ci/**/*.py"
+    - "scripts/**/*.py"
+    - "tests/**/*.py"
+  exempt:
+    "tests/unit/specific/**":
+      reason: >-
+        The sanctioned home for component-specific tests. Naming the component is
+        the point: these cover offline branches of one dataset or model (parsers,
+        tar extraction, preprocessing hooks, save/load error paths) that a generic
+        contract cannot reach. Measured on 2026-09-13: removing this directory
+        drops statement coverage of seanergys_modelzoo from 82% to 61%.
+    "tests/unit/generic/test_no_hardcoded_names*.py":
+      reason: >-
+        The scanners themselves. They receive the names from discovery and must be
+        able to mention the mechanism; they hardcode nothing.
+    "ci/policy.yml":
+      reason: >-
+        The designated place for a name. xfail lists, dataset_scope and
+        core_change_requests are CI-owned records about specific components, kept
+        out of test code precisely so the tests stay generic.
+    "scripts/example_*.py":
+      reason: >-
+        User-facing examples, run by nothing in the pipeline. An example exists to
+        show one concrete model on one concrete dataset, so a name is its content,
+        not a defect. The one that no longer matched its model's API was archived
+        instead of exempted — see archive/README.md.
+    "archive/**":
+      reason: >-
+        Retired material, kept for reference and run by nothing. See archive/README.md.

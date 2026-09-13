@@ -31,6 +31,7 @@ from tests.conftest import (
     fixture_name_for,
     load_dataset_scope,
     load_config_load_xfails,
+    load_model_xfails,
     offline_params,
 )
 
@@ -105,6 +106,72 @@ def test_discovered_dataset_declares_dataset_id(dataset_name):
         f"    every concrete dataset to set it; this one left it empty.\n"
         f"  → The dataset's author should add it. Until then, record the dataset under\n"
         f"    'dataset_scope' in ci/policy.yml so the gap is documented, not silent."
+    )
+
+
+@pytest.mark.parametrize("model_name", sorted(MODEL_CLASSES), ids=sorted(MODEL_CLASSES))
+def test_every_supported_pair_is_exercised_or_declared(model_name):
+    """
+    The cross product, not the diagonal: a model must be tested on EVERY dataset
+    it advertises, not just its default one.
+
+    `supported_datasets` is the model author's own promise about what the model
+    works with. Discovery turns each entry into a (model, dataset) configuration
+    by calling get_train_config(dataset_id) — and if that call raises, the pair
+    used to vanish from MODEL_DATASET_CONFIGS with nobody the wiser, so a model
+    could claim three datasets, be exercised on one, and CI would still be green.
+
+    PASS: every dataset the model declares produced a usable configuration.
+    XFAIL-equivalent: the model is declared broken in ci/policy.yml -> model_xfail,
+          so its missing pairs are already accounted for.
+    FAIL: the model advertises a dataset that yields no configuration, and no
+          policy entry explains it.
+    """
+    model_cls = MODEL_CLASSES[model_name]
+
+    if model_name in load_model_xfails():
+        pytest.skip(
+            f"SKIP [{model_name}] declared broken in ci/policy.yml -> model_xfail: "
+            f"{load_model_xfails()[model_name]}"
+        )
+
+    try:
+        instance = model_cls(model_hyperparameters={"n_jobs": 1})
+    except Exception as exc:
+        pytest.fail(
+            f"FAIL [{model_name}] cannot be instantiated ({type(exc).__name__}: {exc}).\n"
+            f"  → Record it in ci/policy.yml -> model_xfail with the owner's fix, or fix it."
+        )
+
+    declared = list(instance.supported_datasets or [])
+    assert declared, (
+        f"FAIL [{model_name}] declares no supported_datasets, so no (model, dataset)\n"
+        f"  case can ever be generated for it and it is effectively untested.\n"
+        f"  → Every model must list the dataset classes it works with."
+    )
+
+    missing = []
+    for dataset_cls in declared:
+        dataset_id = getattr(dataset_cls, "DATASET_ID", "")
+        if not dataset_id:
+            # The dataset itself is incomplete; that gap is owned by
+            # test_discovered_dataset_declares_dataset_id and dataset_scope.
+            if dataset_cls.__name__ in _SCOPE:
+                continue
+            missing.append(f"{dataset_cls.__name__} (no DATASET_ID)")
+            continue
+        if f"{model_name}-{dataset_id}" not in MODEL_DATASET_CONFIGS:
+            missing.append(f"{dataset_cls.__name__} -> {dataset_id}")
+
+    assert not missing, (
+        f"FAIL [{model_name}] advertises datasets that produce no test case: "
+        f"{', '.join(missing)}.\n"
+        f"  → get_train_config(dataset_name=<DATASET_ID>) must return a config for\n"
+        f"    every entry in supported_datasets; otherwise the model is only ever\n"
+        f"    exercised on part of what it claims to support.\n"
+        f"  → If the gap is real and owned by the author, record it in ci/policy.yml\n"
+        f"    (model_xfail / config_load_xfail / dataset_scope) so it is published\n"
+        f"    in docs/ci-cd.md instead of disappearing."
     )
 
 
