@@ -31,7 +31,7 @@ test source files        |             |
   inventory, skips, markers            v
                          |       generated Markdown tables
 ci/policy.yml            |             |
-  human explanations, xfails,          v
+  human explanations, CRs,             v
   audit exceptions, skip notes    docs/ci-cd.md
 ```
 
@@ -55,7 +55,7 @@ The generator currently builds these named blocks:
 | `jobs` | Job, stage, trigger, command summary, and failure result. | `.gitlab-ci.yml` |
 | `triggers` | Plain-language trigger descriptions. | CI rules + `ci/policy.yml` |
 | `rationale` | Gate result and the reason for it. | CI gate status + policy rationale |
-| `capabilities` | Model–dataset combinations and their CI state. | Discovery + policy xfails |
+| `capabilities` | Model–dataset combinations and their CI state (`yes` / `no` — there is no `xfail` state). | Discovery |
 | `datasets` | Discovered datasets and dummy-mode support. | Dataset classes |
 | `test-inventory` | Test files and their purpose. | Test files and module docstrings |
 | `test-skips` | Where tests can skip and how to remove the skip. | Test AST + policy notes |
@@ -277,7 +277,7 @@ Without this variable, `docs:autogen` does not run.
 | Add a dataset | Dataset module | Dataset inventory changes. |
 | Add a test file | `tests/unit`, `tests/smoke`, or `tests/integration` | Test inventory changes. |
 | Add a literal pytest skip | Test source | Skip inventory changes. |
-| Add a known-broken pair | `integration_xfail` in policy | Capability state becomes `xfail`. |
+| Record a defect owed by a model author | `core_change_requests` in policy | It is published with owner + evidence; the failing test stays red. |
 | Add an audit exception | `audit_ignore` in policy | Policy and audit behaviour use the same entry. |
 
 ## 11. Safe workflow for a CI change

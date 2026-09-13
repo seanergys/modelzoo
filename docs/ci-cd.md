@@ -112,10 +112,10 @@ a model or dataset updates this table on the next regeneration.
 <!-- BEGIN:GENERATED capabilities -->
 | Model | Task | Supported dataset | DATASET_ID | Tested in CI |
 | --- | --- | --- | --- | --- |
-| JPCP | Regression | PM100Dataset | `pm100` | xfail |
+| JPCP | Regression | PM100Dataset | `pm100` | yes |
 | JPCP | Regression | FDataDataset | `f-data` | yes |
-| MACK | Classification | FDataDataset | `f-data` | xfail |
-| MCBound | Classification | FDataDataset | `f-data` | xfail |
+| MACK | Classification | FDataDataset | `f-data` | yes |
+| MCBound | Classification | FDataDataset | `f-data` | yes |
 | RUAD | — | — | `—` | no |
 <!-- END:GENERATED capabilities -->
 
@@ -123,29 +123,19 @@ a model or dataset updates this table on the next regeneration.
 
 - **`yes`** — the full train → predict → save → load pipeline runs for this pair and **must
   pass** (a hard gate).
-- **`xfail`** — short for *expected failure*. The pair is **known-broken**, so its test is
-  marked `xfail(strict)`: it still runs, but is *allowed to fail* without turning the
-  pipeline red (you'll see it reported as `XFAIL`, not a failure). **"Strict"** adds a safety
-  net — if the pair ever unexpectedly *passes*, pytest converts that surprise into a real
-  failure (`XPASS`), which forces you to remove the entry from `ci/policy.yml` so the docs
-  and reality can't silently drift apart. In other words, `xfail` = "documented as broken on
-  purpose, and CI will tell us the moment it's fixed."
+- **`no`** — the pair produces no test case at all, because the model cannot be built or the
+  dataset declares no `DATASET_ID`. That is itself a failure
+  (`test_every_supported_pair_is_exercised_or_declared`), not a quiet state.
 
-**Today no pair is `xfail`, and the list is deliberately kept empty.** `MACK-f-data` and
-`MCBound-f-data` **currently fail** — they request `output_features=['mem_compute_bound']`,
-a column that exists in no F-DATA file (the real one is `pclass`). That failure is left
-**visible** rather than excused: the fix is a modelling decision owned by the model authors,
-not something CI may paper over. See the `SUGGESTION` blocks in `mack_model.py`,
-`mcbound_model.py` and `f_data.py`, and GitLab issue #10.
+There is **no `xfail` state**. The lists that produced one (`integration_xfail`,
+`model_xfail`, `config_load_xfail`) were removed on 2026-09-13 — see
+[No expected failures](#no-expected-failures). A pair that is exercised and does not work is
+a **failing test** and a red pipeline.
 
 > **Ownership.** `ci/`, `tests/`, `.gitlab-ci.yml`, `Makefile`, `scripts/` and `docs/` are
 > maintained by the CI/test maintainer. Everything under `seanergys_modelzoo/` — models,
 > datasets, common base classes — belongs to the model authors. When a test fails because of
 > core code, CI's job is to **report it precisely**, not to fix it and not to hide it.
-
-The `xfail` mechanism stays available, but adding an entry to make a red pipeline green is
-explicitly not what it is for — see
-[How a known-broken pair is marked `xfail`](#how-a-known-broken-pair-is-marked-xfail-the-mechanism).
 
 ## Datasets
 
@@ -233,21 +223,20 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 <!-- BEGIN:GENERATED test-skips -->
 | File | Test (line) | Reason | How to remove the skip |
 | --- | --- | --- | --- |
-| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L191) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
-| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L196) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
-| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L209) | {…}/{…}: is_dummy=True returned 0 rows | Implement dummy support in {…}. |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L178) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L183) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
+| `tests/integration/test_model_pipeline.py` | `test_full_pipeline_zenodo` (L196) | {…}/{…}: is_dummy=True returned 0 rows | Implement dummy support in {…}. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_fixture_has_data` (L192) | fixture not found: {…} | Run `make sample-data` to create it. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L262) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L279) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_from_zenodo` (L290) | use_zenodo_url=True not supported. | Add use_zenodo_url field to {…} to enable Zenodo testing. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L210) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
-| `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L136) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
-| `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L115) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
-| `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L266) | no committed fixture {…}. | Run `make sample-data` to create it. |
-| `tests/unit/generic/test_discovery_contract.py` | `test_every_supported_pair_is_exercised_or_declared` (L133) | declared broken in ci/policy.yml -> model_xfail: {…} | — |
+| `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L122) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
+| `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L118) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
+| `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L256) | no committed fixture {…}. | Run `make sample-data` to create it. |
 | `tests/unit/generic/test_fixture_provisioning.py` | `test_no_undeclared_fixture_gap_when_downloading_is_disabled` (L290) | the fixture download failed, so this cannot be judged here: {…} | Re-run when the source is reachable, or commit the fixture. |
-| `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L130) | {…} does not persist via joblib | — |
+| `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L123) | {…} does not persist via joblib | — |
 <!-- END:GENERATED test-skips -->
 
 ---
@@ -405,8 +394,8 @@ when a dataset is added; `if name == "FDataDataset":` does not.
 Where a name IS allowed, and why:
 
 - `tests/unit/specific/` — component tests, where naming the component is the point.
-- `ci/policy.yml` — statements *about* a component (`integration_xfail`, `model_xfail`,
-  `config_load_xfail`, `dataset_scope`, `core_change_requests`).
+- `ci/policy.yml` — statements *about* a component (`dataset_scope`,
+  `core_change_requests`).
 - `archive/` — retired material, run by nothing. See `archive/README.md`.
 - prose anywhere.
 
@@ -422,8 +411,8 @@ model, **every** declared dataset must yield a usable configuration from
 `get_train_config(<DATASET_ID>)`. Previously a `get_train_config` that raised for one of the
 model's datasets simply dropped that pair from discovery — the model could advertise three
 datasets, be exercised on one, and CI would still report green. Now the gap either gets fixed
-or gets recorded in `ci/policy.yml` (`model_xfail` / `config_load_xfail` / `dataset_scope`)
-and published in the tables above.
+or gets recorded in `ci/policy.yml` (`core_change_requests` / `dataset_scope`) and published
+in the tables above — recording it documents the defect, it does not make the test pass.
 
 ## `is_dummy=True` and memory-safe Zenodo loading
 
@@ -452,8 +441,9 @@ no test or table to edit by hand.
    `MODEL_DATASET_PAIRS`, and the smoke/integration/capability tables pick it up on the next
    run. Regenerate this doc with `make docs-ci`.
 
-If a (model, dataset) pair is known-broken, add it to `integration_xfail` in `ci/policy.yml`
-(strict xfail — it auto-alerts when the fix lands) rather than skipping it in test code.
+If a (model, dataset) pair is known-broken, it stays **red**. Record the fix under
+`core_change_requests` in `ci/policy.yml` so the owner, the evidence and the expiry condition
+are published — there is no xfail list and no way to mark a failure as acceptable.
 
 ## Common workflows
 
@@ -493,9 +483,9 @@ version manager (`uv python install 3.13`); it is not used to resolve project de
   `importorskip` could only fire on a broken environment — silently skipping and turning
   "nothing tested" into a green run. Import test dependencies directly so a missing dep fails
   loudly at collection.
-- **No pair is excused from the pipeline, and two of them fail.** `integration_xfail` in
-  `ci/policy.yml` is empty, so nothing is masked: `pytest --runxfail` produces exactly the
-  same result as a normal run. `MACK-f-data` and `MCBound-f-data` fail because they target
+- **No pair is excused from the pipeline, and several fail.** There is no xfail mechanism at
+  all (see [No expected failures](#no-expected-failures)), so `pytest --runxfail` produces
+  exactly the same result as a normal run. `MACK-f-data` and `MCBound-f-data` fail because they target
   `output_features=['mem_compute_bound']`, a column absent from every F-DATA file — the
   published memory/compute-bound label is `pclass`. Two further problems surface once that is
   corrected: MACK reads `df.memory_bw` (the real column is `mbwidth`) and overwrites
@@ -503,65 +493,42 @@ version manager (`uv python install 3.13`); it is not used to resolve project de
   up as `SUGGESTION` blocks inside the owning source files and tracked in issue #10. **CI
   reports this; CI does not fix it and does not hide it.**
 
-## How a known-broken pair is marked `xfail` (the mechanism)
+## No expected failures
 
-> **The list is empty today and stays empty.** This section documents the mechanism, not a
-> licence to use it. Two pairs are red right now (`MACK-f-data`, `MCBound-f-data`) and they
-> are deliberately **not** listed here: a defect in a shipped model must be visible in the
-> pipeline. Adding an entry to silence a red test is the one use this mechanism must never
-> be put to.
+`xfail` was removed from this repository on 2026-09-13. There is no
+`integration_xfail`, no `model_xfail`, no `config_load_xfail`, and no
+`pytest.mark.xfail` anywhere in `tests/`.
 
-CI "knows" a pair is expected-to-fail because the **test reads the list from `ci/policy.yml`
-at collection time** and tags exactly those parametrized cases — nothing is hard-coded in
-the test. The chain is:
+**Why.** A strict `xfail` marks a test that is *allowed* to fail: it still runs, the failure
+is still real, but pytest reports `XFAIL`, the exit code stays `0`, and the pipeline goes
+green. That is a green light over shipped code that does not work. The entries were honest
+and well documented — and the pipeline still said "pass" while three (model, dataset) pairs
+could not load their own data and one model could not be constructed at all. The signal was
+wrong, so the mechanism is gone.
 
-**1. The list lives in `ci/policy.yml`** (shown here with a hypothetical entry; the real
-file has `integration_xfail: {}`):
+**What replaces it.** Nothing suppresses a failure any more:
 
-```yaml
-integration_xfail:
-  SomeModel-some-dataset: "why it is broken, and what the fix depends on"
-```
+| Situation | Before | Now |
+|---|---|---|
+| Model cannot be built | `model_xfail` → XFAIL, green | **FAIL**, red |
+| Pair cannot load its fixture | `config_load_xfail` → XFAIL, green | **FAIL**, red |
+| Pair cannot complete the lifecycle | `integration_xfail` → XFAIL, green | **FAIL**, red |
 
-**2. `tests/integration/conftest.py` reads it** (`load_known_xfails()`) into a dict
-`{"SomeModel-some-dataset": "reason"}` — an empty dict when the section is empty.
+The engineering record did not disappear with the lists: every one of those failures is
+registered under `core_change_requests` in `ci/policy.yml` — with the owner, the evidence,
+and a machine-checkable condition that **fails** the suite when the fix lands so the entry
+must be deleted. The register documents a defect; it does not silence the test.
 
-**3. `tests/integration/test_model_pipeline.py` attaches a strict-xfail marker to matching
-pairs when it builds its parametrization:**
+**Consequence, stated plainly.** `main` is red until the model authors land those fixes.
+That is the intended state: `test:unit` and `test:integration` are hard gates, and the
+failures are
 
-```python
-_XFAILS = load_known_xfails()                           # from policy.yml
+| Failing | Owner | Registered as |
+|---|---|---|
+| `RUAD` — 8 cases (cannot be instantiated; `build_model()` builds a dataset in the validator) | RUAD model author | `CR-4` |
+| `MACK-f-data`, `MCBound-f-data` (`output_features=['mem_compute_bound']` exists in no F-DATA file; the real column is `pclass`) | MACK / MCBound authors | `CR-5` |
+| `JPCP-pm100` — 2 cases (`input_features` name columns the model's own preprocessing creates) | JPCP model author | `CR-6` |
 
-def _pipeline_params():
-    params = []
-    for model_cls, dataset_id in MODEL_DATASET_PAIRS:    # auto-discovered pairs
-        key = f"{model_cls.__name__}-{dataset_id}"       # e.g. "MACK-f-data"
-        marks = []
-        if key in _XFAILS:                               # ← known-broken?
-            marks.append(pytest.mark.xfail(reason=_XFAILS[key], strict=True))
-        params.append(pytest.param(model_cls, dataset_id, id=key, marks=marks))
-    return params
-```
-
-So a listed pair carries `xfail(strict=True)`; every other pair — which today means *all*
-of them — carries no marker and is an ordinary must-pass test.
-
-**4. At run time pytest decides the outcome:**
-
-- The test runs, tries to train, and **raises**. Because the case has an `xfail` marker,
-  pytest records that as **`XFAIL`** — an *accepted* result, **not** a failure. The job exit
-  code stays `0` → the pipeline is green (`… 1 xfailed`). This is exactly why the list must
-  stay empty: an `XFAIL` is a test that is not really testing anything.
-- `strict=True` is the guard: if the test had instead **passed**, pytest records **`XPASS`**
-  and — being strict — converts it into a **real failure** (job red), forcing you to delete
-  the `policy.yml` entry. That is the self-correcting "tell me the moment it's fixed" loop.
-
-**Why the same pair can PASS one test and XFAIL another:** there are two parametrization
-lists on purpose.
-
-| List | Marker | Used by | Result for a listed pair |
-|---|---|---|---|
-| `_PLAIN_PARAMS` | none | `test_get_train_config_structure` (config shape only, no data) | **PASSED** — building the config never loads data |
-| `_PIPELINE_PARAMS` | `xfail(strict)` on known-broken pairs | `test_full_pipeline_offline` / `…_zenodo` (loads data + trains) | **XFAIL** — the real breakage is hit |
-
-With the list empty, both lists behave identically and every pair must pass in both.
+**If you are tempted to bring `xfail` back:** don't. Fix the code, or leave the test red and
+record the request. A suite whose green means "everything works except the parts we agreed to
+ignore" cannot be used as a gate.

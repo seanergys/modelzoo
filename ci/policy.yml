@@ -78,27 +78,32 @@ jobs:
     rationale: "The distributed wheel must import cleanly for consumers — hard gate."
 
 # ---------------------------------------------------------------------------
-# Known-broken (model, dataset) integration pairs.
-# Each entry is "<Model>-<dataset_id>: <reason>". Listed pairs are marked
-# xfail(strict=True) in tests/integration/test_model_pipeline.py — they are
-# EXPECTED to fail pending an author fix, and when the fix lands the test xpasses
-# and forces the entry to be removed. Keep this list empty when all pairs pass.
+# NO xfail. Removed deliberately — decision of 2026-09-13.
+#
+# integration_xfail / model_xfail / config_load_xfail used to mark known-broken
+# (model, dataset) pairs and models as expected failures, so the pipeline stayed
+# green while shipped code was broken. That is exactly the signal this project
+# must not send: a broken model is a broken model, and CI reports it as one.
+#
+# A failing test is now simply a FAILING TEST. Nothing in the test layer marks,
+# skips or tolerates it.
+#
+# The engineering facts those lists carried are not lost — every one of them is
+# registered below under `core_change_requests`, with the owner, the evidence and
+# a machine-checkable condition that FAILS the suite when the fix lands and the
+# entry must be deleted:
+#
+#   MACK-f-data, MCBound-f-data   -> CR-5  (output_features=['mem_compute_bound'],
+#                                           no F-DATA file publishes that column)
+#   JPCP-pm100                    -> CR-6  (input_features name columns the model's
+#                                           own preprocessing creates)
+#   RUAD (cannot be constructed)  -> CR-4  (build_model() builds an M100Dataset
+#                                           inside the model validator)
+#
+# Do not reintroduce an xfail list. If a failure is genuinely owned by someone
+# else, record it in core_change_requests and let the test stay red until they
+# land the fix.
 # ---------------------------------------------------------------------------
-# KEPT EMPTY ON PURPOSE — do not add entries to make a red pipeline green.
-#
-# `MACK-f-data` and `MCBound-f-data` currently FAIL. That is deliberate and
-# visible: both request `output_features=["mem_compute_bound"]`, a column that
-# exists in no F-DATA file (the real one is `pclass`). The fix belongs to the
-# model authors, not to CI — see the SUGGESTION blocks in mack_model.py,
-# mcbound_model.py and f_data.py, and GitLab issue #10.
-#
-# Masking them with xfail would turn a real defect in the shipped models into a
-# green pipeline, which is exactly the failure mode this project must not have.
-# A broken model is a broken model, and CI must say so.
-integration_xfail:
-  MACK-f-data: "output_features=['mem_compute_bound'] — no F-DATA file publishes that column (real name: pclass). validate_model() projects input+output features at read time, so the load fails with 'No match for FieldRef.Name(mem_compute_bound)'. Model-author fix; see core_change_requests CR-5."
-  MCBound-f-data: "Same as MACK-f-data: output_features=['mem_compute_bound'] does not exist in F-DATA. Model-author fix; see core_change_requests CR-5."
-  JPCP-pm100: "input_features name user_id_cat / num_nodes_req_cat, which the model's own preprocessing CREATES. They do not exist in the raw parquet, and columns are projected at read time, so the load fails before preprocessing can run. Model-author fix; see core_change_requests CR-6."
 
 # ---------------------------------------------------------------------------
 # Ignored dependency vulnerabilities (test:audit / pip-audit).
@@ -168,9 +173,8 @@ dataset_scope:
 # Each entry carries a machine-checkable `check`, so
 # tests/unit/test_core_change_requests.py can tell whether the request is still
 # open. When the owner lands the fix the check flips and the test FAILS, telling
-# whoever runs it to delete the entry — the same strict contract as
-# integration_xfail. A request therefore cannot rot: it is either open and
-# documented, or done and removed.
+# whoever runs it to delete the entry. A request therefore cannot rot: it is
+# either open and documented, or done and removed.
 #
 # check kinds:
 #   dataset_missing_dataset_id  — open while <target> leaves DATASET_ID empty
@@ -219,7 +223,7 @@ core_change_requests:
     request: "Change output_features from ['mem_compute_bound'] to F-DATA's real column, 'pclass'."
     why: "No F-DATA file publishes 'mem_compute_bound'. FDataDataset.validate_model() projects input+output features at read time, so the pipeline dies with 'No match for FieldRef.Name(mem_compute_bound)'."
     why_ci_cannot: "Choosing the target column is a modelling decision: pclass carries the memory/compute-bound label, but only the author can confirm it is the intended target and that the label encoding still fits."
-    evidence: "sample_fdata.parquet publishes pclass and not mem_compute_bound; both pairs are xfail in integration_xfail (measured 2026-09-08)."
+    evidence: "sample_fdata.parquet publishes pclass and not mem_compute_bound; both pairs FAIL test_full_pipeline_offline (measured 2026-09-08, re-confirmed 2026-09-13 after the xfail lists were removed)."
     check: source_contains
     target: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
     needle: mem_compute_bound
@@ -231,7 +235,7 @@ core_change_requests:
     request: "Do not list user_id_cat / num_nodes_req_cat in input_features. They are produced by the model's own preprocessing; declare the RAW source columns and let preprocessing add the encoded ones."
     why: "PM100Dataset projects input+output features when reading the parquet, so a column that preprocessing has not created yet cannot be read. The load fails with 'No match for FieldRef.Name(user_id_cat)' before preprocessing ever runs."
     why_ci_cannot: "Which raw columns should feed the encoder, and whether the encoded names stay, is the model author's design decision."
-    evidence: "JPCP-pm100 fails to load against sample_pm100.parquet with that error; recorded in config_load_xfail and integration_xfail (measured 2026-09-08)."
+    evidence: "JPCP-pm100 fails to load against sample_pm100.parquet with that error; it FAILS both test_config_loads_offline_from_committed_fixture and test_full_pipeline_offline (measured 2026-09-08, re-confirmed 2026-09-13)."
     check: source_contains
     target: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
     needle: user_id_cat
@@ -248,27 +252,6 @@ core_change_requests:
     check: source_contains
     target: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
     needle: "M100Dataset("
-
-# ---------------------------------------------------------------------------
-# Models that fail the GENERIC lifecycle contract
-# (tests/unit/generic/test_model_lifecycle.py). Keyed by model class name.
-#
-# Same strict-xfail contract as integration_xfail: the cases are expected to
-# fail, and when the author lands the fix they xpass and force the entry out.
-# An entry here means "this model cannot currently be constructed or persisted",
-# which is a core defect — see core_change_requests for the ask.
-# ---------------------------------------------------------------------------
-model_xfail:
-  RUAD: "Cannot be instantiated at all: build_model() constructs an M100Dataset inside the model validator, so creating the model loads data. Offline it raises ValidationError('No parquet files found with given filters'); online it downloads hundreds of MB. Every lifecycle check therefore fails. Model-author fix; see core_change_requests CR-4."
-
-# ---------------------------------------------------------------------------
-# (model, dataset) configs that cannot even LOAD their dataset offline
-# (tests/unit/generic/test_discovery_contract.py). Narrower than
-# integration_xfail: a pair can load fine and still fail later in train/predict,
-# so the two lists are deliberately separate rather than one reused for both.
-# ---------------------------------------------------------------------------
-config_load_xfail:
-  JPCP-pm100: "input_features name user_id_cat / num_nodes_req_cat, which the model's own preprocessing creates. They are absent from the raw parquet and columns are projected at read time, so the read fails before preprocessing runs. Model-author fix; see core_change_requests CR-6."
 
 # ---------------------------------------------------------------------------
 # Name scan — where a concrete model/dataset name may appear, and where it may not.
@@ -309,9 +292,9 @@ name_scan:
         able to mention the mechanism; they hardcode nothing.
     "ci/policy.yml":
       reason: >-
-        The designated place for a name. xfail lists, dataset_scope and
-        core_change_requests are CI-owned records about specific components, kept
-        out of test code precisely so the tests stay generic.
+        The designated place for a name. dataset_scope and core_change_requests
+        are CI-owned records about specific components, kept out of test code
+        precisely so the tests stay generic.
     "scripts/example_*.py":
       reason: >-
         User-facing examples, run by nothing in the pipeline. An example exists to

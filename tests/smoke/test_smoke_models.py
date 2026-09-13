@@ -18,31 +18,17 @@ import pytest
 import torch  # noqa: F401
 import sklearn  # noqa: F401
 
-from tests.conftest import MODEL_CLASSES, load_model_xfails  # noqa: E402
+from tests.conftest import MODEL_CLASSES  # noqa: E402
 
 _ABSTRACT = {"SeanergysModel", "SeanergysSklearnModel"}
 _CONCRETE = [(k, v) for k, v in MODEL_CLASSES.items() if v.__name__ not in _ABSTRACT]
 _CONCRETE_IDS = [k for k, v in MODEL_CLASSES.items() if v.__name__ not in _ABSTRACT]
 
-# Models ci/policy.yml declares broken are marked xfail(strict=True) rather than
-# left as raw red: the breakage stays visible and documented in docs/ci-cd.md,
-# and the entry is forced out the moment the author's fix makes them xpass.
-# No model name appears in this file — only in the policy.
-_MODEL_XFAILS = load_model_xfails()
-
-_CONCRETE_CASES = [
-    pytest.param(
-        name,
-        cls,
-        marks=(
-            [pytest.mark.xfail(reason=_MODEL_XFAILS[name], strict=True)]
-            if name in _MODEL_XFAILS
-            else []
-        ),
-        id=name,
-    )
-    for name, cls in _CONCRETE
-]
+# No xfail wiring (removed 2026-09-13). A model that cannot be built or used is a
+# FAILING test, not an "expected failure" — the breakage belongs to its author and
+# must stay red until they fix it. The engineering detail lives in ci/policy.yml
+# -> core_change_requests, which names the owner and the evidence.
+_CONCRETE_CASES = [pytest.param(name, cls, id=name) for name, cls in _CONCRETE]
 
 
 # ---------------------------------------------------------------------------

@@ -60,7 +60,7 @@ responsible for four things it cannot know on its own:
 **Pre-merge checklist** (also covered by `make pre-push` / `make docs-ci-check`):
 
 - [ ] Changed `.gitlab-ci.yml` or added/removed a model/dataset/test? → ran `make docs-ci`.
-- [ ] Changed *why* a job blocks/warns, an xfail pair, an ignored CVE, or a skip? → edited
+- [ ] Changed *why* a job blocks/warns, a core change request, an ignored CVE, or a skip? → edited
       the matching `ci/policy.yml` section.
 - [ ] `make docs-ci-check` passes (the doc is not stale).
 - [ ] The regenerated `ci-cd.md` is staged in the same commit.
@@ -97,15 +97,17 @@ sections:
 |---|---|---|
 | `rules:` | One-line description of each trigger anchor (`rules_unit`, `rules_zenodo`, …) | Trigger legend table |
 | `jobs:` | Per-job reason it **blocks vs warns** | Pass/fail table's "Why" column |
-| `integration_xfail:` | Known-broken `(model, dataset)` pairs + reason | `xfail` in the capability matrix; the test code reads it as strict xfail |
+| `core_change_requests:` | Changes owed by the model/dataset authors + owner, evidence, expiry check | "Core change requests" section; a test fails when a request's fix lands so the entry must go |
 | `audit_ignore:` | CVEs with no upstream fix yet + reason | `test:audit` (`--ignore-vuln`, via `ci/audit_ignore_flags.py`) |
 | `skip_notes:` | Implicit skips the AST scan can't see (e.g. empty-parametrize) | Test-skip inventory |
 
 The split is deliberate: the **"what"** (jobs, rules, `allow_failure`) is read from
 `.gitlab-ci.yml` and the code so it can't drift, while the **"why"** and these curated lists
-live in `policy.yml` — the single place a human maintains. Two of the sections
-(`integration_xfail`, `audit_ignore`) are consumed by the CI **and** the docs, so editing
-one line changes both the behaviour and its documentation at once.
+live in `policy.yml` — the single place a human maintains. Several sections
+(`core_change_requests`, `dataset_scope`, `audit_ignore`, `name_scan`) are consumed by the CI
+**and** the docs, so editing one line changes both the behaviour and its documentation at
+once. Note what is deliberately absent: there is no list that marks a failing test as
+acceptable — `xfail` was removed on 2026-09-13.
 
 ## When should I update `ci/policy.yml`?
 
@@ -116,7 +118,7 @@ half-truth. Concretely:
 |---|---|---|
 | You **add a new job**, or change *why* a job blocks vs warns | `jobs:` | The Pass/fail "Why" column is blank / wrong until you do |
 | You **add a new trigger rule anchor** (`.rules_*`) in `.gitlab-ci.yml` | `rules:` | The Trigger legend needs its one-line description |
-| A **(model, dataset) pair is known-broken** (or gets fixed) | `integration_xfail:` | Marks it `xfail` in the matrix; the test uses it as strict xfail. Remove the entry when fixed |
+| A **(model, dataset) pair is known-broken** because of core code | `core_change_requests:` | Publishes the defect, its owner and the evidence. The test stays RED — nothing marks it acceptable. Remove the entry when fixed |
 | `pip-audit` flags a **CVE that has no upstream fix yet** | `audit_ignore:` | Keeps `test:audit` green for it; remove once a patched version ships |
 | A test **skips implicitly** in a way the AST scan can't see (e.g. an empty parametrize) | `skip_notes:` | So it still appears in the Test-skip inventory |
 
@@ -212,7 +214,7 @@ Pick the source that owns the fact — never edit `ci-cd.md`'s tables directly:
   `make docs-ci`. The Jobs / Triggers / Pass-fail tables update themselves.
 - **A model or dataset was added/removed** → nothing to edit; discovery picks it up. Just
   `make docs-ci` and the capability matrix, dataset list, and test inventory refresh.
-- **The rationale (the "why"), an xfail pair, an ignored CVE, or a skip note changed** → edit
+- **The rationale (the "why"), a core change request, an ignored CVE, or a skip note changed** → edit
   `ci/policy.yml` (see [The role of `ci/policy.yml`](#the-role-of-cipolicyyml) for its five
   sections), then `make docs-ci`.
 - **A `pytest.skip(...)` or `@pytest.mark.zenodo` was added/removed** → nothing to edit; the
@@ -241,7 +243,7 @@ owning source (`.gitlab-ci.yml` or `ci/policy.yml`), regenerates, and the tables
 | File | Role |
 |---|---|
 | `ci/gen_capabilities_doc.py` | The generator (parses YAML, discovers code, scans skips, renders tables) |
-| `ci/policy.yml` | Hand-written rationale + ignore/xfail/skip lists |
+| `ci/policy.yml` | Hand-written rationale + core change requests, ignore/skip lists, name-scan policy |
 | `ci/audit_ignore_flags.py` | Emits `--ignore-vuln` flags for `test:audit` from `policy.yml` |
 | `docs/ci-cd.md` | The output: auto-generated tables + hand-written Developer guide |
 | `.gitlab-ci.yml` | The pipeline itself + the `docs:check` / `docs:autogen` jobs |

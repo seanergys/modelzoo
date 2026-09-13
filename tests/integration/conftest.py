@@ -6,9 +6,10 @@ save → load) for every discovered (model, dataset) pair, offline, against the
 committed sample fixtures in tests/fixtures/sample_data/.
 
 Nothing here hardcodes a model or dataset name. Pairs come from each model's
-supported_datasets (see tests/conftest.MODEL_DATASET_PAIRS); pairs that are known
-to be broken pending an author fix are declared in ci/policy.yml (integration_xfail),
-not in test code.
+supported_datasets (see tests/conftest.MODEL_DATASET_PAIRS), and every pair is
+expected to work: there is no xfail list and no tolerated failure. A pair that is
+broken pending an author fix is recorded in ci/policy.yml -> core_change_requests
+and stays RED until the fix lands.
 """
 
 from __future__ import annotations
@@ -16,12 +17,10 @@ from __future__ import annotations
 import contextlib
 import traceback
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_POLICY = _REPO_ROOT / "ci" / "policy.yml"
 
 
 def _integration_data_dir() -> Path:
@@ -140,24 +139,3 @@ def load_pair_from_fixture(model_cls, dataset_id: str, data_dir: Path):
         data_loader_config=dl_params, dataset=dataset
     )
     return model_instance, dataset, loader
-
-
-# ---------------------------------------------------------------------------
-# Known-broken pairs (declared in ci/policy.yml, not in test code)
-# ---------------------------------------------------------------------------
-
-
-def load_known_xfails() -> Dict[str, str]:
-    """
-    Read ci/policy.yml -> integration_xfail: { "Model-dataset_id": "reason" }.
-
-    These pairs are expected to fail pending an author fix; they are marked
-    xfail(strict=True) so that when the fix lands the test xpasses and forces the
-    entry to be removed.
-
-    Delegates to tests.conftest so the unit, smoke and integration layers read
-    the policy through one code path.
-    """
-    from tests.conftest import load_known_xfails as _shared
-
-    return _shared()

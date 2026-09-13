@@ -12,7 +12,7 @@ Nothing here names a concrete model or dataset. Every case is derived from:
 
   * tests/conftest.MODEL_CLASSES / DATASET_CLASSES  (auto-discovery)
   * each model's get_train_config() / supported_datasets  (the author contract)
-  * ci/policy.yml  (dataset_scope, integration_xfail — CI-owned, not test code)
+  * ci/policy.yml  (dataset_scope, core_change_requests — CI-owned, not test code)
 
 No production code is imported for its constants and none is modified. If a
 dataset cannot take part, that is recorded in ci/policy.yml with a reason, so the
@@ -30,27 +30,24 @@ from tests.conftest import (
     MODEL_DATASET_CONFIGS,
     fixture_name_for,
     load_dataset_scope,
-    load_config_load_xfails,
-    load_model_xfails,
     offline_params,
 )
 
 _SCOPE = load_dataset_scope()
-_XFAILS = load_config_load_xfails()
 
 _CONFIG_IDS = sorted(MODEL_DATASET_CONFIGS)
 _DATASET_IDS = sorted(DATASET_CLASSES)
 
 
 def _config_cases():
-    """One case per (model, dataset) config, xfail'd per ci/policy.yml -> config_load_xfail."""
-    cases = []
-    for key in _CONFIG_IDS:
-        marks = []
-        if key in _XFAILS:
-            marks.append(pytest.mark.xfail(reason=_XFAILS[key], strict=True))
-        cases.append(pytest.param(key, marks=marks, id=key))
-    return cases
+    """
+    One case per (model, dataset) config.
+
+    No xfail wiring (removed 2026-09-13): a config that cannot load its own
+    dataset FAILS. The owner and the evidence live in ci/policy.yml ->
+    core_change_requests.
+    """
+    return [pytest.param(key, id=key) for key in _CONFIG_IDS]
 
 
 # ---------------------------------------------------------------------------
@@ -122,25 +119,19 @@ def test_every_supported_pair_is_exercised_or_declared(model_name):
     could claim three datasets, be exercised on one, and CI would still be green.
 
     PASS: every dataset the model declares produced a usable configuration.
-    XFAIL-equivalent: the model is declared broken in ci/policy.yml -> model_xfail,
-          so its missing pairs are already accounted for.
-    FAIL: the model advertises a dataset that yields no configuration, and no
-          policy entry explains it.
+    FAIL: the model advertises a dataset that yields no configuration. There is no
+          xfail escape: the owner and the evidence go in ci/policy.yml ->
+          core_change_requests and the test stays red until the fix lands.
     """
     model_cls = MODEL_CLASSES[model_name]
-
-    if model_name in load_model_xfails():
-        pytest.skip(
-            f"SKIP [{model_name}] declared broken in ci/policy.yml -> model_xfail: "
-            f"{load_model_xfails()[model_name]}"
-        )
 
     try:
         instance = model_cls(model_hyperparameters={"n_jobs": 1})
     except Exception as exc:
         pytest.fail(
             f"FAIL [{model_name}] cannot be instantiated ({type(exc).__name__}: {exc}).\n"
-            f"  → Record it in ci/policy.yml -> model_xfail with the owner's fix, or fix it."
+            f"  → Register the fix under core_change_requests in ci/policy.yml and\n"
+            f"    leave this red until the owner lands it."
         )
 
     declared = list(instance.supported_datasets or [])
@@ -170,8 +161,8 @@ def test_every_supported_pair_is_exercised_or_declared(model_name):
         f"    every entry in supported_datasets; otherwise the model is only ever\n"
         f"    exercised on part of what it claims to support.\n"
         f"  → If the gap is real and owned by the author, record it in ci/policy.yml\n"
-        f"    (model_xfail / config_load_xfail / dataset_scope) so it is published\n"
-        f"    in docs/ci-cd.md instead of disappearing."
+        f"    (core_change_requests / dataset_scope) so it is published in\n"
+        f"    docs/ci-cd.md — the test still stays red until it is fixed."
     )
 
 
@@ -250,7 +241,6 @@ def test_config_loads_offline_from_committed_fixture(config_key, project_root):
 
     PASS: the dataset instantiates offline, has rows, and dataset[0] yields (x, y).
     SKIP: no committed fixture for this dataset yet (run `make sample-data`).
-    XFAIL: the pair is declared broken in ci/policy.yml -> integration_xfail.
     FAIL: the author's config cannot load the real data.
     """
     _model_cls, dataset_cls, ds_params, _dl = MODEL_DATASET_CONFIGS[config_key]

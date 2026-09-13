@@ -277,19 +277,23 @@ cover these dataset classes.
 The live capability table in [`../ci-cd.md`](../ci-cd.md) is authoritative. This tutorial
 is a teaching snapshot and may change less often.
 
-### What `xfail(strict)` means
+### There are no expected failures
 
-A known-broken pair can be listed under `integration_xfail` in `ci/policy.yml`. **The list is
-empty today and is kept that way**: `MACK-f-data` and `MCBound-f-data` fail because of a
-defect in the models themselves, and that failure is left visible instead of excused — fixing
-the models is the authors' call, not CI's. When an entry does exist, pytest still runs that
-integration case:
+This repository has **no `xfail`**. The `integration_xfail`, `model_xfail` and
+`config_load_xfail` lists were removed on 2026-09-13, and no test carries
+`pytest.mark.xfail`.
 
-- If it fails as expected, the result is `XFAIL` and the pipeline can continue.
-- If it unexpectedly passes, strict mode reports `XPASS` as a failure. This tells the team
-  to remove the obsolete exception.
+A strict `xfail` runs the test, lets it fail, reports `XFAIL`, and keeps the exit code at
+`0` — so the pipeline goes green over code that does not work. The entries were accurate and
+documented, and the pipeline still reported "pass" while three (model, dataset) pairs could
+not load their own data and one model could not be constructed at all.
 
-This is safer than silently skipping the test.
+So today: a model that cannot be built, a pair that cannot load its fixture, and a pair that
+cannot finish the lifecycle are all plain **failures**, and `main` stays red until the model
+authors fix them. What each failure is, who owns it and what evidence backs it lives in
+`ci/policy.yml → core_change_requests`, which is published in
+[`../ci-cd.md`](../ci-cd.md#core-change-requests). Recording a request documents the defect —
+it never makes the test pass.
 
 ## 8. Files colleagues should know
 

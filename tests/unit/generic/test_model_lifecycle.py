@@ -21,31 +21,24 @@ import pytest
 import torch  # noqa: F401
 
 from seanergys_modelzoo.models.common.seanergys_model import SeanergysModelTask
-from tests.conftest import MODEL_CLASSES, load_model_xfails
-
-_XFAILS = load_model_xfails()
+from tests.conftest import MODEL_CLASSES
 
 
 def _models():
     """
-    One parametrized case per discovered model, with xfail(strict=True) applied
-    to models ci/policy.yml declares broken. The policy file is the only place a
-    model name appears — never this module.
+    One parametrized case per discovered model.
+
+    No xfail wiring (removed 2026-09-13): a model that cannot satisfy the generic
+    lifecycle contract FAILS. Marking it "expected to fail" kept the pipeline
+    green while shipped code was broken, which is the one signal this suite must
+    never send. The owner and the evidence live in ci/policy.yml ->
+    core_change_requests.
     """
-    cases = []
-    for name, cls in MODEL_CLASSES.items():
-        marks = []
-        if name in _XFAILS:
-            marks.append(pytest.mark.xfail(reason=_XFAILS[name], strict=True))
-        cases.append(pytest.param(cls, marks=marks, id=name))
-    return cases
+    return [pytest.param(cls, id=name) for name, cls in MODEL_CLASSES.items()]
 
 
 _MODEL_CASES = _models()
 
-# Checks that never CONSTRUCT a model get no xfail marks: a model declared broken
-# because its constructor misbehaves can still satisfy them, and a strict xfail
-# would then fail as an unexpected pass.
 _MODEL_CASES_NO_BUILD = list(MODEL_CLASSES.values())
 _MODEL_IDS_NO_BUILD = list(MODEL_CLASSES.keys())
 

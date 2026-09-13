@@ -232,43 +232,6 @@ def load_policy() -> Dict:
         return {}
 
 
-def load_known_xfails() -> Dict[str, str]:
-    """
-    ci/policy.yml -> integration_xfail: { "Model-dataset_id": "reason" }.
-
-    Pairs expected to fail pending an author fix. Marked xfail(strict=True) so a
-    fix makes the test xpass and forces the entry to be removed.
-    """
-    return {
-        str(k): str(v)
-        for k, v in (load_policy().get("integration_xfail") or {}).items()
-    }
-
-
-def load_model_xfails() -> Dict[str, str]:
-    """
-    ci/policy.yml -> model_xfail: { "ModelClassName": "reason" }.
-
-    Models that cannot satisfy the generic lifecycle contract, usually because a
-    core defect stops them being constructed at all. Marked xfail(strict=True) so
-    the fix makes them xpass and forces the entry to be removed.
-    """
-    return {str(k): str(v) for k, v in (load_policy().get("model_xfail") or {}).items()}
-
-
-def load_config_load_xfails() -> Dict[str, str]:
-    """
-    ci/policy.yml -> config_load_xfail: { "Model-dataset_id": "reason" }.
-
-    Pairs whose dataset cannot be LOADED from the model's own config. Narrower
-    than integration_xfail, which covers the whole train/predict pipeline.
-    """
-    return {
-        str(k): str(v)
-        for k, v in (load_policy().get("config_load_xfail") or {}).items()
-    }
-
-
 def load_dataset_scope() -> Dict[str, Dict]:
     """
     ci/policy.yml -> dataset_scope: { "DatasetClassName": {...} }.

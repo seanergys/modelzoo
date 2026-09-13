@@ -14,8 +14,10 @@ Two variants run the same stages:
     Zenodo downloads. Skipped with CI_SKIP_ZENODO=1.
 
 Nothing here hardcodes a model or dataset name. Adding a model and declaring its
-supported_datasets automatically adds its pairs. Pairs known to be broken pending an
-author fix are declared in ci/policy.yml (integration_xfail) — not here.
+supported_datasets automatically adds its pairs. There is no xfail list: every pair
+must complete the lifecycle, and one that cannot is a failing test. A break pending
+an author fix is recorded in ci/policy.yml -> core_change_requests, which names the
+owner and the evidence, and stays red until they land it.
 """
 
 from __future__ import annotations
@@ -26,38 +28,23 @@ import pytest
 
 from tests.conftest import MODEL_DATASET_PAIRS
 from tests.integration.conftest import (
-    load_known_xfails,
     load_pair_from_fixture,
     run_stage,
 )
 
-_XFAILS = load_known_xfails()
-
 
 def _plain_params():
-    """Parametrization with no xfail — used by the structural (no-data) test."""
+    """One case per discovered (model, dataset) pair. No xfail — see below."""
     return [pytest.param(m, d, id=f"{m.__name__}-{d}") for m, d in MODEL_DATASET_PAIRS]
 
 
-def _pipeline_params():
-    """Parametrization with xfail(strict) applied to pairs declared in policy.yml.
-
-    Used only by the full-pipeline tests (which actually load data and run the
-    model), so a broken pair is a documented expected-failure rather than a hard
-    red. The structural test above still runs plainly and must pass for all pairs.
-    """
-    params = []
-    for model_cls, dataset_id in MODEL_DATASET_PAIRS:
-        key = f"{model_cls.__name__}-{dataset_id}"
-        marks = []
-        if key in _XFAILS:
-            marks.append(pytest.mark.xfail(reason=_XFAILS[key], strict=True))
-        params.append(pytest.param(model_cls, dataset_id, id=key, marks=marks))
-    return params
-
-
+# Every pair runs plainly (xfail wiring removed 2026-09-13). A pair that cannot
+# complete the lifecycle is a FAILING test: this is the end-to-end gate, and a
+# green gate over a model that does not run is worse than no gate. The reason a
+# given pair is broken, its owner and the evidence live in ci/policy.yml ->
+# core_change_requests, and are published in docs/ci-cd.md.
 _PLAIN_PARAMS = _plain_params()
-_PIPELINE_PARAMS = _pipeline_params()
+_PIPELINE_PARAMS = _PLAIN_PARAMS
 
 
 # ---------------------------------------------------------------------------

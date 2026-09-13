@@ -245,7 +245,6 @@ def _capabilities(conftest) -> Tuple[List[dict], List[dict]]:
     datasets = getattr(conftest, "DATASET_CLASSES", {})
     pairs = getattr(conftest, "MODEL_DATASET_PAIRS", [])
     tested_ids = {(m.__name__, d) for m, d in pairs}
-    xfails = _load_policy().get("integration_xfail") or {}
 
     cap_rows: List[dict] = []
     for model_name in sorted(models):
@@ -275,12 +274,10 @@ def _capabilities(conftest) -> Tuple[List[dict], List[dict]]:
                 fld = ds_cls.model_fields.get("DATASET_ID")
                 ds_id = getattr(fld, "default", None) if fld else None
             ds_id = ds_id or "—"
-            if f"{model_name}-{ds_id}" in xfails:
-                tested = "xfail"
-            elif (model_name, ds_id) in tested_ids:
-                tested = "yes"
-            else:
-                tested = "no"
+            # No "xfail" state any more: a pair is either exercised or it is not.
+            # A pair that IS exercised and fails shows up as a red pipeline, not
+            # as a tolerated cell in this table.
+            tested = "yes" if (model_name, ds_id) in tested_ids else "no"
             cap_rows.append(
                 {
                     "model": model_name,

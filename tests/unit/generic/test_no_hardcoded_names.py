@@ -84,8 +84,8 @@ def test_generic_module_names_no_model_or_dataset(module):
         "  → A test that genuinely targets one component belongs in\n"
         "    tests/unit/specific/, where naming it is expected.\n"
         "  → If the case is about a KNOWN-BROKEN component, put the name in\n"
-        "    ci/policy.yml (model_xfail / integration_xfail / config_load_xfail)\n"
-        "    instead of in the test."
+        "    ci/policy.yml (core_change_requests / dataset_scope) instead of in\n"
+        "    the test. That documents it; it does not silence the failure."
     )
 
 

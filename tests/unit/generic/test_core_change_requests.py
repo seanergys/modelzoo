@@ -12,9 +12,12 @@ The register is kept honest from both ends:
 
   * a malformed entry fails, so a request cannot be vague about what is wanted,
     why CI cannot do it, or who owns it;
-  * a request whose fix has LANDED fails, so the entry must be deleted. Same
-    strict contract as ci/policy.yml -> integration_xfail. An entry is therefore
-    either open and accurate, or gone.
+  * a request whose fix has LANDED fails, so the entry must be deleted. An entry
+    is therefore either open and accurate, or gone.
+
+Since the xfail lists were removed (2026-09-13) this register is the ONLY place a
+known-broken component is recorded. It documents the defect and its owner — it
+does not suppress the failing test, which stays red until the fix lands.
 
 Nothing here imports a concrete model or dataset by name — the targets come from
 the policy file.

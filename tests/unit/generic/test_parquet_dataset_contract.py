@@ -45,10 +45,10 @@ def _parquet_cases():
     ):
         if not issubclass(dataset_cls, SeanergysParquetDataset):
             continue
-        # No xfail wiring here on purpose: this suite builds its OWN frame from
-        # the columns the config declares, so a pair that fails against the real
-        # fixture (ci/policy.yml -> config_load_xfail) still satisfies this
-        # contract. Conflating the two lists produced strict-XPASS failures.
+        # This suite builds its OWN frame from the columns the config declares,
+        # so it checks the base-class contract rather than the real fixture: a
+        # pair that cannot load its committed sample can still satisfy it. The
+        # fixture-backed check lives in test_discovery_contract.py.
         cases.append(pytest.param(key, id=key))
     return cases
 
