@@ -180,16 +180,18 @@ dataset_scope:
 #   dataset_missing_dataset_id  — open while <target> leaves DATASET_ID empty
 #   dataset_not_consumed        — open while no model lists <target> in supported_datasets
 #   source_contains             — open while <file> still contains <needle>
+#   source_missing              — open while <file> still LACKS <needle> (for a
+#                                 request whose fix adds something)
 # ---------------------------------------------------------------------------
 core_change_requests:
   CR-1:
     file: seanergys_modelzoo/datasets/m100.py
     symbol: M100Dataset
     owner: "M100 dataset author"
-    request: 'Set `DATASET_ID: ClassVar[str] = "m100"` on M100Dataset, and have a model list M100Dataset in supported_datasets with a matching get_train_config(dataset_name="m100") entry.'
+    request: 'Set `DATASET_ID: ClassVar[str] = "m100"` on M100Dataset AND change RUAD.get_train_config / get_test_config to accept that id: they currently key on the invented literal "M100", so even after DATASET_ID is set the call raises ValueError("RUAD only supports M100"). Both halves are needed or the pair still produces no test case.'
     why: 'SeanergysDataset declares `DATASET_ID: ClassVar[str] = ""` with the comment "Every concrete dataset must set this"; M100Dataset leaves it empty. Without it the dataset can never be paired with a model, so it enters no (model, dataset) configuration, no fixture can be built for it, and it contributes zero executed test cases.'
     why_ci_cannot: "Setting it from the test layer would mean CI editing a dataset it does not own, and inventing an id and a model pairing on the author's behalf. CI can only report that the contract is unmet."
-    evidence: "M100Dataset.DATASET_ID == '' and no model's supported_datasets includes it (measured 2026-09-08)."
+    evidence: "M100Dataset.DATASET_ID == '' (measured 2026-09-13). RUAD DOES list M100Dataset in supported_datasets (ruad_model.py:67), so the pair is blocked purely by the empty id plus the case mismatch: get_train_config(dataset_name=\"M100\") at ruad_model.py:236 rejects anything else."
     check: dataset_missing_dataset_id
     target: M100Dataset
 
@@ -218,40 +220,100 @@ core_change_requests:
 
   CR-5:
     file: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
-    symbol: MACK.get_train_config / MCBound.get_train_config
-    owner: "MACK and MCBound model authors"
-    request: "Change output_features from ['mem_compute_bound'] to F-DATA's real column, 'pclass'."
-    why: "No F-DATA file publishes 'mem_compute_bound'. FDataDataset.validate_model() projects input+output features at read time, so the pipeline dies with 'No match for FieldRef.Name(mem_compute_bound)'."
-    why_ci_cannot: "Choosing the target column is a modelling decision: pclass carries the memory/compute-bound label, but only the author can confirm it is the intended target and that the label encoding still fits."
-    evidence: "sample_fdata.parquet publishes pclass and not mem_compute_bound; both pairs FAIL test_full_pipeline_offline (measured 2026-09-08, re-confirmed 2026-09-13 after the xfail lists were removed)."
+    symbol: MACK.get_train_config.preprocess_fdata
+    owner: "MACK model author"
+    request: >-
+      Stop overwriting the real label column: preprocess_fdata() assigns the KMeans
+      result to df["pclass"], which is F-DATA's published memory/compute-bound label.
+      Write the derived class to its own column (e.g. kmeans_pclass) and make the value
+      a scalar class id rather than a (flops_class, mbw_class) tuple. Keep pclass as the
+      target and label-encode it to integer ids for XGBoost.
+    why: >-
+      transform_kmeans() returns list(zip(flops_labels, mbw_labels)) — a list of TUPLES.
+      Assigning that to df["pclass"] produces an object column, and torch's
+      default_collate rejects it, so the pair dies in the dataloader before a single
+      training step. It also destroys the real label, so the model can never be evaluated
+      against the published ground truth.
+    why_ci_cannot: "Which column carries the target, and whether the KMeans class replaces or complements it, is a modelling decision owned by the author. CI can only report that the pair cannot run."
+    evidence: "2026-09-13, test_full_pipeline_offline[MACK-f-data] fails at stage 'dataloader' with TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found object. NOTE — two earlier points of this request have LANDED and are removed: output_features is now ['pclass'] (not 'mem_compute_bound') and preprocessing now reads df.mbwidth (not df.memory_bw). Only the overwrite remains."
     check: source_contains
     target: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
-    needle: mem_compute_bound
+    needle: 'df["pclass"] = model_fdata.transform_kmeans'
+
+  CR-7:
+    file: seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py
+    symbol: MCBound.get_train_config
+    owner: "MCBound model author"
+    request: "Encode the target. The config trains on output_features=['pclass'], which F-DATA publishes as a STRING ('memory-bound', ...). Add a preprocessing_functions entry that label-encodes it to integer ids, and persist the encoder in save()/load() so get_train_config and get_test_config agree on the class ids."
+    why: "A string target is rejected by torch's default_collate (it receives a pandas ArrowStringArray), so the pipeline dies in the dataloader; RandomForestClassifier would also need numeric class ids. The target column itself is correct — only the encoding is missing."
+    why_ci_cannot: "The encoding scheme and where the fitted encoder is persisted are part of the model's own contract; a test-side encoder would not survive save()/load() and would misrepresent what the shipped model does."
+    evidence: "2026-09-13, test_full_pipeline_offline[MCBound-f-data] fails at stage 'dataloader' with TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found <class 'pandas.arrays.ArrowStringArray'>. sample_fdata.parquet types pclass as string (StringDtype)."
+    check: source_missing
+    target: seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py
+    # "preprocessing_functions=" with the equals sign: the bare word already appears
+    # in a comment in this file, so the needle must match the actual keyword argument
+    # that the fix adds to SeanergysDatasetParams.
+    needle: "preprocessing_functions="
 
   CR-6:
     file: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
-    symbol: JPCP.get_train_config (pm100)
-    owner: "JPCP model author"
-    request: "Do not list user_id_cat / num_nodes_req_cat in input_features. They are produced by the model's own preprocessing; declare the RAW source columns and let preprocessing add the encoded ones."
-    why: "PM100Dataset projects input+output features when reading the parquet, so a column that preprocessing has not created yet cannot be read. The load fails with 'No match for FieldRef.Name(user_id_cat)' before preprocessing ever runs."
-    why_ci_cannot: "Which raw columns should feed the encoder, and whether the encoded names stay, is the model author's design decision."
-    evidence: "JPCP-pm100 fails to load against sample_pm100.parquet with that error; it FAILS both test_config_loads_offline_from_committed_fixture and test_full_pipeline_offline (measured 2026-09-08, re-confirmed 2026-09-13)."
+    symbol: "PM100Dataset.validate_model (pm100.py:71-74) / JPCP.get_train_config"
+    owner: "PM100 dataset author (primary) and JPCP model author"
+    request: "Let a model declare DERIVED input features. PM100Dataset.validate_model() unions input_features + output_features into `columns` even when the author passed an explicit `columns` list, and that union becomes the parquet read projection — so a feature created by preprocessing can never be named. Preferred fix (dataset): when `columns` is given, use it as the read projection and validate input/output features against the frame AFTER preprocessing_functions have run. Alternative (model): JPCP stops naming num_nodes_req_cat / user_id_cat in input_features and selects them after preprocessing."
+    why: "JPCP's _preprocess_pm100() label-encodes num_nodes_req and user_id into *_cat columns, exactly as the framework's preprocessing hook intends, but the read projection is computed before preprocessing runs — so the dataset asks the parquet for a column that by design does not exist there yet. As written, no model can use a derived feature on PM100."
+    why_ci_cannot: "The projection rule is part of the dataset's public contract and affects every model that uses it; and which columns JPCP should feed its encoder is the model author's design decision. CI must not change either."
+    evidence: "2026-09-13: PM100Dataset(**JPCP config) raises ValidationError 'No match for FieldRef.Name(num_nodes_req_cat)'. pm100.py:71-74 does `self.columns = list(set(self.columns + self.input_features + self.output_features))`, then load_data() calls pd.read_parquet(columns=self.columns) at :118 and only afterwards applies preprocessing_functions at :126. Two tests fail: test_config_loads_offline_from_committed_fixture[JPCP-pm100] and test_full_pipeline_offline[JPCP-pm100]."
     check: source_contains
     target: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
     needle: user_id_cat
 
   CR-4:
     file: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
-    symbol: RUAD.build_model
+    symbol: RUAD.model_post_init
     owner: "RUAD model author"
-    request: "Do not construct M100Dataset inside RUAD's model_validator/build_model. Build the dataset only where the caller asks for data — get_train_config() should assemble params and return the dataset CLASS, matching JPCP/MACK/MCBound."
-    why: "Instantiating the model has the side effect of loading a dataset, so merely constructing RUAD reaches Zenodo. Every discovery-driven test constructs each model, so model discovery cannot be exercised without network I/O, and CI_SKIP_ZENODO=1 cannot prevent it."
+    request: "Do not construct M100Dataset inside RUAD.model_post_init(). It is built there only to read one sample and derive _input_dim; make the input dimension an explicit field (or defer building the network to the first training batch) so constructing the model is pure. get_train_config() already returns the dataset CLASS + params, matching JPCP/MACK/MCBound — the constructor should do the same."
+    why: >-
+      Constructing the model has the side effect of loading a dataset, so merely
+      instantiating RUAD reaches Zenodo. Every discovery-driven test constructs each
+      model, so model discovery cannot be exercised without network I/O and
+      CI_SKIP_ZENODO=1 cannot prevent it. Offline the constructor raises outright, so
+      RUAD fails every lifecycle, smoke and pairing check.
     why_ci_cannot: "The fix is a restructuring of the model's own initialisation and its data-loading contract; only the model author can decide where the dataset should be built."
-    evidence: "On origin/main merged with this branch, a clean run of `CI_SKIP_ZENODO=1 pytest tests/unit tests/smoke` downloaded ~303 MB into data/7541722 and had not finished after 2 minutes. Later clean runs completed in ~1s fetching only 12 KB, so the cost is network-dependent and intermittent, not constant. RUAD instantiation constructs M100Dataset at ruad_model.py:103 (also :304). Observed 2026-09-08."
-    note: "RUAD lives on origin/main and is not present on this branch, so the check below reports 'not applicable here' until the branches are merged."
+    evidence: "ruad_model.py:103 — model_post_init() constructs M100Dataset(aggregated=True, nodes=self.node_id, is_dummy=False) purely to read dataset[0] and set _input_dim (also at :304 in get_test_config). Offline this raises ValidationError('No parquet files found with given filters'), so 8 tests fail on 2026-09-13: test_model_instantiation[RUAD], test_model_get_train_config[RUAD], test_every_supported_pair_is_exercised_or_declared[RUAD] and five test_model_lifecycle[RUAD] cases. Online an earlier clean run downloaded ~303 MB into data/7541722 before finishing. Note is_dummy=False is hardcoded, so even a dummy run pulls the full data."
     check: source_contains
     target: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
     needle: "M100Dataset("
+
+  CR-8:
+    file: seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py
+    symbol: SeanergysParquetDataset.load_data / preprocessing_functions
+    owner: "Dataset base-class author"
+    request: >-
+      Make preprocessing_functions mean ONE thing. The base class treats each entry as a
+      (columns, fn) tuple and calls fn(df[columns]); PM100Dataset and FDataDataset treat
+      each entry as a plain callable and call fn(df). Pick one contract — the
+      DataFrame-in/DataFrame-out callable used by both concrete datasets is the more
+      capable one, since it can add derived columns — and document it on the field in
+      SeanergysDataset.
+    why: >-
+      The two forms are mutually incompatible: a (columns, fn) tuple passed to PM100 or
+      F-DATA raises when the callable is invoked with a DataFrame, and a plain callable
+      passed to the base class raises "cannot unpack non-sequence function". A model
+      author following the base class contract therefore writes preprocessing that cannot
+      run on any shipped dataset, and there is nothing in the field's description to warn
+      them.
+    why_ci_cannot: >-
+      Choosing the surviving contract changes the public API of every dataset and would
+      silently break any caller written against the other form; that is the dataset
+      authors' decision, not CI's.
+    evidence: >-
+      seanergys_parquet_dataset.py:65 `for columns, fn in self.preprocessing_functions or []`
+      versus pm100.py:126 and f_data.py:367 `for fn in self.preprocessing_functions or []`
+      (read 2026-09-13). SeanergysDataset declares the field as Optional[List[Any]] with no
+      contract stated.
+    check: source_contains
+    target: seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py
+    needle: "for columns, fn in self.preprocessing_functions"
 
 # ---------------------------------------------------------------------------
 # Name scan — where a concrete model/dataset name may appear, and where it may not.

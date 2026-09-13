@@ -31,7 +31,10 @@ import torch  # noqa: F401
 
 from tests.conftest import DATASET_CLASSES, MODEL_DATASET_CONFIGS, load_policy
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# parents[3]: tests/unit/generic/<file> -> repo root. This was
+# parent.parent.parent (= tests/), so every source_contains check found no file
+# and reported SKIP — the register's expiry conditions never actually ran.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _REQUESTS = load_policy().get("core_change_requests") or {}
 _IDS = sorted(_REQUESTS)
 
@@ -48,7 +51,12 @@ _REQUIRED_FIELDS = (
 # Each check answers one question: "is this request still open?"
 # Returning None means the target is not present on this branch, so the request
 # cannot be evaluated here — reported as a skip, never as a silent pass.
-_CHECKS = ("dataset_missing_dataset_id", "dataset_not_consumed", "source_contains")
+_CHECKS = (
+    "dataset_missing_dataset_id",
+    "dataset_not_consumed",
+    "source_contains",
+    "source_missing",
+)
 
 
 def _is_open(entry: dict):
@@ -72,6 +80,14 @@ def _is_open(entry: dict):
         if not path.exists():
             return None
         return str(entry.get("needle")) in path.read_text(encoding="utf-8")
+
+    if kind == "source_missing":
+        # The mirror of source_contains, for a request whose fix ADDS something.
+        # Open while <target> still lacks <needle>; closed once it appears.
+        path = _REPO_ROOT / str(target)
+        if not path.exists():
+            return None
+        return str(entry.get("needle")) not in path.read_text(encoding="utf-8")
 
     raise AssertionError(f"unknown check kind {kind!r}; expected one of {_CHECKS}")
 
