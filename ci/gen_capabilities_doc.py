@@ -583,6 +583,10 @@ def _build_blocks() -> Dict[str, str]:
     cr_tbl = [
         [
             f"`{rid}`",
+            # The GitLab issue carrying the full write-up: evidence, reproduction,
+            # the proposed patch and acceptance criteria. The register keeps the
+            # machine-checkable condition; the issue keeps the conversation.
+            f"#{e['issue']}" if e.get("issue") else "—",
             f"`{e.get('symbol', '—')}`",
             e.get("owner", "—"),
             e.get("request", "—"),
@@ -591,7 +595,8 @@ def _build_blocks() -> Dict[str, str]:
         for rid, e in sorted(cr.items())
     ]
     blocks["core-change-requests"] = _table(
-        ["ID", "Symbol", "Owner", "What must change", "Why CI cannot do it"], cr_tbl
+        ["ID", "Tracker", "Symbol", "Owner", "What must change", "Why CI cannot do it"],
+        cr_tbl,
     )
 
     # Test inventory.

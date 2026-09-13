@@ -186,6 +186,7 @@ dataset_scope:
 core_change_requests:
   CR-1:
     file: seanergys_modelzoo/datasets/m100.py
+    issue: 12
     symbol: M100Dataset
     owner: "M100 dataset author"
     request: 'Set `DATASET_ID: ClassVar[str] = "m100"` on M100Dataset AND change RUAD.get_train_config / get_test_config to accept that id: they currently key on the invented literal "M100", so even after DATASET_ID is set the call raises ValueError("RUAD only supports M100"). Both halves are needed or the pair still produces no test case.'
@@ -197,6 +198,7 @@ core_change_requests:
 
   CR-2:
     file: seanergys_modelzoo/datasets/script_ai.py
+    issue: 18
     symbol: SCRIPTAIDataset
     owner: "SCRIPT-AI dataset author"
     request: 'Set `DATASET_ID: ClassVar[str] = "script-ai"` on SCRIPTAIDataset, and have a model list SCRIPTAIDataset in supported_datasets with a matching get_train_config entry.'
@@ -208,6 +210,7 @@ core_change_requests:
 
   CR-3:
     file: seanergys_modelzoo/datasets/f_data.py
+    issue: 17
     symbol: FDataDataset.get_statistics_by_partition
     owner: "F-DATA dataset author"
     request: "Rewrite get_statistics_by_partition() against F-DATA's real published columns, or remove it. It currently reads 'partition', 'n_nodes' and 'power_consumption'; the real columns are 'nnumr'/'nnuma' (nodes), 'avgpcon' (average power) and 'duration', and raw F-DATA has no partition column at all."
@@ -220,6 +223,7 @@ core_change_requests:
 
   CR-5:
     file: seanergys_modelzoo/models/tasks/performance_prediction/mack/mack_model.py
+    issue: 13
     symbol: MACK.get_train_config.preprocess_fdata
     owner: "MACK model author"
     request: >-
@@ -242,6 +246,7 @@ core_change_requests:
 
   CR-7:
     file: seanergys_modelzoo/models/tasks/performance_prediction/mcbound/mcbound_model.py
+    issue: 14
     symbol: MCBound.get_train_config
     owner: "MCBound model author"
     request: "Encode the target. The config trains on output_features=['pclass'], which F-DATA publishes as a STRING ('memory-bound', ...). Add a preprocessing_functions entry that label-encodes it to integer ids, and persist the encoder in save()/load() so get_train_config and get_test_config agree on the class ids."
@@ -257,6 +262,7 @@ core_change_requests:
 
   CR-6:
     file: seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/jpcp_model.py
+    issue: 15
     symbol: "PM100Dataset.validate_model (pm100.py:71-74) / JPCP.get_train_config"
     owner: "PM100 dataset author (primary) and JPCP model author"
     request: "Let a model declare DERIVED input features. PM100Dataset.validate_model() unions input_features + output_features into `columns` even when the author passed an explicit `columns` list, and that union becomes the parquet read projection — so a feature created by preprocessing can never be named. Preferred fix (dataset): when `columns` is given, use it as the read projection and validate input/output features against the frame AFTER preprocessing_functions have run. Alternative (model): JPCP stops naming num_nodes_req_cat / user_id_cat in input_features and selects them after preprocessing."
@@ -269,6 +275,7 @@ core_change_requests:
 
   CR-4:
     file: seanergys_modelzoo/models/tasks/anomaly_detection/ruad/ruad_model.py
+    issue: 11
     symbol: RUAD.model_post_init
     owner: "RUAD model author"
     request: "Do not construct M100Dataset inside RUAD.model_post_init(). It is built there only to read one sample and derive _input_dim; make the input dimension an explicit field (or defer building the network to the first training batch) so constructing the model is pure. get_train_config() already returns the dataset CLASS + params, matching JPCP/MACK/MCBound — the constructor should do the same."
@@ -286,6 +293,7 @@ core_change_requests:
 
   CR-8:
     file: seanergys_modelzoo/datasets/common/seanergys_parquet_dataset.py
+    issue: 16
     symbol: SeanergysParquetDataset.load_data / preprocessing_functions
     owner: "Dataset base-class author"
     request: >-
