@@ -44,7 +44,30 @@ if __name__ == "__main__":
             input_features=["embedding"],
             output_features=["avgpcon", "nnuma"],
         )
-    
+
+    # Print first 10 elements
+    print_n_elements(data_class=data_class)
+
+    # M100 Loading Example 1
+    # Loading 15-min aggregated dataset of compute node 36.
+    data_class =  M100Dataset(
+        dataset_path="./data",
+        aggregated=True,
+        nodes=36,
+    )
+
+    # Print first 10 elements
+    print_n_elements(data_class=data_class)
+
+    # M100 Loading Example 2
+    # Loading raw data for a specific plugin and metric
+    data_class =  M100Dataset(
+        yy_mm="22-02",
+        dataset_path="./data",
+        plugins=["ipmi_pub"],
+        metrics=["total_power"],
+    )
+
     # Print first 10 elements
     print_n_elements(data_class=data_class)
 
