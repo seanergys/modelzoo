@@ -40,3 +40,4 @@ mohsen.note.txt
 
 # uv lockfile — this project pins with poetry.lock; uv is only used to install tools
 uv.lock
+seanergys_modelzoo/models/tasks/power_consumption_prediction/jpcp/2026-09-15 15:41:22,477 - Senergys logs

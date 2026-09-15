@@ -358,13 +358,30 @@ class RUAD(SeanergysModel):
             return False
 
     @classmethod
+    # def load(cls, path: Union[str, Path] = "./saved_model", **kwargs) -> "RUAD":
+    #     node_id = kwargs.pop("node_id", None)
+    #     if node_id is None:
+    #         raise ValueError("'node_id' is required.")
+
+    #     path = Path(path)
+    @classmethod
     def load(cls, path: Union[str, Path] = "./saved_model", **kwargs) -> "RUAD":
-        node_id = kwargs.pop("node_id", None)
-        if node_id is None:
-            raise ValueError("'node_id' is required.")
-
         path = Path(path)
+        node_id = kwargs.pop("node_id", None)
 
+        if node_id is None:
+            configs = list(path.glob("config_*.joblib"))
+
+            if not configs:
+                raise FileNotFoundError(f"No RUAD config found in: {path}")
+
+            if len(configs) > 1:
+                raise ValueError(
+                    "'node_id' is required when multiple RUAD configs exist."
+                )
+
+            config = joblib.load(configs[0])
+            node_id = config["node_id"]
         config_path = path / f"config_{node_id}.joblib"
         model_path = path / f"ruad_{node_id}.pt"
 
@@ -408,6 +425,8 @@ class RUAD(SeanergysModel):
         obj.is_trained = True
 
         return obj
+
+
 
 
 class RUADEncoder(nn.Module):

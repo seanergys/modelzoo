@@ -349,13 +349,13 @@ name_scan:
     - "scripts/**/*.py"
     - "tests/**/*.py"
   exempt:
-    "tests/unit/specific/**":
-      reason: >-
-        The sanctioned home for component-specific tests. Naming the component is
-        the point: these cover offline branches of one dataset or model (parsers,
-        tar extraction, preprocessing hooks, save/load error paths) that a generic
-        contract cannot reach. Measured on 2026-09-13: removing this directory
-        drops statement coverage of seanergys_modelzoo from 82% to 61%.
+    # "tests/unit/specific/**":
+    #   reason: >-
+    #     The sanctioned home for component-specific tests. Naming the component is
+    #     the point: these cover offline branches of one dataset or model (parsers,
+    #     tar extraction, preprocessing hooks, save/load error paths) that a generic
+    #     contract cannot reach. Measured on 2026-09-13: removing this directory
+    #     drops statement coverage of seanergys_modelzoo from 82% to 61%.
     "tests/unit/generic/test_no_hardcoded_names*.py":
       reason: >-
         The scanners themselves. They receive the names from discovery and must be

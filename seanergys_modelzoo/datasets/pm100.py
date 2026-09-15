@@ -70,8 +70,8 @@ class PM100Dataset(SeanergysParquetDataset):
 
         if self.columns is None:
                     self.columns = self.input_features + self.output_features
-        else:
-            self.columns = list(set(self.columns+self.input_features+self.output_features))
+        # else:
+        #     self.columns = list(set(self.columns+self.input_features+self.output_features))
 
         # Enrich metadata with PM100-specific info
         assert self.metadata is not None
