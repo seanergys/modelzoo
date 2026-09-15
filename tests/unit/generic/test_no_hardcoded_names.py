@@ -49,9 +49,9 @@ _GENERIC_MODULES = sorted(
 )
 
 
-def _offences(path: Path) -> list:
+def _offences(path: Path) -> list[tuple[int, str, str]]:
     """(line_no, name, line) for every concrete model/dataset name in a file."""
-    hits = []
+    hits: list[tuple[int, str, str]] = []
     # This module necessarily *mentions* the idea of names; skip itself.
     if path.name == Path(__file__).name:
         return hits

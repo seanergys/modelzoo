@@ -206,8 +206,8 @@ class RUAD(SeanergysModel):
 
         self.model.eval()
 
-        scores = []
-        labels = []
+        score_batches: List[np.ndarray] = []
+        label_batches: List[np.ndarray] = []
 
         with torch.no_grad():
             for x, y, label in data_loader:
@@ -218,11 +218,11 @@ class RUAD(SeanergysModel):
 
                 score = torch.mean((pred - y) ** 2, dim=1)
 
-                scores.append(score.cpu().numpy())
-                labels.append(label.cpu().numpy())
+                score_batches.append(score.cpu().numpy())
+                label_batches.append(label.cpu().numpy())
 
-        scores = np.concatenate(scores)
-        labels = np.concatenate(labels)
+            scores = np.concatenate(score_batches)
+            labels = np.concatenate(label_batches)
 
         auc = roc_auc_score(labels, scores)
 
@@ -357,13 +357,6 @@ class RUAD(SeanergysModel):
             self.logger.error(f"Save failed: {e}")
             return False
 
-    @classmethod
-    # def load(cls, path: Union[str, Path] = "./saved_model", **kwargs) -> "RUAD":
-    #     node_id = kwargs.pop("node_id", None)
-    #     if node_id is None:
-    #         raise ValueError("'node_id' is required.")
-
-    #     path = Path(path)
     @classmethod
     def load(cls, path: Union[str, Path] = "./saved_model", **kwargs) -> "RUAD":
         path = Path(path)

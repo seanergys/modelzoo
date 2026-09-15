@@ -62,6 +62,8 @@ _CHECKS = (
 def _is_open(entry: dict):
     kind = entry.get("check")
     target = entry.get("target")
+    if not isinstance(target, str):
+        return None
 
     if kind == "dataset_missing_dataset_id":
         dataset_cls = DATASET_CLASSES.get(target)
