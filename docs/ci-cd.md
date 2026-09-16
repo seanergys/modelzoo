@@ -112,6 +112,7 @@ a model or dataset updates this table on the next regeneration.
 <!-- BEGIN:GENERATED capabilities -->
 | Model | Task | Supported dataset | DATASET_ID | Tested in CI |
 | --- | --- | --- | --- | --- |
+| DurationPredictionBull | Regression | FDataDataset | `f-data` | yes |
 | JPCP | Regression | PM100Dataset | `pm100` | yes |
 | JPCP | Regression | FDataDataset | `f-data` | yes |
 | MACK | Classification | FDataDataset | `f-data` | yes |

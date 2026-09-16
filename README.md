@@ -129,6 +129,10 @@ Dataset classes:
 * SCRIPTAIDataset
     * accesses job script data from Zenodo
     * Extends SeanergysDataset
+* DurationPredictionBull
+    * HPC job duration prediction model based on an ensemble of neural networks.
+    * Predicts job duration from job metadata and learned embeddings.
+    * Supports the FDataDataset.
     
 Further classes are being implemented: M100 and IT4I.
 
