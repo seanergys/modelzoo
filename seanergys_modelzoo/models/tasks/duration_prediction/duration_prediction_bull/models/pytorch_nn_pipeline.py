@@ -490,7 +490,11 @@ class NNTorch(BaseEstimator, RegressorMixin):
                 return predicted_classes.cpu().numpy()
 
             elif self.task_type == "regression":
-                outputs = outputs.squeeze()
+                # squeeze(-1) only, not squeeze(): outputs is (n_samples, 1) â€”
+                # a bare squeeze() collapses BOTH dims to a 0-d scalar when
+                # n_samples == 1 (a single live prediction), instead of the
+                # 1-element array every caller downstream expects.
+                outputs = outputs.squeeze(-1)
 
                 if self.is_log_target:
                     outputs = torch.expm1(outputs)
