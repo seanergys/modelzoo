@@ -78,7 +78,7 @@ class MLPTorchModel(torch.nn.Module):
     ):
         super().__init__()
 
-        layers = []
+        layers: list[torch.nn.Module] = []
         previous_shape = input_shape
         for i in range(len(in_nn)):
             layers.append(torch.nn.Linear(previous_shape, in_nn[i]))
@@ -176,7 +176,7 @@ class CNNTorch(torch.nn.Module):
         )
 
         # Dynamic creation of linear layers followed by activation layers
-        layers = []
+        layers: list[torch.nn.Module] = []
         in_features = flattened_size
         for i, (out_features, activation) in enumerate(zip(in_nn, activations)):
             layers.append(torch.nn.Linear(in_features, out_features))
@@ -203,21 +203,23 @@ class CNNTorch(torch.nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, output_shape).
         """
         if isinstance(x, np.ndarray):
-            x = torch.tensor(x, dtype=torch.float32)
+            x_t = torch.tensor(x, dtype=torch.float32)
+        else:
+            x_t = x
 
-        if len(x.shape) == 2:
-            x = x.unsqueeze(1)
+        if len(x_t.shape) == 2:
+            x_t = x_t.unsqueeze(1)
 
-        x = torch.relu(self.conv1(x))
-        x = x.view(x.size(0), -1)
+        x_t = torch.relu(self.conv1(x_t))
+        x_t = x_t.view(x_t.size(0), -1)
 
-        x = self.layers(x)
+        x_t = self.layers(x_t)
 
-        x = self.d2(x)
+        x_t = self.d2(x_t)
 
-        x = self.out(x)
+        x_t = self.out(x_t)
 
-        return x
+        return x_t
 
 
 class MLPTorchModelWithDropout(torch.nn.Module):
@@ -247,7 +249,7 @@ class MLPTorchModelWithDropout(torch.nn.Module):
     ):
         super().__init__()
 
-        layers = []
+        layers: list[torch.nn.Module] = []
         previous_shape = input_shape
         for i in range(len(in_nn)):
             layers.append(torch.nn.Linear(previous_shape, in_nn[i]))

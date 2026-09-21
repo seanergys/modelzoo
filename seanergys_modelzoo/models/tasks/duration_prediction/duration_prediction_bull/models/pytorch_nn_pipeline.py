@@ -13,7 +13,7 @@ import gc
 import json
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import numpy as np
 import torch
@@ -168,9 +168,9 @@ class NNTorch(BaseEstimator, RegressorMixin):
         self.nn_model.to(device)
 
         # Prepare dataset
-        X = torch.tensor(X, dtype=torch.float32, device=device)
-        y = torch.tensor(y, dtype=torch.float32, device=device)
-        dataset = TensorDataset(X, y)
+        X_t = torch.tensor(X, dtype=torch.float32, device=device)
+        y_t = torch.tensor(y, dtype=torch.float32, device=device)
+        dataset = TensorDataset(X_t, y_t)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         optimizer_choice = AdamW(
@@ -256,6 +256,7 @@ class NNTorch(BaseEstimator, RegressorMixin):
             self.history["train_acc"].append(train_metric)
 
             if validation_data is not None:
+                assert val_dataloader is not None
                 val_loss, val_metric = self.validate_model(
                     self.nn_model, val_dataloader, self.cost_function, device
                 )
@@ -479,10 +480,10 @@ class NNTorch(BaseEstimator, RegressorMixin):
         device = next(self.nn_model.parameters()).device
 
         # Convert to tensor and move to device
-        X = torch.tensor(X, dtype=torch.float32).to(device)
+        X_t = torch.tensor(X, dtype=torch.float32).to(device)
 
         with torch.no_grad():
-            outputs = self.nn_model(X)
+            outputs = self.nn_model(X_t)
             if self.task_type == "classification":
                 probabilities = torch.nn.functional.softmax(outputs, dim=1)
                 _, predicted_classes = torch.max(probabilities, 1)
@@ -495,6 +496,8 @@ class NNTorch(BaseEstimator, RegressorMixin):
                     outputs = torch.expm1(outputs)
 
                 return outputs.cpu().numpy()
+
+            raise ValueError(f"Unsupported task_type: {self.task_type}")
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
@@ -513,16 +516,18 @@ class NNTorch(BaseEstimator, RegressorMixin):
 
         # Convert input to tensor if needed
         if not isinstance(X, torch.Tensor):
-            X = torch.tensor(X, dtype=torch.float32).to(device)
+            X_t = torch.tensor(X, dtype=torch.float32).to(device)
+        else:
+            X_t = cast(torch.Tensor, X)
 
         # Get predictions without calculating gradients
         with torch.no_grad():
-            outputs = self.nn_model(X)
+            outputs = self.nn_model(X_t)
 
             # Apply softmax to convert logits to probabilities
             probabilities = torch.nn.functional.softmax(outputs, dim=1)
 
             # Convert to numpy array
-            probabilities = probabilities.cpu().numpy()
+            probabilities_np = probabilities.cpu().numpy()
 
-        return probabilities
+        return probabilities_np

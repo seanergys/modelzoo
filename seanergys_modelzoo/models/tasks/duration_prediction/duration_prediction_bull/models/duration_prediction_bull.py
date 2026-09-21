@@ -16,7 +16,7 @@ during preprocessing.
 """
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import joblib
 import numpy as np
@@ -232,7 +232,11 @@ class DurationPredictionBull(SeanergysModel):
             None.
         """
 
-        train_df = train_data_loader.dataset._df.copy()
+        train_dataset = cast(FDataDataset, train_data_loader.dataset)
+        assert train_dataset._df is not None, (
+            "train_data_loader.dataset has no loaded data"
+        )
+        train_df = train_dataset._df.copy()
 
         train_df = prepare_duration_dataframe(train_df)
 
@@ -245,7 +249,11 @@ class DurationPredictionBull(SeanergysModel):
         validation_data = None
 
         if val_data_loader is not None:
-            val_df = val_data_loader.dataset._df.copy()
+            val_dataset = cast(FDataDataset, val_data_loader.dataset)
+            assert val_dataset._df is not None, (
+                "val_data_loader.dataset has no loaded data"
+            )
+            val_df = val_dataset._df.copy()
 
             val_df = prepare_duration_dataframe(val_df)
 
