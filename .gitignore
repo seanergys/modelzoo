@@ -36,6 +36,7 @@ design/
 mohsen.note.txt
 
 # Toolchain detection cache written by scripts/ensure_tools.sh
+.make
 .make/
 
 # uv lockfile — this project pins with poetry.lock; uv is only used to install tools

@@ -23,6 +23,7 @@ from sklearn.preprocessing import LabelEncoder
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from pydantic import model_validator, Field
+import itertools
 
 from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
     SeanergysSklearnModel,
@@ -138,7 +139,7 @@ class MACK(SeanergysSklearnModel):
             k_memory_bw: Number of clusters for memory bandwidth KMeans
 
         Returns:
-            List of tuples combining flops and memory bandwidth labels
+            List of aggregated labels combining flops and memory bandwidth labels
         """
 
         assert self.kmeans_flops is not None, "kmeans_flops not initialised"
@@ -172,7 +173,11 @@ class MACK(SeanergysSklearnModel):
         memory_bw_labels = label_mapping_memory_bw[memory_bw_labels]
 
         combined_labels = list(zip(flops_labels.tolist(), memory_bw_labels.tolist()))
-        return combined_labels
+
+        # Create label mapping
+        label_mapping = {l:i for i, l in enumerate(itertools.product((j for j in range(self.k_flops)), (k for k in range(self.k_memory_bw))))}
+
+        return [label_mapping[l] for l in combined_labels]
 
     def parse_job_script(self, script: str):
         out = ""
