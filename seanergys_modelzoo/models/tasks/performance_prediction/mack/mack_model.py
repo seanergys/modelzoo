@@ -29,6 +29,7 @@ from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
     SeanergysSklearnModel,
 )
 
+
 class _DenseLabelXGBClassifier(XGBClassifier):
     """XGBClassifier that accepts labels with gaps (e.g. [0, 1, 3])."""
 
@@ -186,7 +187,15 @@ class MACK(SeanergysSklearnModel):
         combined_labels = list(zip(flops_labels.tolist(), memory_bw_labels.tolist()))
 
         # Create label mapping
-        label_mapping = {l:i for i, l in enumerate(itertools.product((j for j in range(self.k_flops)), (k for k in range(self.k_memory_bw))))}
+        label_mapping = {
+            l: i
+            for i, l in enumerate(
+                itertools.product(
+                    (j for j in range(self.k_flops)),
+                    (k for k in range(self.k_memory_bw)),
+                )
+            )
+        }
 
         return [label_mapping[l] for l in combined_labels]
 
@@ -313,7 +322,7 @@ class MACK(SeanergysSklearnModel):
                     ("adt", "<=", "2024-01-31"),
                 ],
                 input_features=["embedding"],
-                columns = ["flops", "mbwidth"],
+                columns=["flops", "mbwidth"],
                 output_features=["pclass"],
             )
             return {

@@ -180,7 +180,7 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["23_12", "24_01"],
                 transform=model_fdata.embedding_parsing,
-                target_transform= lambda pclass: 0 if pclass == "memory-bound" else 1,
+                target_transform=lambda pclass: 0 if pclass == "memory-bound" else 1,
                 filters=[
                     ("adt", ">=", "2023-12-01"),
                     ("adt", "<=", "2024-01-31"),
@@ -219,7 +219,7 @@ class MCBound(SeanergysSklearnModel):
                 is_dummy=get_dummy_data,
                 files=["24_02"],
                 transform=model.embedding_parsing,
-                target_transform= lambda pclass: 0 if pclass == "memory-bound" else 1,
+                target_transform=lambda pclass: 0 if pclass == "memory-bound" else 1,
                 filters=[
                     ("adt", ">=", "2023-02-01"),
                     ("adt", "<=", "2024-02-28"),

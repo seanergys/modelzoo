@@ -37,7 +37,7 @@ class RUAD(SeanergysModel):
     # Default node used only by the ModelZoo CI.
     # AIProduction can instantiate RUAD with the actual node_id.
     DEFAULT_CI_NODE_ID: ClassVar[int] = 36
-    
+
     node_id: int = Field(
         DEFAULT_CI_NODE_ID,
         description=(
@@ -418,8 +418,6 @@ class RUAD(SeanergysModel):
         obj.is_trained = True
 
         return obj
-
-
 
 
 class RUADEncoder(nn.Module):
