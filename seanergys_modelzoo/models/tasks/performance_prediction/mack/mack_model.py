@@ -188,8 +188,8 @@ class MACK(SeanergysSklearnModel):
 
         # Create label mapping
         label_mapping = {
-            l: i
-            for i, l in enumerate(
+            label_key: i
+            for i, label_key in enumerate(
                 itertools.product(
                     (j for j in range(self.k_flops)),
                     (k for k in range(self.k_memory_bw)),
@@ -197,7 +197,7 @@ class MACK(SeanergysSklearnModel):
             )
         }
 
-        return [label_mapping[l] for l in combined_labels]
+        return [label_mapping[label_key] for label_key in combined_labels]
 
     def parse_job_script(self, script: str):
         out = ""
