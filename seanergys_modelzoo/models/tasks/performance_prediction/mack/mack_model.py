@@ -29,6 +29,17 @@ from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
     SeanergysSklearnModel,
 )
 
+class _DenseLabelXGBClassifier(XGBClassifier):
+    """XGBClassifier that accepts labels with gaps (e.g. [0, 1, 3])."""
+
+    def fit(self, X, y, **kwargs):
+        y = np.asarray(y).ravel()
+        self.label_ids_, dense = np.unique(y, return_inverse=True)
+        return super().fit(X, dense, **kwargs)
+
+    def predict(self, X, **kwargs):
+        return self.label_ids_[super().predict(X, **kwargs)]
+
 
 class Embedding(Enum):
     INT = 0  # Input features are mapped to categorical
@@ -73,7 +84,7 @@ class MACK(SeanergysSklearnModel):
         Lock in the estimator class and task type before Pydantic validation,
         while still allowing model_hyperparameters to be customised by the caller.
         """
-        values.setdefault("model_class", XGBClassifier)
+        values.setdefault("model_class", _DenseLabelXGBClassifier)
         values.setdefault("task_type", SeanergysModelTask.CLASSIFICATION)
         values.setdefault("supported_datasets", [FDataDataset])
         values.setdefault(
