@@ -382,22 +382,25 @@ class DurationPredictionBull(SeanergysModel):
 
         Returns:
             bool:
-                True if the model was successfully saved.
+                True if the model was successfully saved, False otherwise.
         """
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
-        joblib.dump(
-            {
-                "model": self.model,
-                "preprocessor": self.preprocessor,
-                "is_trained": self.is_trained,
-                "metadata": self.metadata,
-            },
-            path / "duration_prediction_bull.joblib",
-        )
-
-        return True
+        try:
+            joblib.dump(
+                {
+                    "model": self.model,
+                    "preprocessor": self.preprocessor,
+                    "is_trained": self.is_trained,
+                    "metadata": self.metadata,
+                },
+                path / "duration_prediction_bull.joblib",
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error saving model: {e}")
+            return False
 
     @classmethod
     def load(
