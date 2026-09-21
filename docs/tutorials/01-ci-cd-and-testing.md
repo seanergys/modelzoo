@@ -161,6 +161,21 @@ They check configurators, dataloaders, dataset parsing, metadata, logger behavio
 base classes, concrete models, saving and loading, and error cases. They should be fast and
 should normally avoid network access.
 
+`tests/unit/` has three homes, chosen by what a test is actually testing:
+
+| Home | What goes there | May name a concrete model/dataset? |
+|---|---|---|
+| `tests/unit/` (root) | Shared/common framework code with nothing to discover — one configurator, one dataloader, one logger, one metadata class, the generic sklearn wrapper, `ci/utils.py`. Plain unit tests, not parametrized over discovery. | No |
+| `tests/unit/generic/` | Contract tests parametrized over `MODEL_CLASSES`/`DATASET_CLASSES` (see §6). Adding a model or dataset to the repo extends these automatically, with no test edit. | No |
+| `tests/unit/specific/` | Tests that deliberately target one concrete model or dataset (e.g. one component's preprocessing, parsing quirks, or save/load error paths that a generic contract cannot reach). Naming the component here is the point. | Yes |
+
+The root and `generic/` homes look similar (neither names a component) but differ in *why*:
+root tests have no discovery loop to parametrize over — there is exactly one `SeanergysLogger`
+— while `generic/` tests are defined by iterating discovery output, so the suite grows with the
+repo. A test belongs in `specific/` the moment it imports or names one concrete model/dataset
+class, a `DATASET_ID`, or a fixture filename; `tests/unit/generic/test_no_hardcoded_names.py`
+and `tests/unit/generic/test_no_hardcoded_names_repo.py` enforce this split (see below).
+
 ### Smoke tests: can the main objects be found and created?
 
 Locations:
@@ -304,7 +319,9 @@ it never makes the test pass.
 | `poetry.lock` | Exact resolved dependency versions. |
 | `Makefile` | Short local commands that mirror common CI actions. |
 | `tests/conftest.py` | Automatic model and dataset discovery. |
-| `tests/unit/` | Component tests. |
+| `tests/unit/` | Unit tests of shared/common framework code (no model or dataset named). |
+| `tests/unit/generic/` | Discovery-parametrized contract tests (auto-extend to new models/datasets). |
+| `tests/unit/specific/` | Tests that deliberately target one concrete model or dataset. |
 | `tests/smoke/` | Discovery and construction tests. |
 | `tests/integration/` | Full lifecycle tests. |
 | `tests/fixtures/` | Small committed data used by offline tests. |
