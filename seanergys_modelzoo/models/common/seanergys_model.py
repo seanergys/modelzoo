@@ -13,6 +13,8 @@ from seanergys_modelzoo.models.common.seanergys_model_metadata import (
     SeanergysModelMetadata,
 )
 
+# from seanergys_modelzoo.decorators import pipeline_step
+
 
 class SeanergysModelTask(Enum):
     CLASSIFICATION = 1
@@ -253,3 +255,54 @@ class SeanergysModel(BaseModel, ABC):
         ]
 
         return "\n".join(summary_lines)
+
+    # @pipeline_step(name="train_step", retries=1)
+    # def train_step(
+    #     self,
+    #     train_data_loader: SeanergysDataloader,
+    #     val_data_loader: Optional[SeanergysDataloader] = None,
+    # ) -> Dict[str, List[float]]:
+    #     """Pipeline entry point: delegates to self.train()."""
+    #     return self.train(train_data_loader, val_data_loader)
+
+    # @pipeline_step(name="evaluate_step")
+    # def evaluate_step(
+    #     self,
+    #     data_loader: SeanergysDataloader,
+    #     metrics: Optional[List[Callable]] = None,
+    # ) -> List:
+    #     """Pipeline entry point: delegates to self.evaluate()."""
+    #     return self.evaluate(data_loader, metrics)
+
+    # @pipeline_step(name="predict_step")
+    # def predict_step(self, data_loader: SeanergysDataloader) -> Iterable:
+    #     """Pipeline entry point: delegates to self.predict()."""
+    #     return self.predict(data_loader)
+
+    # def __repr__(self) -> str:
+    #     """
+    #     String representation of the model.
+
+    #     Returns:
+    #         Model description string
+    #     """
+    #     return self.__class__.__name__
+
+    # def summary(self) -> str:
+    #     """
+    #     Get a summary of the model.
+
+    #     Returns:
+    #         Multi-line string with model information
+
+    #     Note:
+    #         Subclasses can override this to provide framework-specific summaries
+    #     """
+    #     created = self.metadata.created_at if self.metadata else "unknown"
+    #     summary_lines = [
+    #         f"Model: {self.model_name}",
+    #         f"Created: {created}",
+    #         f"Is Trained: {self.is_trained}",
+    #     ]
+
+    #     return "\n".join(summary_lines)
