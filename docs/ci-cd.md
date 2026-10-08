@@ -118,6 +118,7 @@ a model or dataset updates this table on the next regeneration.
 | MACK | Classification | FDataDataset | `f-data` | yes |
 | MCBound | Classification | FDataDataset | `f-data` | yes |
 | RUAD | — | — | `—` | no |
+| ScalingPredictor | Regression | ScalingDataset | `scaling` | yes |
 <!-- END:GENERATED capabilities -->
 
 **Legend — the "Tested in CI" column:**
@@ -147,6 +148,7 @@ a **failing test** and a red pipeline.
 | M100Dataset | `—` | yes | no |
 | PM100Dataset | `pm100` | yes | yes |
 | SCRIPTAIDataset | `—` | yes | no |
+| ScalingDataset | `scaling` | yes | yes |
 <!-- END:GENERATED datasets -->
 
 ### Discovered but not exercised — the coverage gaps
