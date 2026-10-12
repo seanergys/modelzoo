@@ -731,3 +731,4 @@ class ScalingPredictor(SeanergysSklearnModel):
             output_features=["Speedup_XZ"],
         )
         return {"scaling": (model, SeanergysDataloader(dataset=scaling, batch_size=1))}
+    
