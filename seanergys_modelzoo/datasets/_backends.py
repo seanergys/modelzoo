@@ -123,7 +123,9 @@ class MinIOBackend:
         region: str = "us-east-1",
     ) -> None:
         self.bucket = bucket
-        self.endpoint_url = endpoint_url or os.getenv("MLFLOW_S3_ENDPOINT_URL", "http://localhost:9000")
+        self.endpoint_url = endpoint_url or os.getenv(
+            "MLFLOW_S3_ENDPOINT_URL", "http://localhost:9000"
+        )
         self.access_key = access_key or os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
         self.secret_key = secret_key or os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
         self.region = region
@@ -176,7 +178,9 @@ class DataplaneBackend:
         page_size: int = 1000,
         timeout: float = 30.0,
     ) -> None:
-        self.base_url = (base_url or os.getenv("DATAPLANE_URL", "http://localhost:8010")).rstrip("/")
+        env_url = os.getenv("DATAPLANE_URL", "http://localhost:8010")
+        resolved_url = base_url or env_url
+        self.base_url = resolved_url.rstrip("/")
         self.snapshot_ttl_seconds = snapshot_ttl_seconds
         self.page_size = page_size
         self.timeout = timeout
@@ -238,7 +242,9 @@ def get_backend(name: str | None, **kwargs) -> DatasetBackend | None:
     if name == "zenodo":
         return ZenodoBackend()
     if name == "minio":
-        bucket = kwargs.pop("bucket", None) or os.getenv("EXAMLOPS_DATA_BUCKET", "examlops-data")
+        bucket = kwargs.pop("bucket", None) or os.getenv(
+            "EXAMLOPS_DATA_BUCKET", "examlops-data"
+        )
         return MinIOBackend(bucket=bucket, **kwargs)
     if name == "dataplane":
         return DataplaneBackend(**kwargs)

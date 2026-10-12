@@ -75,7 +75,11 @@ class SklearnFrameworkAdapter:
     flavour = "sklearn"
 
     def fit(self, model: Any, loader: Any) -> dict:
-        return model.train_step(loader) if hasattr(model, "train_step") else model.train(loader)
+        return (
+            model.train_step(loader)
+            if hasattr(model, "train_step")
+            else model.train(loader)
+        )
 
     def predict(self, model: Any, features: Any) -> Any:
         return model.estimator.predict(features)
@@ -127,7 +131,11 @@ class PyTorchFrameworkAdapter:
 
         model.estimator.eval()
         with torch.no_grad():
-            inputs = features if isinstance(features, torch.Tensor) else torch.as_tensor(features)
+            inputs = (
+                features
+                if isinstance(features, torch.Tensor)
+                else torch.as_tensor(features)
+            )
             outputs = model.estimator(inputs)
             return outputs.cpu().numpy() if hasattr(outputs, "cpu") else outputs
 
@@ -240,7 +248,9 @@ def adapter_for(model: Any) -> SeanergysFrameworkAdapter:
     return get_adapter(flavour)
 
 
-def register_adapter(flavour: str, adapter_cls: type[SeanergysFrameworkAdapter]) -> None:
+def register_adapter(
+    flavour: str, adapter_cls: type[SeanergysFrameworkAdapter]
+) -> None:
     """Register a custom adapter class. Useful for vLLM / Triton / ONNX bases."""
     _ADAPTERS[flavour.lower()] = adapter_cls
 

@@ -21,11 +21,11 @@ Attributes attached to the decorated function:
 from __future__ import annotations
 
 import functools
-from typing import Callable
+from typing import Any, Callable
 
 
 def pipeline_step(
-    name: str = None,
+    name: str | None = None,
     retries: int = 0,
     cache: bool = False,
 ) -> Callable:
@@ -42,15 +42,18 @@ def pipeline_step(
     cache:
         Whether the orchestrator may cache the step's result.
     """
+
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             return fn(*args, **kwargs)
 
-        wrapper._is_pipeline_step = True
-        wrapper._step_name = name or fn.__name__
-        wrapper._step_retries = retries
-        wrapper._step_cache = cache
-        return wrapper
+        # Typed as Any so mypy allows the orchestrator metadata attributes.
+        step: Any = wrapper
+        step._is_pipeline_step = True
+        step._step_name = name or fn.__name__
+        step._step_retries = retries
+        step._step_cache = cache
+        return step
 
     return decorator

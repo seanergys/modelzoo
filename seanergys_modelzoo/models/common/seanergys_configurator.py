@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -69,6 +68,7 @@ class SeanergysDataloaderParams(SeanergysComponentsParams):
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SeanergysDataloaderParams":
         return cls(**data)
+
 
 # class SeanergysModelConfiguration(BaseModel, ABC):
 #     """
