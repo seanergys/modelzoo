@@ -20,7 +20,9 @@ _FILTER_OPS = {
 }
 
 
-def _filter_columns(filters: Optional[Union[List[Tuple], List[List[Tuple]]]]) -> List[str]:
+def _filter_columns(
+    filters: Optional[Union[List[Tuple], List[List[Tuple]]]],
+) -> List[str]:
     if not filters:
         return []
     groups = filters if isinstance(filters[0], list) else [filters]
@@ -62,8 +64,7 @@ class ScalingDataset(SeanergysDataset):
     DATASET_ID: ClassVar[str] = "scaling"
 
     ZENODO_URL: str = (
-        "https://zenodo.org/records/23240872/files/"
-        "scaling_prediction_dataset.parquet"
+        "https://zenodo.org/records/23240872/files/scaling_prediction_dataset.parquet"
     )
 
     use_zenodo_url: bool = Field(
@@ -89,9 +90,7 @@ class ScalingDataset(SeanergysDataset):
             "Inner tuples are ANDed; outer list is ORed."
         ),
     )
-    dummy_rows: int = Field(
-        default=50, description="Rows kept when is_dummy is True."
-    )
+    dummy_rows: int = Field(default=50, description="Rows kept when is_dummy is True.")
     group_column: Optional[str] = Field(
         default="Benchmark",
         description=(
@@ -127,8 +126,10 @@ class ScalingDataset(SeanergysDataset):
         self.metadata.update(
             {
                 "dataset_name": "Scaling Prediction Dataset (Extrapolation)",
-                "source": "Zenodo" if self.data_path == self.ZENODO_URL else "local file",
-                "doi": "10.5281/zenodo.23161749",
+                "source": "Zenodo"
+                if self.data_path == self.ZENODO_URL
+                else "local file",
+                "doi": "10.5281/zenodo.23240872",
             }
         )
 

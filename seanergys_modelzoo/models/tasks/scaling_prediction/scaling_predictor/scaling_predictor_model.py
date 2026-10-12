@@ -2,7 +2,18 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 import joblib
 import numpy as np
@@ -38,7 +49,12 @@ from seanergys_modelzoo.models.common.sklearn_seanergys_model import (
 )
 
 
-SUPPORTED_REGRESSORS: Tuple[str, ...] = ("XGBoost", "RandomForest", "LinearRegression", "SVR")
+SUPPORTED_REGRESSORS: Tuple[str, ...] = (
+    "XGBoost",
+    "RandomForest",
+    "LinearRegression",
+    "SVR",
+)
 
 
 def build_regressor(
@@ -48,7 +64,9 @@ def build_regressor(
     n_jobs: Optional[int] = None,
 ) -> BaseEstimator:
     if model_name == "XGBoost":
-        return XGBRegressor(n_estimators=n_estimators, random_state=random_state, n_jobs=n_jobs)
+        return XGBRegressor(
+            n_estimators=n_estimators, random_state=random_state, n_jobs=n_jobs
+        )
     if model_name == "RandomForest":
         return RandomForestRegressor(
             n_estimators=n_estimators, random_state=random_state, n_jobs=n_jobs
@@ -57,7 +75,9 @@ def build_regressor(
         return LinearRegression()
     if model_name == "SVR":
         return SVR(kernel="rbf")
-    raise ValueError(f"Unknown model_name {model_name!r}. Valid: {list(SUPPORTED_REGRESSORS)}")
+    raise ValueError(
+        f"Unknown model_name {model_name!r}. Valid: {list(SUPPORTED_REGRESSORS)}"
+    )
 
 
 def get_feature_importance(
@@ -90,9 +110,13 @@ def evaluate_grouped_repeated(
     n_splits: int = 50,
     test_size: float = 0.2,
 ) -> Tuple[pd.DataFrame, Dict[str, float]]:
-    splitter = GroupShuffleSplit(n_splits=n_splits, test_size=test_size, random_state=42)
+    splitter = GroupShuffleSplit(
+        n_splits=n_splits, test_size=test_size, random_state=42
+    )
     rows = []
-    for split_id, (train_idx, test_idx) in enumerate(splitter.split(X, y, groups=groups)):
+    for split_id, (train_idx, test_idx) in enumerate(
+        splitter.split(X, y, groups=groups)
+    ):
         fold_model = clone(model)
         fold_model.fit(X[train_idx], y[train_idx])
         predictions = fold_model.predict(X[test_idx])
@@ -146,7 +170,9 @@ class BootstrapFeatureSelector(BaseEstimator, TransformerMixin):
 
         importance_storage = np.empty((self.n_bootstrap, X.shape[1]))
         for k in range(self.n_bootstrap):
-            X_boot, y_boot = resample(X, y, replace=True, random_state=rng.randint(0, 100000))
+            X_boot, y_boot = resample(
+                X, y, replace=True, random_state=rng.randint(0, 100000)
+            )
             current_model = clone(base_model)
             current_model.fit(X_boot, y_boot)
             importance_storage[k] = get_feature_importance(
@@ -155,10 +181,14 @@ class BootstrapFeatureSelector(BaseEstimator, TransformerMixin):
 
         self.mean_importance_ = importance_storage.mean(axis=0)
         self.std_importance_ = importance_storage.std(axis=0)
-        self.feature_stability_ = self.mean_importance_ / (self.std_importance_ + self.epsilon)
+        self.feature_stability_ = self.mean_importance_ / (
+            self.std_importance_ + self.epsilon
+        )
 
         n_select = min(self.n_stable_features, X.shape[1])
-        self.selected_idx_ = np.argsort(self.feature_stability_)[::-1][:n_select].tolist()
+        self.selected_idx_ = np.argsort(self.feature_stability_)[::-1][
+            :n_select
+        ].tolist()
         print(f"Selected {n_select} features:")
         for rank, idx in enumerate(self.selected_idx_, 1):
             print(f"{rank:2d}. {ScalingPredictor.CANDIDATE_FEATURES[idx]}")
@@ -171,7 +201,9 @@ class BootstrapFeatureSelector(BaseEstimator, TransformerMixin):
 
 
 class BootstrapFeatureSelectingXGBRegressor(BaseEstimator, RegressorMixin):
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "BootstrapFeatureSelectingXGBRegressor":
+    def fit(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> "BootstrapFeatureSelectingXGBRegressor":
         raise NotImplementedError(
             "BootstrapFeatureSelectingXGBRegressor is predict-only; train with ScalingPredictor."
         )
@@ -351,7 +383,7 @@ class ScalingPredictor(SeanergysSklearnModel):
         "model_name": "XGBoost",
         "n_estimators": 300,
         "random_state": 42,
-        "n_jobs": None,
+        "n_jobs": 2,
         "n_bootstrap": 100,
         "n_stable_features": 20,
         "epsilon": 1e-8,
@@ -411,7 +443,10 @@ class ScalingPredictor(SeanergysSklearnModel):
                 (
                     "regressor",
                     build_regressor(
-                        hp["model_name"], hp["n_estimators"], hp["random_state"], hp["n_jobs"]
+                        hp["model_name"],
+                        hp["n_estimators"],
+                        hp["random_state"],
+                        hp["n_jobs"],
                     ),
                 ),
             ]
@@ -429,7 +464,9 @@ class ScalingPredictor(SeanergysSklearnModel):
         self.logger.info(f"Starting training {self.model_name}")
         start_time = time.time()
         hp = self.hyperparameters
-        selector: BootstrapFeatureSelector = self.estimator.named_steps["bootstrap_selector"]
+        selector: BootstrapFeatureSelector = self.estimator.named_steps[
+            "bootstrap_selector"
+        ]
         regressor = self.estimator.named_steps["regressor"]
 
         X_train, y_train = self._extract_data_from_loader(train_data_loader)
@@ -442,7 +479,9 @@ class ScalingPredictor(SeanergysSklearnModel):
             X_select, y_select = X_train, y_train
         else:
             X_select, y_select = self._extract_data_from_loader(
-                SeanergysDataloader(dataset=selection_dataset, batch_size=train_data_loader.batch_size)
+                SeanergysDataloader(
+                    dataset=selection_dataset, batch_size=train_data_loader.batch_size
+                )
             )
             y_select = y_select.ravel()
 
@@ -454,7 +493,9 @@ class ScalingPredictor(SeanergysSklearnModel):
         self.logger.info(f"Selected features: {self.selected_features}")
 
         groups = (
-            selection_dataset.get_groups() if hasattr(selection_dataset, "get_groups") else None
+            selection_dataset.get_groups()
+            if hasattr(selection_dataset, "get_groups")
+            else None
         )
         self.estimator.grouped_cv_ = None
         if hp["cv_n_splits"] and groups is not None and len(np.unique(groups)) >= 2:
@@ -504,14 +545,22 @@ class ScalingPredictor(SeanergysSklearnModel):
             t0_val = time.time()
             X_val, y_val = self._extract_data_from_loader(val_data_loader)
             val_preds = self.estimator.predict(X_val)
-            val_metrics_values = {m.__name__: m(y_val, val_preds) for m in validation_metrics}
+            val_metrics_values = {
+                m.__name__: m(y_val, val_preds) for m in validation_metrics
+            }
             val_time = time.time() - t0_val
             self.metadata.set_field("validation_metrics", val_metrics_values)
             self.metadata.set_field("validation_time", val_time)
 
         self.training_history = {
-            "training": {"training_loss": train_loss_value, "training_time": training_time},
-            "validation": {"validation_metrics": val_metrics_values, "validation_time": val_time},
+            "training": {
+                "training_loss": train_loss_value,
+                "training_time": training_time,
+            },
+            "validation": {
+                "validation_metrics": val_metrics_values,
+                "validation_time": val_time,
+            },
             "grouped_cv": self.grouped_cv_summary,
         }
         return self.training_history
@@ -544,7 +593,7 @@ class ScalingPredictor(SeanergysSklearnModel):
     @property
     def feature_stability_table(self) -> Optional[pd.DataFrame]:
         selector = self._selector()
-        if getattr(selector, "mean_importance_", None) is None:
+        if selector is None or getattr(selector, "mean_importance_", None) is None:
             return None
         return pd.DataFrame(
             {
