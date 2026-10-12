@@ -117,7 +117,7 @@ a model or dataset updates this table on the next regeneration.
 | JPCP | Regression | FDataDataset | `f-data` | yes |
 | MACK | Classification | FDataDataset | `f-data` | yes |
 | MCBound | Classification | FDataDataset | `f-data` | yes |
-| RUAD | — | — | `—` | no |
+| RUAD | Classification | M100Dataset | `—` | no |
 | ScalingPredictor | Regression | ScalingDataset | `scaling` | yes |
 <!-- END:GENERATED capabilities -->
 
@@ -145,7 +145,7 @@ a **failing test** and a red pipeline.
 | Dataset | DATASET_ID | is_dummy mode | Exercised by CI |
 | --- | --- | --- | --- |
 | FDataDataset | `f-data` | yes | yes |
-| M100Dataset | `—` | yes | no |
+| M100Dataset | `—` | yes | yes |
 | PM100Dataset | `pm100` | yes | yes |
 | SCRIPTAIDataset | `—` | yes | no |
 | ScalingDataset | `scaling` | yes | yes |
@@ -167,7 +167,6 @@ discovered dataset is genuinely exercised.
 <!-- BEGIN:GENERATED dataset-gaps -->
 | Dataset | What is missing | Why it is not tested | Who closes it, and how |
 | --- | --- | --- | --- |
-| M100Dataset | DATASET_ID (inherits the empty default) and no model lists it in supported_datasets. | M100 is discovered but no model consumes it, so it enters no (model, dataset) configuration and no fixture can be built for it. It is also not a single-parquet source: it downloads per-record tar archives whose telemetry columns vary by plugin/metric and are aligned into a global schema only at index time, so scripts/create_sample_data.py matches neither of its two branches. | The dataset author sets DATASET_ID = "m100" and a model declares M100Dataset in supported_datasets with a get_train_config(dataset_name="m100") entry. A fixture path also needs a create_sample_data.py branch for tar-archive sources. |
 | SCRIPTAIDataset | DATASET_ID (inherits the empty default) and no model lists it in supported_datasets. | SCRIPT-AI is discovered but no model consumes it, so it contributes no test cases. It is served from GitHub rather than Zenodo, and loading it fetches one job-script file per 'jid' in features.csv, so a single sample parquet cannot represent the source either. | The dataset author sets DATASET_ID = "script-ai" and a model declares SCRIPTAIDataset in supported_datasets with a matching get_train_config entry. |
 <!-- END:GENERATED dataset-gaps -->
 
@@ -238,10 +237,11 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L210) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 | `tests/smoke/test_smoke_data.py` | `test_dataset_loads_with_is_dummy` (L229) | CI_SKIP_ZENODO=1 — Zenodo tests disabled for this run. | Runs for real in the `test:zenodo` job (no CI_SKIP_ZENODO); locally run with network. |
 | `tests/smoke/test_smoke_models.py` | `test_model_get_train_config` (L122) | get_train_config() returned None. | Implement get_train_config() in {…} to enable this test. |
-| `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L134) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
+| `tests/unit/generic/test_core_change_requests.py` | `test_request_is_still_open` (L136) | target {…} is not present on this branch, so the request cannot be evaluated he… | {…} |
 | `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L256) | no committed fixture {…}. | Run `make sample-data` to create it. |
 | `tests/unit/generic/test_fixture_provisioning.py` | `test_no_undeclared_fixture_gap_when_downloading_is_disabled` (L290) | the fixture download failed, so this cannot be judged here: {…} | Re-run when the source is reachable, or commit the fixture. |
 | `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L123) | {…} does not persist via joblib | — |
+| `tests/unit/specific/test_scaling_predictor_functional.py` | `test_zenodo_dataset_has_every_candidate_feature_and_target` (L132) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 <!-- END:GENERATED test-skips -->
 
 ---
