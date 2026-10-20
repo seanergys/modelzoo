@@ -10,14 +10,6 @@ from seanergys_modelzoo.datasets.scaling import _apply_filters, _filter_columns
 
 
 class ColocationDataset(SeanergysDataset):
-    """Pairs of co-located HPC benchmarks (A, B) and the speedup of A (``SpeedupA``).
-
-    One row per (BenchmarkA, BenchmarkB) combination: FLOPS, memory traffic,
-    LLC misses/hits and MPI time of each side, plus the target. The file on
-    Zenodo is already shuffled; ``split`` reproduces the notebook's
-    ``full.sample(frac=0.7, random_state=21)`` / ``full.drop(train.index)``.
-    """
-
     DATASET_ID: ClassVar[str] = "colocation"
 
     ZENODO_URL: str = (

@@ -94,7 +94,7 @@ def build_combinations(
     rf_n_estimators: Sequence[int] = tuple(n_estimators_options),
     xgb_n_estimators: Sequence[int] = tuple(xgb_n_estimators_options),
 ) -> Dict[str, List[Dict[str, Any]]]:
-    
+
     rf_combinations = [
         {
             "max_features": mf,
@@ -237,7 +237,7 @@ MODEL_CLASSES: Dict[str, type] = {
 
 TECHNOLOGIES: List[str] = [
     "Random Forests",
-    'Multi-Layer Perceptron',
+    "Multi-Layer Perceptron",
     "Support Vector Machine",
     "Ridge Regression",
     "K-Nearest Neighbors",
@@ -254,7 +254,6 @@ SCALED_MODELS = {
 
 
 def build_model(technology: str, model_params: Dict[str, Any]) -> Any:
-    """Cell 6: the estimator, behind a StandardScaler for the scaled models."""
     model_class = MODEL_CLASSES[technology]
     if technology in SCALED_MODELS:
         return Pipeline(
@@ -373,7 +372,6 @@ def results_table(all_models_info: Dict[str, Dict[str, Any]]) -> List[Dict[str, 
 
 
 class ColocationPredictor(SeanergysSklearnModel):
-
     FEATURES: ClassVar[List[str]] = [
         "FLOPS_A",
         "Memory_A",
@@ -571,7 +569,7 @@ class ColocationPredictor(SeanergysSklearnModel):
     def save(
         self, path: Union[str, Path] = "./saved_model", compress: int = 3, **kwargs
     ) -> bool:
-        
+
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
         estimator_path = path / self.model_name / ".joblib"
@@ -623,7 +621,7 @@ class ColocationPredictor(SeanergysSklearnModel):
         if dataset_name != "colocation":
             raise Exception("Invalid dataset name. Datasets allowed: 'colocation'")
 
-        model = cls(model_hyperparameters=dict(cls.DEFAULT_HYPERPARAMETERS))  # type: ignore[call-arg]
+        model = cls(model_hyperparameters=dict(cls.DEFAULT_HYPERPARAMETERS))
         model.logger.info("Training on the colocation dataset")
 
         ds_params = SeanergysDatasetParams(

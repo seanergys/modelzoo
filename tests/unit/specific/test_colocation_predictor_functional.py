@@ -29,7 +29,6 @@ pytestmark = pytest.mark.skipif(
     not FIXTURE.exists(), reason=f"fixture missing: {FIXTURE}"
 )
 
-# Ridge (full 56-config grid) + XGBoost with n_estimators shrunk to one value.
 FAST = {"technologies": ["Ridge Regression", "XGBoost"], "n_estimators": 5, "n_jobs": 1}
 
 
