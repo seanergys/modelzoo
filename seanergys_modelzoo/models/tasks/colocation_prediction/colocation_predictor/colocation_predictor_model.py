@@ -621,7 +621,11 @@ class ColocationPredictor(SeanergysSklearnModel):
         if dataset_name != "colocation":
             raise Exception("Invalid dataset name. Datasets allowed: 'colocation'")
 
-        model = cls(model_hyperparameters=dict(cls.DEFAULT_HYPERPARAMETERS))
+        model = cls(
+            model_class=Pipeline,
+            task_type=SeanergysModelTask.REGRESSION,
+            model_hyperparameters=dict(cls.DEFAULT_HYPERPARAMETERS),
+        )
         model.logger.info("Training on the colocation dataset")
 
         ds_params = SeanergysDatasetParams(
