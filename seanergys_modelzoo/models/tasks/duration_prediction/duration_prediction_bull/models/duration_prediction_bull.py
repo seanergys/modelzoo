@@ -20,6 +20,7 @@ from typing import Any, Dict, cast
 
 import joblib
 import numpy as np
+import pandas as pd
 from pydantic import model_validator
 
 from seanergys_modelzoo.dataloader.seanergys_dataloader import SeanergysDataloader
@@ -47,6 +48,66 @@ from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bul
 from seanergys_modelzoo.models.tasks.duration_prediction.duration_prediction_bull.preprocessing.duration_preprocessor import (
     DurationPreprocessor,
 )
+
+
+class _DurationEstimator:
+    """joblib-picklable (ensemble, fitted preprocessor) pair.
+
+    This is the `.estimator` surface the generic sklearn-flavoured Slurm
+    pipeline (slurm_submit_task's joblib.dump, the default
+    SklearnFrameworkAdapter used by result_fetch_task, and evaluate_task's
+    `model.estimator.predict(...)`) expects. DurationPredictionBull's own
+    train()/evaluate()/predict() stay DataFrame-based and unaffected â€” this
+    is only a bridge for the pipeline machinery that reaches for `.estimator`
+    directly instead of calling DurationPredictionBull's methods.
+    """
+
+    def __init__(
+        self, model: "DurationModel", preprocessor: "DurationPreprocessor"
+    ) -> None:
+        self.model = model
+        self.preprocessor = preprocessor
+
+    def predict(self, X) -> np.ndarray:
+        """
+        Predict job duration (minutes) from either:
+          - a pandas DataFrame already carrying emb_*/cnumr/nnumr/elpl
+            columns (what evaluate_task's _extract_data_from_loader hands
+            us), or
+          - a flat numpy array / list of rows â€” what Ray Serve's /predict
+            endpoint actually sends: request.features' values flattened, in
+            order, with no column names. Real inference traffic arrives
+            this way, so this method has to accept it directly.
+
+        For the flat-array case, columns are rebuilt in the same order the
+        model was trained on â€” embedding values first, then cnumr, nnumr,
+        elpl â€” using the fitted preprocessor's own record of how many
+        embedding columns there are (self.preprocessor.emb_cols), so the
+        split point doesn't need to be guessed or hardcoded.
+        """
+        if isinstance(X, pd.DataFrame):
+            df = X
+        else:
+            arr = np.asarray(X, dtype=float)
+            if arr.ndim == 1:
+                arr = arr.reshape(1, -1)
+
+            emb_cols = self.preprocessor.emb_cols
+            expected = len(emb_cols) + 3  # + cnumr, nnumr, elpl
+            if arr.shape[1] != expected:
+                raise ValueError(
+                    f"_DurationEstimator.predict expected {expected} columns "
+                    f"(embedding x{len(emb_cols)} + cnumr, nnumr, elpl); "
+                    f"got {arr.shape[1]}"
+                )
+
+            df = pd.DataFrame(arr[:, : len(emb_cols)], columns=emb_cols)
+            df["cnumr"] = arr[:, len(emb_cols)]
+            df["nnumr"] = arr[:, len(emb_cols) + 1]
+            df["elpl"] = arr[:, len(emb_cols) + 2]
+
+        X_processed = self.preprocessor.transform(df)
+        return self.model.predict(X_processed)
 
 
 class DurationPredictionBull(SeanergysModel):
@@ -270,8 +331,30 @@ class DurationPredictionBull(SeanergysModel):
         )
 
         self.is_trained = True
+        self.estimator = _DurationEstimator(self.model, self.preprocessor)
 
         return {}
+
+    def _extract_data_from_loader(self, dataloader: SeanergysDataloader):
+        """
+        Bridge for the generic Slurm/estimator pipeline (evaluate_task,
+        result_fetch_task): __getitem__ can't handle these mixed
+        embedding + scalar input_features (it casts the raw row to float
+        before any transform runs), so â€” same as train()/evaluate() â€” pull
+        straight from the underlying DataFrame instead of iterating items.
+
+        Returns:
+            (pd.DataFrame, np.ndarray): the DataFrame expected by
+            _DurationEstimator.predict(), and targets in minutes (matching
+            evaluate()'s units).
+        """
+        df = dataloader.dataset._df.copy()
+
+        df = prepare_duration_dataframe(df)
+
+        y = df["duration_job"].values.astype(float) / 60.0
+
+        return df, y
 
     @classmethod
     def get_test_config(
@@ -374,7 +457,7 @@ class DurationPredictionBull(SeanergysModel):
 
         df = data_loader.dataset._df.copy()
 
-        df = prepare_duration_dataframe(df)
+        df = prepare_duration_dataframe(df, require_target=False)
 
         X = self.preprocessor.transform(df)
 
