@@ -147,6 +147,7 @@ a **failing test** and a red pipeline.
 | M100Dataset | `—` | yes | yes |
 | PM100Dataset | `pm100` | yes | yes |
 | SCRIPTAIDataset | `—` | yes | no |
+| ScalingDataset | `scaling` | yes | yes |
 <!-- END:GENERATED datasets -->
 
 ### Discovered but not exercised — the coverage gaps
@@ -239,6 +240,7 @@ skips come from `ci/policy.yml` `skip_notes`), so it can never drift from the co
 | `tests/unit/generic/test_discovery_contract.py` | `test_config_loads_offline_from_committed_fixture` (L256) | no committed fixture {…}. | Run `make sample-data` to create it. |
 | `tests/unit/generic/test_fixture_provisioning.py` | `test_no_undeclared_fixture_gap_when_downloading_is_disabled` (L290) | the fixture download failed, so this cannot be judged here: {…} | Re-run when the source is reachable, or commit the fixture. |
 | `tests/unit/generic/test_model_lifecycle.py` | `test_save_returns_false_on_write_error` (L123) | {…} does not persist via joblib | — |
+| `tests/unit/specific/test_scaling_predictor_functional.py` | `test_zenodo_dataset_has_every_candidate_feature_and_target` (L132) | Needs a live Zenodo download; deselected by `-m "not zenodo"` and skipped when CI_SKIP_ZENODO=1. | Runs for real in the `test:zenodo` job. |
 <!-- END:GENERATED test-skips -->
 
 ---
