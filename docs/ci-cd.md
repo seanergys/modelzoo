@@ -112,6 +112,7 @@ a model or dataset updates this table on the next regeneration.
 <!-- BEGIN:GENERATED capabilities -->
 | Model | Task | Supported dataset | DATASET_ID | Tested in CI |
 | --- | --- | --- | --- | --- |
+| ColocationPredictor | Regression | ColocationDataset | `colocation` | yes |
 | DurationPredictionBull | Regression | FDataDataset | `f-data` | yes |
 | JPCP | Regression | PM100Dataset | `pm100` | yes |
 | JPCP | Regression | FDataDataset | `f-data` | yes |
@@ -143,6 +144,7 @@ a **failing test** and a red pipeline.
 <!-- BEGIN:GENERATED datasets -->
 | Dataset | DATASET_ID | is_dummy mode | Exercised by CI |
 | --- | --- | --- | --- |
+| ColocationDataset | `colocation` | yes | yes |
 | FDataDataset | `f-data` | yes | yes |
 | M100Dataset | `—` | yes | yes |
 | PM100Dataset | `pm100` | yes | yes |
