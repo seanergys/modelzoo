@@ -118,7 +118,6 @@ a model or dataset updates this table on the next regeneration.
 | MACK | Classification | FDataDataset | `f-data` | yes |
 | MCBound | Classification | FDataDataset | `f-data` | yes |
 | RUAD | Classification | M100Dataset | `—` | no |
-| ScalingPredictor | Regression | ScalingDataset | `scaling` | yes |
 <!-- END:GENERATED capabilities -->
 
 **Legend — the "Tested in CI" column:**

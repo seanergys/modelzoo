@@ -82,28 +82,38 @@ def create_duration_target(
 def prepare_duration_dataframe(
     df: pd.DataFrame,
     embedding_column: str = "embedding",
+    require_target: bool = True,
 ) -> pd.DataFrame:
     """
     Prepare a raw F-DATA dataframe for duration prediction.
 
-    The preparation pipeline expands embedding vectors into
-    individual features and creates the duration prediction target.
+    The preparation pipeline expands embedding vectors into individual
+    features and, when a ground-truth duration is available, creates the
+    duration prediction target.
 
     Args:
         df (pd.DataFrame):
             Raw input dataframe.
         embedding_column (str):
             Name of the column containing embedding vectors.
+        require_target (bool):
+            Whether to build the `duration_job` target column from a raw
+            `duration` column. True for train()/evaluate(), which need a
+            label to fit/score against. False for real inference, where the
+            duration being predicted is by definition not yet known and the
+            input has no `duration` column to build it from.
 
     Returns:
         pd.DataFrame:
-            Prepared dataframe ready for preprocessing and training.
+            Prepared dataframe ready for preprocessing (and training/
+            evaluation when require_target=True).
     """
     df = expand_embeddings(
         df,
         embedding_column=embedding_column,
     )
 
-    df = create_duration_target(df)
+    if require_target:
+        df = create_duration_target(df)
 
     return df
